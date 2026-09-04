@@ -538,6 +538,19 @@ final class BatteryMonitor: ObservableObject {
             appliedPowerMode = .charging
             powerMode = .charging
         }
+        // Slow Charge owns the charger policy while enabled: automations yield to
+        // it and its own switch is locked, so no legitimate bypass can exist —
+        // any hold found at launch is a stale rest hold from a previous session.
+        // Clear it and let the cycle take over, or it deadlocks the whole policy:
+        // the reconcile reads the hold as user bypass, locks the Slow Charge
+        // switch, and the cycle can never arm.
+        if isPluggedIn && slowChargeEnabled && isHold {
+            appliedPowerMode = .charging
+            powerMode = .charging
+            DispatchQueue.global(qos: .userInitiated).async {
+                _ = CLIEngineBridge.disableHoldSync()
+            }
+        }
         // Persisted Slow Charge must re-arm at launch (the didSet never fires for
         // the UserDefaults-seeded initial value). Also normalize the mutually
         // exclusive sub-options in case a stale build persisted both on.
