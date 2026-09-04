@@ -318,6 +318,20 @@ final class BatteryMonitor: ObservableObject {
             setPowerMode(desired, blocksUI: false)
         }
     }
+
+    // Quit button: capture the live bypass state, hand the charger back to macOS
+    // (the status icon stops showing our hold), then terminate. The captured flag
+    // re-engages bypass at the next launch — quitting never leaves effects running.
+    func saveStateAndQuit() {
+        let wasBypassing = isPluggedIn && (isHold || appliedPowerMode == .bypass || powerMode == .bypass)
+        UserDefaults.standard.set(wasBypassing, forKey: "byp_resume_bypass_on_launch")
+        if wasBypassing {
+            DispatchQueue.global(qos: .userInitiated).async {
+                _ = CLIEngineBridge.disableHoldSync()
+            }
+        }
+        NSApplication.shared.terminate(nil)
+    }
     // Per-row master-slider cutoffs: knob position (1 - level) over the menu body
     // disables each feature as it passes down and restores it sliding back up.
     static let masterRowOrder = ["presets", "bypass", "lpm", "threshold", "caffeine", "slowcharge", "settings"]
@@ -559,6 +573,18 @@ final class BatteryMonitor: ObservableObject {
             powerMode = .charging
             DispatchQueue.global(qos: .userInitiated).async {
                 _ = CLIEngineBridge.disableHoldSync()
+            }
+        }
+        // Bypass was active at last quit: the quit button disabled it for the
+        // session; re-engage it now (never over Slow Charge — it owns the policy).
+        if UserDefaults.standard.bool(forKey: "byp_resume_bypass_on_launch") {
+            UserDefaults.standard.set(false, forKey: "byp_resume_bypass_on_launch")
+            if isPluggedIn && !slowChargeEnabled {
+                DispatchQueue.global(qos: .userInitiated).async {
+                    _ = CLIEngineBridge.enableHoldSync()
+                }
+                appliedPowerMode = .bypass
+                powerMode = .bypass
             }
         }
         // Persisted Slow Charge must re-arm at launch (the didSet never fires for
@@ -1014,7 +1040,12 @@ final class BatteryMonitor: ObservableObject {
                 if nowPlugged != wasPlugged { self.updateSlowChargeCycle() }
                 
                 if nowPlugged {
-                    let isBypassActive = ((notChargingReason & 0x01000000) != 0) && abs(amps) < 100 && !isChargingRaw
+                    // At full battery a user-requested bypass shows as plain
+                    // idle/full (NCR 0) — that IS the goal state, so with bypass
+                    // intent set, full-idle counts as holding.
+                    let fullIdle = percentage >= 95 && !isChargingRaw && abs(amps) < 100
+                    let isBypassActive = (((notChargingReason & 0x01000000) != 0) && abs(amps) < 100 && !isChargingRaw) ||
+                                         (appliedPowerMode == .bypass && fullIdle)
                     self.isHold = isBypassActive
                     
                     if isBypassActive || (notChargingReason & 0x01000000) != 0 || isChargingCD == 0 || !isChargingRaw || amps <= 0 {

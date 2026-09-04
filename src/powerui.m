@@ -384,15 +384,19 @@ bool powerui_enable_hold(void) {
                 usleep(100000);
                 kick_kernel_battery_manager();
                 battery_get_info(&bInfo);
+                // At full battery the hold flag never sets (idle/full is already
+                // the goal state: wall runs the laptop, battery resting).
                 bool isHold = (bInfo.acAttached && !bInfo.isCharging &&
-                               ((bInfo.notChargingReason & 0x01000000) != 0) &&
-                               abs(bInfo.amperage) < 100);
+                               abs(bInfo.amperage) < 100 &&
+                               (((bInfo.notChargingReason & 0x01000000) != 0) ||
+                                bInfo.percentage >= 95));
                 if (isHold) return true;
             }
 
             // Return hardware truth
             battery_get_info(&bInfo);
-            return (bInfo.acAttached && !bInfo.isCharging && ((bInfo.notChargingReason & 0x01000000) != 0) && abs(bInfo.amperage) < 100);
+            return (bInfo.acAttached && !bInfo.isCharging && abs(bInfo.amperage) < 100 &&
+                    (((bInfo.notChargingReason & 0x01000000) != 0) || bInfo.percentage >= 95));
         }
     } @catch (NSException *e) { return false; }
 }

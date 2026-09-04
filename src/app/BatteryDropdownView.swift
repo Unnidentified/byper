@@ -182,7 +182,10 @@ struct BatteryDropdownView: View {
                     Spacer(minLength: 4)
                     
                     Button(action: {
-                        NSApplication.shared.terminate(nil)
+                        // Quit = disable the app's effects now, remember them for
+                        // the next launch: mark bypass state, resume charging,
+                        // then terminate (init re-engages if it was active).
+                        monitor.saveStateAndQuit()
                     }) {
                         Image(systemName: "power")
                             .font(.system(size: 10, weight: .bold))

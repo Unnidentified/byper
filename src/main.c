@@ -1352,8 +1352,12 @@ static int handle_verb_on(void) {
 
     // Truth-table verdict: hold is only real with AC attached, charging stopped,
     // NCR 0x01000000 and near-zero flow. Never print a blind checkmark.
+    // At full battery the goal state is already achieved: the wall runs the
+    // laptop with the battery resting (idle/full, NCR 0) - the 0x01000000 flag
+    // never sets there. Accept idle/full at high SoC as hold-achieved.
     bool in_hold = read_ok && bAfter.acAttached && !bAfter.isCharging &&
-                   ((bAfter.notChargingReason & 0x01000000) != 0) && abs(bAfter.amperage) < 100;
+                   abs(bAfter.amperage) < 100 &&
+                   (((bAfter.notChargingReason & 0x01000000) != 0) || bAfter.percentage >= 95);
 
     if (!in_hold) {
         if (isatty(STDOUT_FILENO)) {
