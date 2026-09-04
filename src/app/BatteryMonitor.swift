@@ -638,10 +638,10 @@ final class BatteryMonitor: ObservableObject {
         // caffeinate by itself — it arms the auto-engagement for the next time bypass
         // engages. Only "Always" applies immediately.
         let bypassEngaged = Publishers.CombineLatest3($powerMode, $isHold, $isPluggedIn)
-            .map { mode, hold, plugged -> Bool in
+            .map { [weak self] mode, hold, plugged -> Bool in
                 // A Slow Charge rest hold is not bypass: without this exclusion the
                 // caffeine auto path would latch on every rest window and flap.
-                plugged && (mode == .bypass || (hold && slowPhase != .rest))
+                plugged && (mode == .bypass || (hold && self?.slowPhase != .rest))
             }
             .removeDuplicates()
         caffeineCancellable = Publishers.CombineLatest(
