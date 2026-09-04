@@ -16,7 +16,7 @@ chmod +x "$W"/scripts/*
 
 cd "$W"
 pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper \
-         --version 3.5.0 --install-location /Applications byper-component.pkg
+         --version 2.1.0 --install-location /Applications byper-pkg-component.pkg
 productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
              --resources "$DIR/pkg" byper.pkg
 

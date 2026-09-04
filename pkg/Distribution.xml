@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
-    <title>byper 3.5.0</title>
+    <title>byper 2.1.0</title>
     <organization>com.gefaass</organization>
     <options customize="always" require-scripts="true"/>
     <domains enable_anywhere="true" enable_currentUserHome="false" enable_localSystem="true"/>
@@ -9,7 +9,7 @@
     <choices-outline>
         <line choice="byperApp"/>
     </choices-outline>
-    <choice id="byperApp" title="byper - Charge Bypass and Telemetry" description="Installs byper.app, the SUID-root CLI (byper/byp/chbypass) and shell completions. Running this installer over an existing installation performs a complete uninstall first.">
+    <choice id="byperApp" title="byper" description="The byper app, plus the one small helper it needs to pause charging. If an older version is installed, it and its settings are removed first for a clean install.">
         <pkg-ref id="com.gefaass.byper"/>
     </choice>
     <pkg-ref id="com.gefaass.byper" onConclusion="none">byper-pkg-component.pkg</pkg-ref>
