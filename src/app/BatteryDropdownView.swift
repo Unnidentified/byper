@@ -584,6 +584,8 @@ struct BatteryDropdownView: View {
                         Toggle("", isOn: $monitor.slowChargeAlwaysOn)
                             .labelsHidden()
                             .toggleStyle(CheckmarkToggleStyle())
+                            .disabled(monitor.slowChargeOffOnExit)
+                            .opacity(monitor.slowChargeOffOnExit ? 0.4 : 1)
                             .padding(.trailing, 8)
                     }
                     .padding(.leading, 22)
@@ -598,6 +600,8 @@ struct BatteryDropdownView: View {
                         Toggle("", isOn: $monitor.slowChargeOffOnExit)
                             .labelsHidden()
                             .toggleStyle(CheckmarkToggleStyle())
+                            .disabled(monitor.slowChargeAlwaysOn)
+                            .opacity(monitor.slowChargeAlwaysOn ? 0.4 : 1)
                             .padding(.trailing, 8)
                     }
                     .padding(.leading, 22)
