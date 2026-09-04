@@ -116,16 +116,19 @@ final class BatteryMonitor: ObservableObject {
     // "Always On": the cycle keeps governing the charger whenever plugged and not
     // bypassing — including at full battery (holds it instead of letting macOS
     // idle top-off charge it). Without it the cycle stands down at 100%.
+    // Mutually exclusive with "Off on exit" — checking one clears the other.
     @Published var slowChargeAlwaysOn: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_always") {
         didSet {
+            if slowChargeAlwaysOn && slowChargeOffOnExit { slowChargeOffOnExit = false }
             UserDefaults.standard.set(slowChargeAlwaysOn, forKey: "byp_slow_charge_always")
             updateSlowChargeCycle()
         }
     }
     // "Off on exit": quitting the app resumes normal charging instead of leaving
-    // a rest-phase hold in place.
+    // a rest-phase hold in place. Mutually exclusive with "Always On".
     @Published var slowChargeOffOnExit: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_off_exit") {
         didSet {
+            if slowChargeOffOnExit && slowChargeAlwaysOn { slowChargeAlwaysOn = false }
             UserDefaults.standard.set(slowChargeOffOnExit, forKey: "byp_slow_charge_off_exit")
         }
     }
