@@ -237,6 +237,37 @@ static void print_status_quick(void) {
            info.percentage, state_word, info.amperage, info.wattage, info.temperature, info.pmuConfigured, info.notChargingReason);
 }
 
+static void print_power_breakdown(void) {
+    BatteryInfo info;
+    PowerBreakdown pb;
+    if (!battery_get_info(&info) || !power_sample_breakdown(&pb)) {
+        printf("[FAIL] registers unreadable\n");
+        exit(3);
+    }
+
+    const char *state_word = !info.acAttached ? "on battery" : (pb.is_hold ? "hold" : (info.isCharging ? "charging" : "idle"));
+    printf("state: %s | batt: %d%% | temp: %.1f °C | ncr: 0x%08x\n",
+           state_word, info.percentage, info.temperature, info.notChargingReason);
+
+    if (info.acAttached) {
+        printf("wall:  %.1f W dc-in (PDTR) | adapter: %s (%d W, %+d mA @ %d mV)\n",
+               pb.dc_in_w, info.adapterDesc[0] ? info.adapterDesc : "unknown",
+               info.adapterWatts, info.adapterCurrent_mA, info.adapterVoltage_mV);
+        printf("load:  %.1f W net system (wall - battery)\n", pb.total_system_w);
+    } else {
+        printf("wall:  unplugged\n");
+        printf("load:  %.1f W from battery\n", pb.total_system_w);
+    }
+
+    printf("rails: soc %.2f W (PDBR) | dram %.2f W (PMVR) | pmic %.2f W (PMVC) | ppmc %.2f W (PPMC) | sum %.2f W\n",
+           pb.soc_w, pb.dram_w, pb.pmic_w, pb.pkg_w,
+           (double)(pb.soc_w + pb.dram_w + pb.pmic_w + pb.pkg_w));
+
+    printf("batt:  %+d mA @ %d mV (%+.1f W) | cells %u/%u/%u mV\n",
+           pb.battery_ma, pb.battery_mv, pb.battery_w,
+           pb.cell1_mv, pb.cell2_mv, pb.cell3_mv);
+}
+
 static bool engage_bypass_at_any_percentage(void) {
     bool ok = powerui_enable_hold();
     if (ok) {
@@ -1516,6 +1547,13 @@ int main(int argc, char *argv[]) {
     if (strcmp(cmd, "s") == 0 || strcmp(cmd, "-s") == 0 || strcmp(cmd, "st") == 0 ||
         strcmp(cmd, "status") == 0 || strcmp(cmd, "info") == 0 || strcmp(cmd, "i") == 0) {
         print_status_quick();
+        return 0;
+    }
+
+    // POWER RAILS (p, -p, power, rails)
+    if (strcmp(cmd, "p") == 0 || strcmp(cmd, "-p") == 0 || strcmp(cmd, "power") == 0 ||
+        strcmp(cmd, "rails") == 0) {
+        print_power_breakdown();
         return 0;
     }
 
