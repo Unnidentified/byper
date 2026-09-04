@@ -568,18 +568,24 @@ final class BatteryMonitor: ObservableObject {
                 Publishers.CombineLatest($autoCaffeineOnBypass, bypassEngaged),
                 $caffeineAlwaysOn
             )
-            .scan((prevBypass: false, latched: false, always: caffeineAlwaysOn)) { state, next in
+            .scan((prevBypass: Bool?.none, latched: false, always: caffeineAlwaysOn)) { state, next in
                 let (auto, bypass) = next.0
                 let always = next.1
+                guard let prev = state.prevBypass else {
+                    // First emission seeds with the live bypass state: if bypass is
+                    // ALREADY engaged when the user checks the box, that must not
+                    // count as a rising edge — checking only arms the NEXT engagement.
+                    return (prevBypass: Optional(bypass), latched: false, always: always)
+                }
                 var latched = state.latched
                 if !auto {
                     latched = false
-                } else if bypass && !state.prevBypass {
+                } else if bypass && !prev {
                     latched = true   // rising edge of bypass engagement arms the auto path
                 } else if !bypass {
                     latched = false
                 }
-                return (prevBypass: bypass, latched: latched, always: always)
+                return (prevBypass: Optional(bypass), latched: latched, always: always)
             }
             .map { state -> Bool in
                 var active = state.latched
