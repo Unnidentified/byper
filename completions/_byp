@@ -1,0 +1,47 @@
+#compdef byp chbypass
+
+_byp() {
+    local -a commands
+    commands=(
+        'on:Enable bypass charging (suspend battery charge, 0 mA draw)'
+        'off:Resume normal full-speed battery charging'
+        't:Toggle between bypass hold and normal charging'
+        'mon:Launch interactive live telemetry and power flow monitor'
+        's:Print one-line live status and battery temperature'
+        'lpm:Toggle macOS Low Power Mode (1/0, on/off)'
+        'json:Output machine-readable JSON telemetry'
+        'help:Show command usage and help'
+    )
+
+    _arguments -C \
+        '1: :->command' \
+        '2: :->subcommand' \
+        '*:: :->args'
+
+    case $state in
+        command)
+            _describe -t commands 'byp commands' commands
+            ;;
+        subcommand)
+            case $words[2] in
+                lpm)
+                    local -a lpm_opts
+                    lpm_opts=('1:Enable Low Power Mode' '0:Disable Low Power Mode' 'on:Enable' 'off:Disable')
+                    _describe -t lpm_opts 'lpm state' lpm_opts
+                    ;;
+                json)
+                    local -a json_opts
+                    json_opts=('--watch:Stream NDJSON every second' '-w:Stream NDJSON')
+                    _describe -t json_opts 'json options' json_opts
+                    ;;
+                mon)
+                    local -a mon_opts
+                    mon_opts=('--export:Export session log directly')
+                    _describe -t mon_opts 'mon options' mon_opts
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_byp "$@"

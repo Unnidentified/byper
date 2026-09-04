@@ -1,0 +1,7 @@
+id=macos_ch_bypass
+name=macOS Charge Bypass & Hold Control
+version=v1.0.0
+versionCode=100
+author=gefaass & DeepMind
+description=Low-level SMC charging bypass & hold controller for macOS (supports macOS Golden Gate, Tahoe, Sequoia, Apple Silicon M1-M4 & Intel). Allows manually putting charging on hold or maintaining custom limits at any time.
+minMacOS=12.0

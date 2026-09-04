@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>macOS Battery Icons - Master Assembly Showcase</title>
+<style>
+  :root {
+    --bg: #18191e;
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --card-border: rgba(255, 255, 255, 0.1);
+    --text: #f0f0f5;
+    --text-dim: #9ba0aa;
+    --accent: #0a84ff;
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --red: #ff453a;
+  }
+
+  body.light-theme {
+    --bg: #f5f5f7;
+    --card-bg: #ffffff;
+    --card-border: rgba(0, 0, 0, 0.1);
+    --text: #1d1d1f;
+    --text-dim: #6e6e73;
+    --accent: #0071e3;
+    --green: #34c759;
+    --orange: #ff9500;
+    --red: #ff3b30;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 30px; transition: background 0.3s, color 0.3s; }
+  
+  header { max-width: 1200px; margin: 0 auto 30px auto; display: flex; justify-content: space-between; align-items: center; }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  p.subtitle { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
+  
+  .theme-toggle {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .main-container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+
+  /* Interactive Sandbox */
+  .sandbox-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+
+  .sandbox-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .sandbox-title { font-size: 18px; font-weight: 600; }
+
+  .sandbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 24px;
+    align-items: center;
+  }
+
+  @media (max-width: 800px) {
+    .sandbox-grid { grid-template-columns: 1fr; }
+  }
+
+  .preview-stage {
+    background: rgba(0,0,0,0.25);
+    border-radius: 12px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    position: relative;
+    border: 1px dashed var(--card-border);
+  }
+  body.light-theme .preview-stage { background: rgba(0,0,0,0.03); }
+
+  .icon-display {
+    transform: scale(4);
+    transform-origin: center;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    margin-bottom: 24px;
+    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.25));
+  }
+
+  .stage-info {
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    text-align: center;
+  }
+
+  .controls-box { display: flex; flex-direction: column; gap: 16px; }
+  .control-group { display: flex; flex-direction: column; gap: 8px; }
+  .control-group label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .slider-wrapper { display: flex; align-items: center; gap: 14px; }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    background: var(--card-border);
+    height: 6px;
+    border-radius: 3px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .pct-badge {
+    font-size: 16px;
+    font-weight: 700;
+    width: 48px;
+    text-align: right;
+    font-family: ui-monospace, monospace;
+  }
+
+  .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn-group button {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-group button.active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+
+  /* Catalog Sections */
+  .section-title { font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
+
+  .icon-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 16px 12px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .icon-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+  }
+
+  .icon-card img {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    transform: scale(2);
+    transform-origin: center;
+    margin: 8px 0;
+  }
+
+  .icon-card .label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .sheet-preview-img {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--card-border);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+
+  .tab-nav {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 10px;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--card-bg);
+    color: var(--accent);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>macOS Extracted Battery Icons Assembly</h1>
+    <p class="subtitle">Radius-conforming inner fill with percentage color variance (Red &le; 20%, Orange 21-50%, Green &gt; 50%)</p>
+  </div>
+  <button class="theme-toggle" id="themeToggle">🌓 Toggle Theme</button>
+</header>
+
+<div class="main-container">
+
+  <!-- Interactive Sandbox -->
+  <div class="sandbox-card">
+    <div class="sandbox-header">
+      <div class="sandbox-title">Interactive Battery Renderer & Sandbox</div>
+      <div class="btn-group" id="zoomControls">
+        <button data-zoom="2">2x</button>
+        <button class="active" data-zoom="4">4x</button>
+        <button data-zoom="8">8x</button>
+      </div>
+    </div>
+
+    <div class="sandbox-grid">
+      <div class="preview-stage">
+        <img id="livePreviewImg" class="icon-display" src="standard/dark/2x/battery_100@2x.png" alt="Battery preview">
+        <div class="stage-info" id="stageInfo">standard/dark/2x/battery_100@2x.png (50x28)</div>
+      </div>
+
+      <div class="controls-box">
+        <div class="control-group">
+          <label>Charge Percentage</label>
+          <div class="slider-wrapper">
+            <input type="range" id="pctSlider" min="0" max="100" step="10" value="100">
+            <div class="pct-badge" id="pctBadge">100%</div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>State / Overlay</label>
+          <div class="btn-group" id="stateControls">
+            <button class="active" data-state="normal">Normal</button>
+            <button data-state="charging">Charging (Bolt)</button>
+            <button data-state="plugged">Plugged In (AC)</button>
+            <button data-state="alert">Alert (!)</button>
+            <button data-state="missing">Missing (X)</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>Battery Form Factor</label>
+          <div class="btn-group" id="typeControls">
+            <button class="active" data-type="standard">Standard (12px / 24px)</button>
+            <button data-type="compact">Compact-10 (10px / 20px)</button>
+            <button data-type="ups">UPS Vertical Battery</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label>Theme & Palette</label>
+          <div class="btn-group" id="paletteControls">
+            <button class="active" data-theme="dark">Dark Mode (Color Variance)</button>
+            <button data-theme="light">Light Mode (Color Variance)</button>
+            <button data-theme="colored_dark">macOS Dynamic (Dark)</button>
+            <button data-theme="colored">macOS Dynamic (Light)</button>
+            <button data-theme="monochrome_dark">Monochrome Dark (White)</button>
+            <button data-theme="monochrome_light">Monochrome Light (Black)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Gallery Tabs -->
+  <div>
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="tab-sheets">Master Contact Sheets</button>
+      <button class="tab-btn" data-tab="tab-standard">Standard Battery Catalog</button>
+      <button class="tab-btn" data-tab="tab-compact">Compact Battery-10</button>
+      <button class="tab-btn" data-tab="tab-ups">UPS Battery</button>
+    </div>
+
+    <!-- Tab: Master Sheets -->
+    <div class="tab-content active" id="tab-sheets">
+      <div class="section-title">Overview Contact Sheet</div>
+      <img src="sheets/master_contact_sheet.png" class="sheet-preview-img" alt="Master Contact Sheet">
+    </div>
+
+    <!-- Tab: Standard -->
+    <div class="tab-content" id="tab-standard">
+      <div class="section-title">Standard Battery with Radius-Conforming Fill (50x28 @2x / 25x14 @1x)</div>
+      <div class="icon-grid" id="standardGrid"></div>
+    </div>
+
+    <!-- Tab: Compact -->
+    <div class="tab-content" id="tab-compact">
+      <div class="section-title">Compact 10px Battery (42x24 @2x / 21x12 @1x)</div>
+      <div class="icon-grid" id="compactGrid"></div>
+    </div>
+
+    <!-- Tab: UPS -->
+    <div class="tab-content" id="tab-ups">
+      <div class="section-title">UPS Vertical Battery System (24x32 @2x / 12x16 @1x)</div>
+      <div class="icon-grid" id="upsGrid"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let curPct = 100;
+  let curState = 'normal';
+  let curType = 'standard';
+  let curTheme = 'dark';
+  let curZoom = 4;
+
+  const slider = document.getElementById('pctSlider');
+  const pctBadge = document.getElementById('pctBadge');
+  const previewImg = document.getElementById('livePreviewImg');
+  const stageInfo = document.getElementById('stageInfo');
+
+  function updatePreview() {
+    let path = '';
+    let dims = '';
+    let state = curState;
+    let pct = curPct;
+    let thm = curTheme;
+
+    if (curType === 'standard') {
+      dims = '50x28 (@2x)';
+      if (state === 'normal') {
+        path = `standard/${thm}/2x/battery_${pct}@2x.png`;
+      } else if (state === 'charging') {
+        path = `standard/${thm}/2x/battery_charging_${pct}@2x.png`;
+      } else if (state === 'plugged') {
+        path = `standard/${thm}/2x/battery_plugged_${pct}@2x.png`;
+      } else if (state === 'alert') {
+        path = `standard/${thm}/2x/battery_alert_${pct}@2x.png`;
+      } else if (state === 'missing') {
+        path = `standard/${thm}/2x/battery_missing@2x.png`;
+      }
+    } else if (curType === 'compact') {
+      dims = '42x24 (@2x)';
+      if (state === 'charging') {
+        path = `compact_battery10/${thm}/2x/battery10_charging_${pct}@2x.png`;
+      } else {
+        path = `compact_battery10/${thm}/2x/battery10_${pct}@2x.png`;
+      }
+    } else if (curType === 'ups') {
+      dims = '24x32 (@2x)';
+      if (state === 'charging') {
+        path = `ups/${thm}/2x/ups_charging@2x.png`;
+      } else if (state === 'plugged') {
+        path = `ups/${thm}/2x/ups_charged@2x.png`;
+      } else {
+        path = `ups/${thm}/2x/ups_${pct}@2x.png`;
+      }
+    }
+
+    previewImg.src = path;
+    previewImg.style.transform = `scale(${curZoom})`;
+    stageInfo.textContent = `${path} (${dims})`;
+  }
+
+  slider.addEventListener('input', (e) => {
+    curPct = parseInt(e.target.value);
+    pctBadge.textContent = `${curPct}%`;
+    updatePreview();
+  });
+
+  function setupButtonGroup(containerId, callback) {
+    const container = document.getElementById(containerId);
+    container.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        callback(e.target);
+      }
+    });
+  }
+
+  setupButtonGroup('stateControls', (btn) => {
+    curState = btn.dataset.state;
+    updatePreview();
+  });
+
+  setupButtonGroup('typeControls', (btn) => {
+    curType = btn.dataset.type;
+    updatePreview();
+  });
+
+  setupButtonGroup('paletteControls', (btn) => {
+    curTheme = btn.dataset.theme;
+    updatePreview();
+  });
+
+  setupButtonGroup('zoomControls', (btn) => {
+    curZoom = parseInt(btn.dataset.zoom);
+    previewImg.style.transform = `scale(${curZoom})`;
+  });
+
+  const themeToggle = document.getElementById('themeToggle');
+  themeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  function populateGrid(gridId, basePath, items) {
+    const grid = document.getElementById(gridId);
+    grid.innerHTML = '';
+    items.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'icon-card';
+      card.innerHTML = `
+        <img src="${basePath}/${item.file}" alt="${item.label}">
+        <div class="label">${item.label}</div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  const pcts = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  const stdItems = [];
+  pcts.forEach(p => stdItems.push({ file: `battery_${p}@2x.png`, label: `Normal ${p}%` }));
+  pcts.forEach(p => stdItems.push({ file: `battery_charging_${p}@2x.png`, label: `Bolt ${p}%` }));
+  pcts.forEach(p => stdItems.push({ file: `battery_plugged_${p}@2x.png`, label: `Plug ${p}%` }));
+  [0, 20, 30, 40, 50, 100].forEach(p => stdItems.push({ file: `battery_alert_${p}@2x.png`, label: `Alert ${p}%` }));
+  stdItems.push({ file: `battery_missing@2x.png`, label: `Missing 'X'` });
+
+  populateGrid('standardGrid', 'standard/dark/2x', stdItems);
+
+  const cmpItems = [];
+  pcts.forEach(p => cmpItems.push({ file: `battery10_${p}@2x.png`, label: `Level ${p}%` }));
+  pcts.forEach(p => cmpItems.push({ file: `battery10_charging_${p}@2x.png`, label: `Bolt ${p}%` }));
+  populateGrid('compactGrid', 'compact_battery10/dark/2x', cmpItems);
+
+  const upsItems = [];
+  pcts.forEach(p => upsItems.push({ file: `ups_${p}@2x.png`, label: `Level ${p}%` }));
+  upsItems.push({ file: `ups_charging@2x.png`, label: `Charging` });
+  upsItems.push({ file: `ups_charged@2x.png`, label: `Charged` });
+  populateGrid('upsGrid', 'ups/dark/2x', upsItems);
+
+  updatePreview();
+</script>
+</body>
+</html>

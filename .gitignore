@@ -1,0 +1,11 @@
+# build artifacts
+bin/
+byper.app/
+byp.app/
+*.o
+
+# macOS cruft
+.DS_Store
+
+# agent tool state
+.empryo/
