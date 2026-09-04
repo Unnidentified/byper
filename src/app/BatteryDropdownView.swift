@@ -569,9 +569,11 @@ struct BatteryDropdownView: View {
                         .frame(width: 26.6, alignment: .trailing)
                         .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
                         .padding(.trailing, 5)
-                        // Only one or another: the switch locks while Bypass is engaged
-                        .disabled(!monitor.isPluggedIn || monitor.powerMode == .bypass || monitor.isHold)
-                        .grayscale(!monitor.isPluggedIn || monitor.powerMode == .bypass || monitor.isHold ? 1 : 0)
+                        // Only one or another: locks the instant Bypass is tapped
+                        // (bypassActiveOrPending covers the LLDB apply window,
+                        // during which powerMode has not flipped yet)
+                        .disabled(!monitor.isPluggedIn || monitor.bypassActiveOrPending)
+                        .grayscale(!monitor.isPluggedIn || monitor.bypassActiveOrPending ? 1 : 0)
                         .opacity(!monitor.isPluggedIn ? 0.4 : 1)
                         .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
                 }

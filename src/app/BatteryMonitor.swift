@@ -110,9 +110,9 @@ final class BatteryMonitor: ObservableObject {
     @Published var slowChargeEnabled: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_enabled") {
         didSet {
             // Only one or another: refuse to enable Slow Charge while Bypass is
-            // engaged (UI lockout is first line; this is the backstop — even a
-            // write that slips past the view cannot latch here).
-            if slowChargeEnabled && (appliedPowerMode == .bypass || powerMode == .bypass || isHold) {
+            // engaged OR still applying (the multi-second LLDB window, during
+            // which powerMode/appliedPowerMode have not flipped yet).
+            if slowChargeEnabled && bypassActiveOrPending {
                 slowChargeEnabled = false
                 return
             }
@@ -1095,6 +1095,13 @@ final class BatteryMonitor: ObservableObject {
         }
     }
 
+    // Only one or another: true from the moment a bypass is requested (including
+    // the multi-second CLI/LLDB apply window, when powerMode/appliedPowerMode
+    // still read .charging) until it is disengaged.
+    var bypassActiveOrPending: Bool {
+        powerMode == .bypass || isHold || (isTransitioning && targetPowerMode == .bypass)
+    }
+
     func setPowerMode(_ mode: PowerMode, blocksUI: Bool = true) {
         // Restored from the working backup: no same-mode short-circuit and no
         // isTransitioning guard — both could wedge on stale state and silently
@@ -1103,6 +1110,11 @@ final class BatteryMonitor: ObservableObject {
         // powerMode only flips on apply, but the transition UI/flag is skipped so
         // the slider is never frozen by the bypass milisec timer.
         guard isPluggedIn else { return }
+        // Only one or another: bypass cannot engage while Slow Charge owns the
+        // policy. Refused at the model so every caller (switch, master slider,
+        // App Intents) is covered - the UI lock alone was bypassable during the
+        // LLDB apply window.
+        if mode == .bypass && slowChargeEnabled { return }
 
         counterStart = Date()
         startCounterTicker()
