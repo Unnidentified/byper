@@ -29,4 +29,4 @@ if [ -f "$HOME/Desktop/icon.png" ]; then
 else
     cp byper.pkg "$HOME/Desktop/byper.pkg"
 fi
-echo "[OK] ~/Desktop/byper.pkg"
+echo "[OK] ~/Desktop/byper-installer.pkg"
