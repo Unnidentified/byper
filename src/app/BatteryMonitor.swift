@@ -970,11 +970,18 @@ final class BatteryMonitor: ObservableObject {
                 let nowPlugged = extConn
                 if nowPlugged && !self.lastPluggedState {
                     self.isPluggedIn = true
-                    if self.autoHoldOnPlug || self.lastHoldPriorToUnplug || (self.autoHoldOnDisplay && NSScreen.screens.count > 1) {
+                    // Charger connect alone must NOT engage bypass: only the explicit
+                    // opt-in (autoHoldOnPlug) or the disconnect memory. The display
+                    // automation lives in the screen-change observer — a docked
+                    // display connecting fires it there; AC connecting does not.
+                    if self.autoHoldOnPlug || self.lastHoldPriorToUnplug {
                         self.engageAutoHoldOnPlug()
                     }
                 } else if !nowPlugged && self.lastPluggedState {
-                    self.lastHoldPriorToUnplug = self.isHold
+                    // A Slow Charge rest hold is ours, not user bypass — remembering
+                    // it here made the next charger connect "restore" a bypass the
+                    // user never toggled.
+                    self.lastHoldPriorToUnplug = self.isHold && slowPhase != .rest
                 }
                 let wasPlugged = self.isPluggedIn
                 self.lastPluggedState = nowPlugged
@@ -1029,11 +1036,13 @@ final class BatteryMonitor: ObservableObject {
                         let nowPlugged = (psState == kIOPSACPowerValue)
                         if nowPlugged && !self.lastPluggedState {
                             self.isPluggedIn = true
-                            if self.autoHoldOnPlug || self.lastHoldPriorToUnplug || (self.autoHoldOnDisplay && NSScreen.screens.count > 1) {
+                            // Same rule as the IOKit path: charger connect alone
+                            // never engages bypass — opt-in or disconnect memory only.
+                            if self.autoHoldOnPlug || self.lastHoldPriorToUnplug {
                                 self.engageAutoHoldOnPlug()
                             }
                         } else if !nowPlugged && self.lastPluggedState {
-                            self.lastHoldPriorToUnplug = self.isHold
+                            self.lastHoldPriorToUnplug = self.isHold && slowPhase != .rest
                         }
                         self.lastPluggedState = nowPlugged
                         self.isPluggedIn = nowPlugged

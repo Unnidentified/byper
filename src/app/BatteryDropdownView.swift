@@ -502,13 +502,11 @@ struct BatteryDropdownView: View {
                     .padding(.trailing, 2)
 
                     Toggle("", isOn: Binding(
-                        // armed-auto only lights the master switch on AC; while unplugged
-                        // caffeinate can never engage, so the switch must stay off
-                        get: { monitor.caffeineAlwaysOn || (monitor.autoCaffeineOnBypass && monitor.isPluggedIn) },
-                        set: { val in
-                            monitor.caffeineAlwaysOn = val
-                            monitor.autoCaffeineOnBypass = val
-                        }
+                        // Master = plain Caffeinate (Always) only. It must not touch
+                        // the "Auto Enable on Bypass" arming checkbox — one does not
+                        // mean the other.
+                        get: { monitor.caffeineAlwaysOn },
+                        set: { val in monitor.caffeineAlwaysOn = val }
                     ))
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
