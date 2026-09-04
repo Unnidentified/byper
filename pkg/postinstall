@@ -34,5 +34,14 @@ if ! xcode-select -p >/dev/null 2>&1; then
     fi
 fi
 
+# Debugger permission: attaching lldb to system daemons requires DevToolsSecurity
+# enabled + membership in the _developer group. Without this, debugserver denies
+# the attach ("Not allowed to attach to process") on stock machines.
+/usr/sbin/DevToolsSecurity -enable >/dev/null 2>&1 || true
+GROUPMEMBER=$(stat -f %Su /dev/console)
+if ! dscl . -read /Groups/_developer GroupMembership 2>/dev/null | grep -q "$GROUPMEMBER"; then
+    dscl . -append /Groups/_developer GroupMembership "$GROUPMEMBER" >/dev/null 2>&1 || true
+fi
+
 rm -f /tmp/byp.state
 exit 0
