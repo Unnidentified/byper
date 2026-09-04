@@ -587,7 +587,7 @@ final class BatteryMonitor: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.lastHoldPriorToSleep = self?.isHold ?? false
+            self?.lastHoldPriorToSleep = (self?.isHold ?? false) && self?.slowPhase != .rest
         }
         
         // Per-App Auto Low Power Mode: event-driven window focus tracking (zero CPU polling)
@@ -639,7 +639,9 @@ final class BatteryMonitor: ObservableObject {
         // engages. Only "Always" applies immediately.
         let bypassEngaged = Publishers.CombineLatest3($powerMode, $isHold, $isPluggedIn)
             .map { mode, hold, plugged -> Bool in
-                plugged && (mode == .bypass || hold)
+                // A Slow Charge rest hold is not bypass: without this exclusion the
+                // caffeine auto path would latch on every rest window and flap.
+                plugged && (mode == .bypass || (hold && slowPhase != .rest))
             }
             .removeDuplicates()
         caffeineCancellable = Publishers.CombineLatest(
@@ -1428,6 +1430,10 @@ final class BatteryMonitor: ObservableObject {
     }
 
     func engageAutoHoldOnPlug() {
+        // Slow Charge owns the charger policy while enabled: no automation
+        // (display, plug memory, wake, login, threshold) may engage bypass over
+        // it. The cycle's rest holds are the only holds it should ever see.
+        guard !slowChargeEnabled else { return }
         guard !isTransitioning else { return }
         isTransitioning = true
         transitionStartTime = Date()
