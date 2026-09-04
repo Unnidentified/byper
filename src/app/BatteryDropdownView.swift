@@ -839,9 +839,12 @@ struct MasterPowerSwitch: View {
             Circle()
                 .fill(level > 0.001 ? Color(red: 0.78, green: 0.58, blue: 0.48) : Color(white: 0.60))
                 .frame(width: knob, height: knob)
-                .shadow(color: Color.black.opacity(0.4), radius: 2, x: 0, y: 1)
+                // Subtle inner depth only: a drop shadow here spilled past the rail's
+                // rounded cap and read as a warm halo around the slider tip.
+                .overlay(Circle().stroke(Color.black.opacity(0.18), lineWidth: 1))
                 .offset(y: 4 + (1 - level) * travel)
         }
+        .clipShape(Capsule())
         .frame(width: geo.size.width, height: geo.size.height)
         .animation(.spring(response: 0.30, dampingFraction: 0.7), value: monitor.masterLevel)
         .contentShape(Rectangle())
