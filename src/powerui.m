@@ -77,7 +77,25 @@ static int open_lldb_script(char *path_buf, size_t bufsz) {
 // (SUID install) we can install the tools silently via softwareupdate — the
 // first toggle just takes a few minutes while they download.
 static bool ensure_lldb_available(void) {
-    if (access("/Library/Developer/CommandLineTools/usr/bin/lldb", X_OK) == 0) return true;
+    // Accept ANY working toolchain: the CLT path, or whatever xcode-select
+    // points at (full Xcode installs have no /Library/Developer/CommandLineTools
+    // but a perfectly good lldb — the old CLT-only check locked those out).
+    char cand[640];
+    snprintf(cand, sizeof(cand), "/Library/Developer/CommandLineTools/usr/bin/lldb");
+    if (access(cand, X_OK) == 0) return true;
+
+    char xcodepath[512] = {0};
+    FILE *xp = popen("xcode-select -p 2>/dev/null", "r");
+    if (xp) {
+        if (fgets(xcodepath, sizeof(xcodepath), xp)) {
+            size_t n = strlen(xcodepath);
+            while (n > 0 && (xcodepath[n-1] == '\n' || xcodepath[n-1] == ' ')) xcodepath[--n] = '\0';
+            snprintf(cand, sizeof(cand), "%s/usr/bin/lldb", xcodepath);
+            if (access(cand, X_OK) == 0) { pclose(xp); return true; }
+        }
+        pclose(xp);
+    }
+
     if (geteuid() != 0) return false; // can't self-install unprivileged
 
     char label[256] = {0};
@@ -226,7 +244,12 @@ static void run_lldb_script(const char *script_path) {
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
     posix_spawn_file_actions_adddup2(&actions, pipefd[0], STDIN_FILENO);
-    int devnull = open("/dev/null", O_WRONLY);
+    // Remote diagnostics: BYP_LLDB_DEBUG=1 sends the session transcript to a log
+    // instead of the void — run `BYP_LLDB_DEBUG=1 byper on` on a failing machine
+    // and read /tmp/byp_lldb_debug.log.
+    int devnull = getenv("BYP_LLDB_DEBUG")
+        ? open("/tmp/byp_lldb_debug.log", O_WRONLY | O_CREAT | O_APPEND, 0644)
+        : open("/dev/null", O_WRONLY);
     posix_spawn_file_actions_adddup2(&actions, devnull, STDOUT_FILENO);
     posix_spawn_file_actions_adddup2(&actions, devnull, STDERR_FILENO);
 
