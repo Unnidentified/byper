@@ -334,6 +334,10 @@ final class BatteryMonitor: ObservableObject {
         }
     }
     private var masterRowFractions: [String: Double] = [:]
+    // Enclosure vertical bounds in masterZone space (probed live) — the master
+    // rail clamps itself to exactly these so it never overhangs the enclosure.
+    @Published var masterEnclosureTop: CGFloat = 0
+    @Published var masterEnclosureBottom: CGFloat = 0
     private var masterLevelMoved = false
     func rowBoundaryFraction(_ key: String) -> Double {
         masterRowFractions[key] ?? Self.masterRowBoundary(key)
@@ -351,6 +355,12 @@ final class BatteryMonitor: ObservableObject {
     // when the line reaches them, whatever sections are expanded.
     func updateMasterRowGeometry(_ ys: [String: CGFloat]) {
         guard let h = ys["::height"], h > 1 else { return }
+        // Enclosure bounds drive the master rail's vertical clamping (published so
+        // MasterPowerSwitch re-renders when expandable rows change the height).
+        if let t = ys["::enctop"], let b = ys["::encbottom"], b > t {
+            if masterEnclosureTop != t { masterEnclosureTop = t }
+            if masterEnclosureBottom != b { masterEnclosureBottom = b }
+        }
         var changed = false
         for key in Self.masterRowOrder {
             if let y = ys[key] {

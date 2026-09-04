@@ -785,6 +785,15 @@ struct BatteryDropdownView: View {
                 .padding(.bottom, 10)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.30, green: 0.10, blue: 0.00).opacity(0.14)))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.10), lineWidth: 1))
+                // Report the enclosure's vertical bounds in masterZone space so the
+                // master rail can clamp itself to exactly this height (it used to
+                // overhang the enclosure top and bottom).
+                .background(GeometryReader { g in
+                    Color.clear.preference(key: MasterRowYKey.self, value: [
+                        "::enctop": g.frame(in: .named("masterZone")).minY,
+                        "::encbottom": g.frame(in: .named("masterZone")).maxY,
+                    ])
+                })
                 .padding(.top, 6)
                 }
                   // Master fade covers the whole menu column (graph labels → presets → enclosure)
@@ -912,7 +921,13 @@ struct MasterPowerSwitch: View {
     var body: some View {
         GeometryReader { geo in
         let knob: CGFloat = 20
-        let travel = max(0, geo.size.height - knob - 8)
+        // Clamp the rail to the rounded enclosure's vertical bounds (probed live);
+        // fall back to full column height until the first probe lands.
+        let hasEnc = monitor.masterEnclosureBottom > monitor.masterEnclosureTop + 1
+        let topInset: CGFloat = hasEnc ? monitor.masterEnclosureTop : 0
+        let bottomInset: CGFloat = hasEnc ? max(0, geo.size.height - monitor.masterEnclosureBottom) : 0
+        let railHeight = max(0, geo.size.height - topInset - bottomInset)
+        let travel = max(0, railHeight - knob - 8)
         let level = monitor.masterLevel
         ZStack(alignment: .top) {
             Capsule()
@@ -928,7 +943,8 @@ struct MasterPowerSwitch: View {
                 .offset(y: 4 + (1 - level) * travel)
         }
         .clipShape(Capsule())
-        .frame(width: geo.size.width, height: geo.size.height)
+        .frame(width: geo.size.width, height: railHeight)
+        .offset(y: topInset)
         .animation(.spring(response: 0.30, dampingFraction: 0.7), value: monitor.masterLevel)
         .contentShape(Rectangle())
         .gesture(
@@ -937,14 +953,14 @@ struct MasterPowerSwitch: View {
                 .onChanged { g in
                     monitor.isDraggingMaster = true
                     guard !monitor.isTransitioning else { return }
-                    let travel = max(1, geo.size.height - 28)
-                    let frac = 1 - min(max((g.location.y - 14) / travel, 0), 1)
+                    let travel = max(1, railHeight - 28)
+                    let frac = 1 - min(max((g.location.y - topInset - 14) / travel, 0), 1)
                     monitor.setMasterLevel(frac > 0.9 ? 1 : frac)
                   }
                   .onEnded { g in
                       guard !monitor.isTransitioning else { monitor.finishMasterDrag(); return }
-                      let travel = max(1, geo.size.height - 28)
-                    let frac = 1 - min(max((g.location.y - 14) / travel, 0), 1)
+                      let travel = max(1, railHeight - 28)
+                    let frac = 1 - min(max((g.location.y - topInset - 14) / travel, 0), 1)
                     monitor.setMasterLevel(frac >= 0.9 ? 1 : (frac <= 0.1 ? 0 : frac))
                       monitor.finishMasterDrag()
                   }
