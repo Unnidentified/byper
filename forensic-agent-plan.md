@@ -25,7 +25,7 @@ Amendments happen only by editing this file between runs, never by improvising d
 - **companion GUI:** src/app/ (SwiftUI menu bar application `byper.app`).
 
 ## 3. PROJECT FACTS
-- **Root:** /Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2
+- **Root:** /Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2 (working copy; original lives at /Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2)
 - **Source Layout:**
   - `src/main.c`, `src/powerui.m` (PowerUI & LLDB bridge), `src/power.c`, `src/battery.c`, `src/smc.c`
   - `src/app/` (`AppDelegate.swift`, `BatteryDropdownView.swift`, `BatteryMonitor.swift`, `BatteryAssetResolver.swift`, `CLIEngineBridge.swift`, `ByperIntents.swift`)

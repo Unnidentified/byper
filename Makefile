@@ -77,6 +77,7 @@ install: all
 	@sudo rm -rf /Applications/byp.app /Applications/byper.app
 	@sudo cp -R $(APP_NAME) /Applications/byper.app
 	@sudo chown -R root:wheel /Applications/byper.app
+	@sudo chmod 4755 /Applications/byper.app/Contents/Resources/byper
 	@echo "[*] Launching /Applications/byper.app..."
 	@open /Applications/byper.app
 	@/usr/local/bin/byper lpm 0 >/dev/null 2>&1 || true
@@ -85,6 +86,7 @@ install: all
 uninstall:
 	@echo "[*] Removing from /usr/local/bin and /Applications..."
 	@sudo rm -f /usr/local/bin/byper /usr/local/bin/chbypass /usr/local/bin/byp /usr/local/bin/byper-mon.command /usr/local/bin/byp-mon.command /tmp/byp.state
+	@sudo rm -f /usr/local/share/zsh/site-functions/_byper /usr/local/share/zsh/site-functions/_byp /usr/local/share/bash-completion/completions/byper /usr/local/share/bash-completion/completions/byp
 	@sudo rm -rf /Applications/byp.app /Applications/byper.app
 	@echo "[OK] Uninstalled."
 

@@ -73,7 +73,7 @@ Each sample is printed with full timestamps and debug telemetry stacked sequenti
 ## 🛠️ Installation & Updating
 
 ```bash
-cd "/Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2"
+cd "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2"
 sudo ./install.sh
 ```
 Installs both `/usr/local/bin/byp` and `/usr/local/bin/chbypass`.
@@ -90,6 +90,7 @@ make app          # assembles byper.app (CLI + SwiftUI binary, min macOS 11.0 Bi
 # then copy to /Applications and keep the SUID bit on Contents/Resources/byper:
 sudo chown root:wheel /Applications/byper.app/Contents/Resources/byper
 sudo chmod 4755   /Applications/byper.app/Contents/Resources/byper
+# note: sudo ./install.sh and make install re-apply the SUID bit automatically
 ```
 > ⚠️ **SUID is load-bearing**: a non-SUID CLI prints `enabled [✓]` but the SMC write silently fails. If bypass "enables" without engaging, check `ls -la` for `-rwsr-xr-x root:wheel` on both the bundle CLI and `/usr/local/bin/byper`.
 

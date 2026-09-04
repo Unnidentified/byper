@@ -51,6 +51,7 @@ pkill -f "/Applications/byper.app" || true
 sudo rm -rf "$APP_DEST" /Applications/byp.app
 sudo cp -R "$DIR/byper.app" "$APP_DEST"
 sudo chown -R root:wheel "$APP_DEST"
+sudo chmod 4755 "$APP_DEST/Contents/Resources/byper"
 
 sudo rm -f /tmp/byp.state
 
