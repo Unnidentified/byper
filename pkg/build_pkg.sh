@@ -20,13 +20,18 @@ pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper \
 productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
              --resources "$DIR/pkg" byper.pkg
 
-# Brand the .pkg file with the app icon in Finder
-sips -i "$DIR/src/app/AppIcon.icns" >/dev/null 2>&1 || true
+# Brand the .pkg file with the app icon in Finder, deliver to Desktop
+OUT="$HOME/Desktop/byper-installer.pkg"
+rm -f "$HOME/Desktop/byper-installer.pkg" "$HOME/Desktop/byper.pkg"
 if [ -f "$HOME/Desktop/icon.png" ]; then
     sips -i "$HOME/Desktop/icon.png" >/dev/null 2>&1
-    DeRez -only icns "$HOME/Desktop/icon.png" > icon.rsrc 2>/dev/null && \
-    { cp byper.pkg "$HOME/Desktop/byper.pkg"; Rez -append icon.rsrc -o "$HOME/Desktop/byper.pkg" && SetFile -a C "$HOME/Desktop/byper.pkg"; }
+    if DeRez -only icns "$HOME/Desktop/icon.png" > icon.rsrc 2>/dev/null; then
+        cp byper.pkg "$OUT"
+        Rez -append icon.rsrc -o "$OUT" && SetFile -a C "$OUT"
+    else
+        cp byper.pkg "$OUT"
+    fi
 else
-    cp byper.pkg "$HOME/Desktop/byper.pkg"
+    cp byper.pkg "$OUT"
 fi
-echo "[OK] ~/Desktop/byper-installer.pkg"
+echo "[OK] $OUT"
