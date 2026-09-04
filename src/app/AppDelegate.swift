@@ -158,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             monitor.$isCaffeineMenuExpanded
         )
         .merge(with: monitor.$showLoggerInfo)
+        .merge(with: monitor.$isSlowChargeMenuExpanded)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
@@ -254,10 +255,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     // Resume charging on quit if the user opted in — never leave the machine bypassing
-    // with no UI running to undo it.
+    // or resting on a Slow Charge hold with no UI running to undo it.
     func applicationWillTerminate(_ notification: Notification) {
         if monitor.disableBypassOnQuit, monitor.isPluggedIn,
            monitor.appliedPowerMode == .bypass || monitor.isHold {
+            _ = CLIEngineBridge.setPowerModeSync(.charging)
+        } else if monitor.slowChargeEnabled, monitor.slowChargeOffOnExit,
+                  monitor.isPluggedIn, monitor.slowChargeCycleActive {
             _ = CLIEngineBridge.setPowerModeSync(.charging)
         }
     }

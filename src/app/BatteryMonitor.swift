@@ -73,6 +73,7 @@ final class BatteryMonitor: ObservableObject {
     // Auto Bypass at Threshold state
     @Published var isThresholdMenuExpanded: Bool = false
     @Published var isCaffeineMenuExpanded: Bool = false
+    @Published var isSlowChargeMenuExpanded: Bool = false
     @Published var isBypassOptionsExpanded: Bool = false
     // Quit hook: resume charging so the machine is not left bypassing with no UI running
     @Published var disableBypassOnQuit: Bool = UserDefaults.standard.bool(forKey: "byp_disable_bypass_on_quit") {
@@ -102,32 +103,68 @@ final class BatteryMonitor: ObservableObject {
     // Slow Charge: duty-cycled burst charging. SMC charge-rate keys are read-only on
     // Apple Silicon (probed: CHBI write rejected), so a slow net rate is achieved by
     // alternating between hold (0 mA) and charging bursts. Net rate ≈ burst rate ×
-    // burstFraction. Persisted; re-arms on wake/plug events via the normal pipelines.
+    // burstFraction. Persisted; re-arms on plug/mode changes via the pipelines below.
+    // USER BYPASS ALWAYS WINS: appliedPowerMode == .bypass (set only by user actions,
+    // never by the 4s reconcile) suspends the cycle; reconcile-driven powerMode flips
+    // during the rest phase are ignored so the cycle can't self-cancel.
     @Published var slowChargeEnabled: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_enabled") {
         didSet {
             UserDefaults.standard.set(slowChargeEnabled, forKey: "byp_slow_charge_enabled")
             updateSlowChargeCycle()
         }
     }
+    // "Always On": the cycle keeps governing the charger whenever plugged and not
+    // bypassing — including at full battery (holds it instead of letting macOS
+    // idle top-off charge it). Without it the cycle stands down at 100%.
+    @Published var slowChargeAlwaysOn: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_always") {
+        didSet {
+            UserDefaults.standard.set(slowChargeAlwaysOn, forKey: "byp_slow_charge_always")
+            updateSlowChargeCycle()
+        }
+    }
+    // "Off on exit": quitting the app resumes normal charging instead of leaving
+    // a rest-phase hold in place.
+    @Published var slowChargeOffOnExit: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_off_exit") {
+        didSet {
+            UserDefaults.standard.set(slowChargeOffOnExit, forKey: "byp_slow_charge_off_exit")
+        }
+    }
     // Seconds charging per cycle (burst) vs seconds holding per cycle (rest).
     // 20s on / 40s off with a ~2.4A burst ≈ 0.8A net ≈ 10W — "slow charger" pace.
     private let slowBurstSeconds: TimeInterval = 20
     private let slowRestSeconds: TimeInterval = 40
-    private var slowCycleState: Bool = false // true = burst phase active
+    private enum SlowPhase { case idle, burst, rest }
+    private var slowPhase: SlowPhase = .idle
     private var slowCycleTimer: Timer?
+    var slowChargeCycleActive: Bool { slowPhase != .idle }
 
     private func updateSlowChargeCycle() {
+        let wasResting = slowPhase == .rest
         slowCycleTimer?.invalidate()
         slowCycleTimer = nil
-        guard slowChargeEnabled, isPluggedIn, !isTransitioning, powerMode == .charging else {
-            slowCycleState = false
+        let userBypass = appliedPowerMode == .bypass
+        let fullStandDown = !slowChargeAlwaysOn && percentage >= 100
+        guard slowChargeEnabled, isPluggedIn, !isTransitioning, !userBypass, !fullStandDown else {
+            // Stand down: if the cycle left a rest hold engaged and bypass isn't
+            // the reason we're stopping, hand the charger back (full-rate charge).
+            if wasResting && !userBypass {
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    guard self != nil else { return }
+                    _ = CLIEngineBridge.disableHoldSync()
+                }
+            }
+            slowPhase = .idle
             return
         }
         startSlowBurst()
     }
 
     private func startSlowBurst() {
-        slowCycleState = true
+        guard slowChargeEnabled, isPluggedIn, appliedPowerMode != .bypass else {
+            slowPhase = .idle
+            return
+        }
+        slowPhase = .burst
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             _ = CLIEngineBridge.disableHoldSync() // burst: charge at full rate
         }
@@ -139,7 +176,12 @@ final class BatteryMonitor: ObservableObject {
     }
 
     private func startSlowRest() {
-        slowCycleState = false
+        // Bypass engaged mid-burst: it owns the charger (already holding); stand down silently.
+        guard slowChargeEnabled, isPluggedIn, appliedPowerMode != .bypass else {
+            slowPhase = .idle
+            return
+        }
+        slowPhase = .rest
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             _ = CLIEngineBridge.enableHoldSync() // rest: hold at current SoC
         }
@@ -149,6 +191,7 @@ final class BatteryMonitor: ObservableObject {
         RunLoop.main.add(t, forMode: .common)
         slowCycleTimer = t
     }
+
 
     private var focusObserver: NSObjectProtocol?
     private var deactivateObserver: NSObjectProtocol?
@@ -468,6 +511,16 @@ final class BatteryMonitor: ObservableObject {
         if autoHoldAtLogin && isPluggedIn && !isHold {
             engageAutoHoldOnPlug()
         }
+        // Re-seed the last user request from hardware truth: a stale persisted
+        // .bypass (app quit while bypassing, charger since resumed) must not
+        // block automations like Slow Charge for the whole session.
+        if isPluggedIn && appliedPowerMode == .bypass && !isHold && isCharging {
+            appliedPowerMode = .charging
+            powerMode = .charging
+        }
+        // Persisted Slow Charge must re-arm at launch (the didSet never fires for
+        // the UserDefaults-seeded initial value)
+        updateSlowChargeCycle()
         
         let notifName = Notification.Name("NSProcessInfoPowerStateDidChangeNotification")
         powerObserver = NotificationCenter.default.addObserver(
@@ -982,9 +1035,13 @@ final class BatteryMonitor: ObservableObject {
         // Reconcile powerMode when plugged in (never during a pending slider-driven apply)
         if self.isPluggedIn && !pendingEngineApply && !isDraggingMaster {
             if self.isHold {
-                self.powerMode = .bypass
+                // A Slow Charge rest hold is ours, not user bypass — don't let the
+                // reconcile flip the bypass switch on during rest windows.
+                if slowPhase != .rest && powerMode != .bypass {
+                    powerMode = .bypass
+                }
             } else if self.isCharging {
-                self.powerMode = .charging
+                if powerMode != .charging { powerMode = .charging }
             }
         }
         

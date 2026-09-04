@@ -547,6 +547,19 @@ struct BatteryDropdownView: View {
 
                     Spacer()
 
+                    Button(action: {
+                        monitor.isSlowChargeMenuExpanded.toggle()
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.custom("FiraCode-Bold", size: 8.5))
+                            .foregroundColor(Color(white: 0.38))
+                            .rotationEffect(.degrees(monitor.isSlowChargeMenuExpanded ? 90 : 0))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Slow Charge Options")
+                    .padding(.trailing, 2)
+
                     Toggle("", isOn: $monitor.slowChargeEnabled)
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
@@ -561,6 +574,36 @@ struct BatteryDropdownView: View {
                 }
                 .frame(height: 16)
                 .masterRowProbe("slowcharge")
+
+                if monitor.isSlowChargeMenuExpanded {
+                    HStack {
+                        Text("Always On")
+                            .font(.custom("FiraCode-Medium", size: 10.5))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Toggle("", isOn: $monitor.slowChargeAlwaysOn)
+                            .labelsHidden()
+                            .toggleStyle(CheckmarkToggleStyle())
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.leading, 22)
+                    .frame(height: 16)
+                    .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
+
+                    HStack {
+                        Text("Off on exit")
+                            .font(.custom("FiraCode-Medium", size: 10.5))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Toggle("", isOn: $monitor.slowChargeOffOnExit)
+                            .labelsHidden()
+                            .toggleStyle(CheckmarkToggleStyle())
+                            .padding(.trailing, 8)
+                    }
+                    .padding(.leading, 22)
+                    .frame(height: 16)
+                    .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
+                }
 
                 HStack {
                     Button(action: {
