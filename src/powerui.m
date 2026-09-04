@@ -72,6 +72,31 @@ static int open_lldb_script(char *path_buf, size_t bufsz) {
 // cleanup survives the CLI's early exit.
 #define BYP_LLDB_LOCK_PATH "/tmp/byp_lldb.lock"
 
+// Ensure a working lldb exists. On a fresh Mac the Command Line Tools are absent
+// and /usr/bin/lldb is either missing or a stub that pops a GUI dialog. As root
+// (SUID install) we can install the tools silently via softwareupdate — the
+// first toggle just takes a few minutes while they download.
+static bool ensure_lldb_available(void) {
+    if (access("/Library/Developer/CommandLineTools/usr/bin/lldb", X_OK) == 0) return true;
+    if (geteuid() != 0) return false; // can't self-install unprivileged
+
+    char label[256] = {0};
+    FILE *fp = popen("softwareupdate --list 2>/dev/null | awk -F'\\\\*' '/Command Line Tools/{print $1}' | sed 's/^[[:space:]]*//' | head -1", "r");
+    if (fp) {
+        if (fgets(label, sizeof(label), fp)) {
+            size_t n = strlen(label);
+            while (n > 0 && (label[n-1] == '\n' || label[n-1] == ' ')) label[--n] = '\0';
+        }
+        pclose(fp);
+    }
+    if (label[0] == '\0') return false;
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd),
+        "softwareupdate --install \"%s\" --no-scan >/dev/null 2>&1 &", label);
+    system(cmd);
+    return false; // installing asynchronously; this round fails, the next works
+}
+
 // Blocking inline fallback (used only when fork fails): spawn lldb as our own
 // child and wait for it — the pre-fix behavior, kept for robustness.
 static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *script_path) {
@@ -110,6 +135,10 @@ static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *scri
 }
 
 static void run_lldb_script(const char *script_path) {
+    if (!ensure_lldb_available()) {
+        unlink(script_path); // no lldb (install kicked off); verify poll reports truth
+        return;
+    }
     int lock_fd = open(BYP_LLDB_LOCK_PATH, O_RDWR | O_CREAT | O_NOFOLLOW, 0600);
     bool locked = false;
     if (lock_fd >= 0) {

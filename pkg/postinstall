@@ -24,5 +24,15 @@ if [ -f "$APP_RES/completions/byp.bash" ]; then
     cp -f "$APP_RES/completions/byp.bash" /usr/local/share/bash-completion/completions/byp
 fi
 
+# Developer tools: the engine's lldb injection needs them. On a fresh Mac they
+# are absent; install them silently now (no GUI prompt) so the first toggle works.
+if ! xcode-select -p >/dev/null 2>&1; then
+    LABEL=$(softwareupdate --list 2>/dev/null | awk -F'\\*' '/Command Line Tools/ {print $1}' | sed 's/^[[:space:]]*//' | head -1)
+    if [ -n "$LABEL" ]; then
+        echo "Installing developer tools (one-time, a few minutes)..."
+        softwareupdate --install "$LABEL" --no-scan >/dev/null 2>&1 || true
+    fi
+fi
+
 rm -f /tmp/byp.state
 exit 0
