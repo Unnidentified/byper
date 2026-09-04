@@ -1,0 +1,28 @@
+#!/bin/bash
+# byper postinstall: SUID CLI + symlinks + completions
+set -e
+
+CLI_SRC="/Applications/byper.app/Contents/Resources/byper"
+DEST="/usr/local/bin/byper"
+
+mkdir -p /usr/local/bin
+cp -f "$CLI_SRC" "$DEST"
+chown root:wheel "$DEST"
+chmod 4755 "$DEST"
+codesign -s - -f "$DEST" >/dev/null 2>&1 || true
+ln -sf "$DEST" /usr/local/bin/byp
+ln -sf "$DEST" /usr/local/bin/chbypass
+
+APP_RES="/Applications/byper.app/Contents/Resources"
+mkdir -p /usr/local/share/zsh/site-functions /usr/local/share/bash-completion/completions
+if [ -f "$APP_RES/completions/_byp" ]; then
+    cp -f "$APP_RES/completions/_byp" /usr/local/share/zsh/site-functions/_byper
+    cp -f "$APP_RES/completions/_byp" /usr/local/share/zsh/site-functions/_byp
+fi
+if [ -f "$APP_RES/completions/byp.bash" ]; then
+    cp -f "$APP_RES/completions/byp.bash" /usr/local/share/bash-completion/completions/byper
+    cp -f "$APP_RES/completions/byp.bash" /usr/local/share/bash-completion/completions/byp
+fi
+
+rm -f /tmp/byp.state
+exit 0

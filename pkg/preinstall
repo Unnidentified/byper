@@ -1,0 +1,27 @@
+#!/bin/bash
+# byper preinstall: COMPLETE UNINSTALLER
+# If byper is already installed, remove every trace before installing fresh —
+# the installer doubles as the uninstaller: run it again for a clean slate.
+set -e
+
+pkill -f "byper.app/Contents/MacOS/byper" 2>/dev/null || true
+sleep 1
+
+rm -f  /usr/local/bin/byper /usr/local/bin/byp /usr/local/bin/chbypass
+rm -f  /usr/local/bin/byper-mon.command /usr/local/bin/byp-mon.command
+rm -f  /usr/local/bin/chbypass-service
+rm -f  /usr/local/share/zsh/site-functions/_byper /usr/local/share/zsh/site-functions/_byp
+rm -f  /usr/local/share/bash-completion/completions/byper /usr/local/share/bash-completion/completions/byp
+rm -rf /Applications/byper.app /Applications/byp.app
+rm -f  /Library/LaunchDaemons/com.gefaass.chbypass.plist
+rm -f  /tmp/byp.state /tmp/byp_lldb.lock /tmp/byp_lldb_worker.log
+rm -f  /tmp/byp_cmd_*.lldb 2>/dev/null || true
+
+defaults delete com.gefaass.byper 2>/dev/null || true
+killall cfprefsd 2>/dev/null || true
+rm -f  "$HOME/Library/Preferences/com.gefaass.byper.plist"
+rm -rf "$HOME/Library/Saved Application State/com.gefaass.byper.savedState"
+rm -rf "$HOME/Library/Caches/com.gefaass.byper"
+rm -rf "$HOME/Library/HTTPStorages/com.gefaass.byper"
+
+exit 0
