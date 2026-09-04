@@ -109,6 +109,13 @@ final class BatteryMonitor: ObservableObject {
     // during the rest phase are ignored so the cycle can't self-cancel.
     @Published var slowChargeEnabled: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_enabled") {
         didSet {
+            // Only one or another: refuse to enable Slow Charge while Bypass is
+            // engaged (UI lockout is first line; this is the backstop — even a
+            // write that slips past the view cannot latch here).
+            if slowChargeEnabled && (appliedPowerMode == .bypass || powerMode == .bypass || isHold) {
+                slowChargeEnabled = false
+                return
+            }
             UserDefaults.standard.set(slowChargeEnabled, forKey: "byp_slow_charge_enabled")
             updateSlowChargeCycle()
         }
@@ -171,7 +178,9 @@ final class BatteryMonitor: ObservableObject {
     }
 
     private func startSlowBurst() {
-        guard slowChargeEnabled, isPluggedIn, appliedPowerMode != .bypass else {
+        // A hold we don't own (user bypass via appliedPowerMode, or an automation
+        // engage) must never be overridden by a burst. Our own rest hold is fine.
+        guard slowChargeEnabled, isPluggedIn, appliedPowerMode != .bypass, !isHold || slowPhase == .rest else {
             slowPhase = .idle
             return
         }

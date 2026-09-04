@@ -302,6 +302,9 @@ struct BatteryDropdownView: View {
                       Toggle("", isOn: Binding(
                         get: { (monitor.isTransitioning ? (monitor.targetPowerMode ?? monitor.powerMode) : monitor.powerMode) == .bypass },
                         set: { val in
+                            // Only one or another: Bypass cannot engage while Slow
+                            // Charge is enabled (the switch is also visually locked)
+                            guard !(val && monitor.slowChargeEnabled) else { return }
                             onSelectPowerMode?(val ? .bypass : .charging)
                         }
                     ))
@@ -317,7 +320,8 @@ struct BatteryDropdownView: View {
                     .grayscale(monitor.isPluggedIn ? 0 : 1)
                     .opacity(monitor.isPluggedIn ? 1 : 0.4)
                     .padding(.trailing, 5)
-                    .disabled(!monitor.isPluggedIn || monitor.isTransitioning)
+                    .disabled(!monitor.isPluggedIn || monitor.isTransitioning || monitor.slowChargeEnabled)
+                    .opacity(monitor.slowChargeEnabled ? 0.4 : 1)
                     .allowsHitTesting(monitor.masterRowEnabled("bypass"))
                 }
                 .frame(height: 16)
@@ -567,9 +571,10 @@ struct BatteryDropdownView: View {
                         .frame(width: 26.6, alignment: .trailing)
                         .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
                         .padding(.trailing, 5)
-                        .disabled(!monitor.isPluggedIn)
-                        .grayscale(monitor.isPluggedIn ? 0 : 1)
-                        .opacity(monitor.isPluggedIn ? 1 : 0.4)
+                        // Only one or another: the switch locks while Bypass is engaged
+                        .disabled(!monitor.isPluggedIn || monitor.powerMode == .bypass || monitor.isHold)
+                        .grayscale(!monitor.isPluggedIn || monitor.powerMode == .bypass || monitor.isHold ? 1 : 0)
+                        .opacity(!monitor.isPluggedIn ? 0.4 : 1)
                         .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
                 }
                 .frame(height: 16)
@@ -963,6 +968,9 @@ extension View {
 // interpolation, so the enclosure rows use this drawn style instead — same look, spring glide.
 struct SmoothSwitchToggleStyle: ToggleStyle {
     var tint: Color
+    // onTapGesture does NOT honor the .disabled() environment — without this
+    // guard, .disabled() on a Toggle using this style is purely cosmetic.
+    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         ZStack(alignment: configuration.isOn ? .trailing : .leading) {
             Capsule()
@@ -977,7 +985,10 @@ struct SmoothSwitchToggleStyle: ToggleStyle {
         }
         .contentShape(Rectangle())
         .animation(.spring(response: 0.32, dampingFraction: 0.75), value: configuration.isOn)
-        .onTapGesture { configuration.isOn.toggle() }
+        .onTapGesture {
+            guard isEnabled else { return }
+            configuration.isOn.toggle()
+        }
     }
 }
 
