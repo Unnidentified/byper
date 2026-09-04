@@ -212,7 +212,7 @@ struct BatteryDropdownView: View {
                         masterCounterLabel(),
                           alignment: .topLeading
                     )
-                    .padding(.top, 9)
+                    .padding(.top, 22)
 
                     HStack(alignment: .center) {
                         if !monitor.adapterInfo.isEmpty {
@@ -931,9 +931,9 @@ struct MasterPowerSwitch: View {
         let level = monitor.masterLevel
         ZStack(alignment: .top) {
             Capsule()
-                .fill(Color(red: 0.16 + 0.31 * level,   // fades brown progressively;
-                                green: 0.07 + 0.13 * level, // at the bottom it bottoms out at
-                                blue: 0.03 + 0.05 * level)) // dark brown, never grey
+                .fill(Color(red: 0.24 + 0.21 * level,   // fades brown progressively;
+                                green: 0.11 + 0.08 * level, // minimum keeps a clearly
+                                blue: 0.05 + 0.03 * level)) // visible warm tint
             Circle()
                 .fill(level > 0.001 ? Color(red: 0.78, green: 0.58, blue: 0.48) : Color(white: 0.60))
                 .frame(width: knob, height: knob)
