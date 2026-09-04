@@ -74,6 +74,17 @@ struct CLIEngineBridge {
 
     @discardableResult
     static func runCommand(_ args: [String], allowPrompt: Bool = true) -> (output: String, exitCode: Int32) {
+        // Fresh-machine bootstrap: if only the bundled (non-SUID) CLI exists, the
+        // engine runs unprivileged and every hardware command fails after its full
+        // verify window — the old code only offered the admin install AFTER such a
+        // failure (endless counter, then a pointless prompt). Install the SUID
+        // helper up front so the very first command works.
+        if allowPrompt && !isHelperInstalled,
+           let bundled = Bundle.main.path(forResource: "byper", ofType: nil),
+           FileManager.default.isExecutableFile(atPath: bundled) {
+            installHelperWithAdminPrivileges()
+        }
+
         var binaryPath = resolvedCliPath
         if binaryPath == nil && allowPrompt {
             if installHelperWithAdminPrivileges() {

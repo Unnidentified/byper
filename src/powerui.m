@@ -77,12 +77,21 @@ static int open_lldb_script(char *path_buf, size_t bufsz) {
 static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *script_path) {
     char pid_str[16];
     snprintf(pid_str, sizeof(pid_str), "%d", agent_pid);
-    const char *lldb_argv[] = {
+    // Root (SUID install) attaches directly; sudo -S is the non-root dev path.
+    bool as_root = (geteuid() == 0);
+    const char *argv_root[] = {
+        "/usr/bin/lldb", "-p", pid_str,
+        "--batch", "-s", script_path,
+        NULL
+    };
+    const char *argv_sudo[] = {
         "/usr/bin/sudo", "-S",
         "/usr/bin/lldb", "-p", pid_str,
         "--batch", "-s", script_path,
         NULL
     };
+    const char *exec_path = as_root ? argv_root[0] : argv_sudo[0];
+    const char *const *lldb_argv = as_root ? (const char *const *)argv_root : (const char *const *)argv_sudo;
 
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
@@ -92,7 +101,7 @@ static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *scri
     posix_spawn_file_actions_adddup2(&actions, devnull, STDERR_FILENO);
 
     pid_t child;
-    if (posix_spawn(&child, "/usr/bin/sudo", &actions, NULL, (char *const *)lldb_argv, environ) == 0) {
+    if (posix_spawn(&child, exec_path, &actions, NULL, (char *const *)lldb_argv, environ) == 0) {
         int st;
         while (waitpid(child, &st, 0) < 0 && errno == EINTR) {}
     }
@@ -168,12 +177,22 @@ static void run_lldb_script(const char *script_path) {
 
     char pid_str[16];
     snprintf(pid_str, sizeof(pid_str), "%d", agent_pid);
-    const char *lldb_argv[] = {
+    // Root (SUID install) attaches directly — no sudo, no password. The sudo -S
+    // path is only for non-root dev builds.
+    bool as_root = (geteuid() == 0);
+    const char *argv_root[] = {
+        "/usr/bin/lldb", "-p", pid_str,
+        "--batch", "-s", script_path,
+        NULL
+    };
+    const char *argv_sudo[] = {
         "/usr/bin/sudo", "-S",
         "/usr/bin/lldb", "-p", pid_str,
         "--batch", "-s", script_path,
         NULL
     };
+    const char *exec_path = as_root ? argv_root[0] : argv_sudo[0];
+    const char *const *lldb_argv = as_root ? (const char *const *)argv_root : (const char *const *)argv_sudo;
 
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
@@ -183,7 +202,7 @@ static void run_lldb_script(const char *script_path) {
     posix_spawn_file_actions_adddup2(&actions, devnull, STDERR_FILENO);
 
     pid_t child;
-    if (posix_spawn(&child, "/usr/bin/sudo", &actions, NULL, (char *const *)lldb_argv, environ) == 0) {
+    if (posix_spawn(&child, exec_path, &actions, NULL, (char *const *)lldb_argv, environ) == 0) {
         // Reap lldb, but never let a wedged session hold the lock forever:
         // cap the wait at 30 s, then SIGKILL so the next round can proceed.
         int st;
