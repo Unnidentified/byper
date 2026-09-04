@@ -323,6 +323,35 @@ struct BatteryDropdownView: View {
                 .frame(height: 16)
                 .masterRowProbe("bypass")
 
+                // Slow Charge: duty-cycled burst charging (hold/burst alternation)
+                HStack(spacing: 4) {
+                    Image(systemName: "tortoise.fill")
+                        .font(.custom("FiraCode-Regular", size: 10))
+                        .foregroundColor(monitor.slowChargeEnabled ? Self.coolBrownOrange : Color(white: 0.38))
+                        .frame(width: 18, alignment: .center)
+
+                    Text("Slow Charge")
+                        .font(.custom("FiraCode-SemiBold", size: 11))
+                        .foregroundColor(monitor.slowChargeEnabled ? .white : Color(white: 0.38))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Toggle("", isOn: $monitor.slowChargeEnabled)
+                        .labelsHidden()
+                        .scaleEffect(0.70, anchor: .trailing)
+                        // same Docked-right alignment as the bypass row (see comment there)
+                        .frame(width: 26.6, alignment: .trailing)
+                        .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
+                        .padding(.trailing, 5)
+                        .disabled(!monitor.isPluggedIn)
+                        .grayscale(monitor.isPluggedIn ? 0 : 1)
+                        .opacity(monitor.isPluggedIn ? 1 : 0.4)
+                        .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
+                }
+                .frame(height: 16)
+                .masterRowProbe("slowcharge")
+
                 if monitor.isBypassOptionsExpanded {
                     HStack {
                         Text("Off on exit")

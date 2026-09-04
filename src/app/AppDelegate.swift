@@ -26,6 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var cachedImage: NSImage? = nil
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
+    // App Nap opt-out: an LSUIElement app with no visible windows gets its timers
+    // throttled when the display sleeps, which silently killed the threshold
+    // automation (4s poll missed the SoC window). This assertion keeps OUR process
+    // schedulable — it never touches display sleep or powerd.
+    private var napActivity: NSObjectProtocol?
 
     private func registerFonts() {
         guard let fontURL = Bundle.main.url(forResource: "fonts", withExtension: nil) else { return }
@@ -45,6 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerFonts()
         NSApp.setActivationPolicy(.accessory)
+        napActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "byper: threshold automation timer must fire while display is off"
+        )
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         

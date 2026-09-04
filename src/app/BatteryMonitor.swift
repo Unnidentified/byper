@@ -98,6 +98,58 @@ final class BatteryMonitor: ObservableObject {
         }
     }
     private var thresholdSnoozed = false
+
+    // Slow Charge: duty-cycled burst charging. SMC charge-rate keys are read-only on
+    // Apple Silicon (probed: CHBI write rejected), so a slow net rate is achieved by
+    // alternating between hold (0 mA) and charging bursts. Net rate ≈ burst rate ×
+    // burstFraction. Persisted; re-arms on wake/plug events via the normal pipelines.
+    @Published var slowChargeEnabled: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_enabled") {
+        didSet {
+            UserDefaults.standard.set(slowChargeEnabled, forKey: "byp_slow_charge_enabled")
+            updateSlowChargeCycle()
+        }
+    }
+    // Seconds charging per cycle (burst) vs seconds holding per cycle (rest).
+    // 20s on / 40s off with a ~2.4A burst ≈ 0.8A net ≈ 10W — "slow charger" pace.
+    private let slowBurstSeconds: TimeInterval = 20
+    private let slowRestSeconds: TimeInterval = 40
+    private var slowCycleState: Bool = false // true = burst phase active
+    private var slowCycleTimer: Timer?
+
+    private func updateSlowChargeCycle() {
+        slowCycleTimer?.invalidate()
+        slowCycleTimer = nil
+        guard slowChargeEnabled, isPluggedIn, !isTransitioning, powerMode == .charging else {
+            slowCycleState = false
+            return
+        }
+        startSlowBurst()
+    }
+
+    private func startSlowBurst() {
+        slowCycleState = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            _ = CLIEngineBridge.disableHoldSync() // burst: charge at full rate
+        }
+        let t = Timer(timeInterval: slowBurstSeconds, repeats: false) { [weak self] _ in
+            self?.startSlowRest()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        slowCycleTimer = t
+    }
+
+    private func startSlowRest() {
+        slowCycleState = false
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            _ = CLIEngineBridge.enableHoldSync() // rest: hold at current SoC
+        }
+        let t = Timer(timeInterval: slowRestSeconds, repeats: false) { [weak self] _ in
+            self?.startSlowBurst()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        slowCycleTimer = t
+    }
+
     private var focusObserver: NSObjectProtocol?
     private var deactivateObserver: NSObjectProtocol?
     private var hasLoadedInstalledApps = false
@@ -205,11 +257,12 @@ final class BatteryMonitor: ObservableObject {
     }
     // Per-row master-slider cutoffs: knob position (1 - level) over the menu body
     // disables each feature as it passes down and restores it sliding back up.
-    static let masterRowOrder = ["presets", "bypass", "lpm", "threshold", "caffeine", "settings"]
+    static let masterRowOrder = ["presets", "bypass", "slowcharge", "lpm", "threshold", "caffeine", "settings"]
     static func masterRowBoundary(_ key: String) -> Double {
         switch key {
         case "presets": return 0.30
         case "bypass": return 0.10
+        case "slowcharge": return 0.20
         case "lpm": return 0.30
         case "threshold": return 0.50
         case "caffeine": return 0.70
@@ -265,6 +318,7 @@ final class BatteryMonitor: ObservableObject {
         var autoPlug: Bool?
         var autoLogin: Bool?
         var autoDisplay: Bool?
+        var slowCharge: Bool?
     }
     private var masterRowSnapshots: [String: MasterRowSnapshot] = [:]
 
@@ -284,6 +338,9 @@ final class BatteryMonitor: ObservableObject {
     private func disableMasterRow(_ key: String) {
         var snap = masterRowSnapshots[key] ?? MasterRowSnapshot()
         switch key {
+        case "slowcharge":
+            if snap.slowCharge == nil { snap.slowCharge = slowChargeEnabled }
+            withAnimation(.easeInOut(duration: 0.25)) { slowChargeEnabled = false }
         case "bypass":
             if snap.bypass == nil { snap.bypass = powerMode }
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -337,6 +394,8 @@ final class BatteryMonitor: ObservableObject {
     private func restoreMasterRow(_ key: String) {
         guard let snap = masterRowSnapshots.removeValue(forKey: key) else { return }
         switch key {
+        case "slowcharge":
+            if let v = snap.slowCharge { withAnimation(.easeInOut(duration: 0.25)) { slowChargeEnabled = v } }
         case "bypass":
             if snap.bypass == .bypass, isPluggedIn {
                 withAnimation(.easeInOut(duration: 0.25)) {
@@ -833,8 +892,10 @@ final class BatteryMonitor: ObservableObject {
                 } else if !nowPlugged && self.lastPluggedState {
                     self.lastHoldPriorToUnplug = self.isHold
                 }
+                let wasPlugged = self.isPluggedIn
                 self.lastPluggedState = nowPlugged
                 self.isPluggedIn = nowPlugged
+                if nowPlugged != wasPlugged { self.updateSlowChargeCycle() }
                 
                 if nowPlugged {
                     let isBypassActive = ((notChargingReason & 0x01000000) != 0) && abs(amps) < 100 && !isChargingRaw
@@ -979,6 +1040,7 @@ final class BatteryMonitor: ObservableObject {
                 } else {
                     self.pendingEngineApply = false
                 }
+                self.updateSlowChargeCycle()
                 self.refresh()
             }
         }
