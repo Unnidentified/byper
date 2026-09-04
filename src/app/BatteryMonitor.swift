@@ -257,15 +257,15 @@ final class BatteryMonitor: ObservableObject {
     }
     // Per-row master-slider cutoffs: knob position (1 - level) over the menu body
     // disables each feature as it passes down and restores it sliding back up.
-    static let masterRowOrder = ["presets", "bypass", "slowcharge", "lpm", "threshold", "caffeine", "settings"]
+    static let masterRowOrder = ["presets", "bypass", "lpm", "threshold", "caffeine", "slowcharge", "settings"]
     static func masterRowBoundary(_ key: String) -> Double {
         switch key {
         case "presets": return 0.30
         case "bypass": return 0.10
-        case "slowcharge": return 0.20
         case "lpm": return 0.30
         case "threshold": return 0.50
         case "caffeine": return 0.70
+        case "slowcharge": return 0.80
         case "settings": return 0.90
         default: return 1.1
         }
