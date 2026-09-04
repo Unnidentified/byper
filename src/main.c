@@ -1328,15 +1328,19 @@ static int handle_verb_on(void) {
     dot_ctx.stage = 2; // waiting for settle
 
     BatteryInfo bAfter;
+    memset(&bAfter, 0, sizeof(bAfter));
+    bool read_ok = false;
     int max_polls = isatty(STDOUT_FILENO) ? 20 : 8;
     for (int poll = 0; poll < max_polls; poll++) {
         if (battery_get_info(&bAfter)) {
+            read_ok = true;
             if ((bAfter.notChargingReason & 0x01000000) != 0 || !bAfter.isCharging || abs(bAfter.amperage) < 100) {
                 break;
             }
         }
         usleep(50000); // 50ms
     }
+    if (!read_ok) read_ok = battery_get_info(&bAfter);
 
     if (has_thread) {
         dot_ctx.stop = true;
@@ -1345,6 +1349,21 @@ static int handle_verb_on(void) {
 
     gettimeofday(&tv_end, NULL);
     double elapsed_sec = (tv_end.tv_sec - tv_start.tv_sec) + (tv_end.tv_usec - tv_start.tv_usec) / 1000000.0;
+
+    // Truth-table verdict: hold is only real with AC attached, charging stopped,
+    // NCR 0x01000000 and near-zero flow. Never print a blind checkmark.
+    bool in_hold = read_ok && bAfter.acAttached && !bAfter.isCharging &&
+                   ((bAfter.notChargingReason & 0x01000000) != 0) && abs(bAfter.amperage) < 100;
+
+    if (!in_hold) {
+        if (isatty(STDOUT_FILENO)) {
+            printf(CLR_YELLOW "[FAIL]" CLR_RESET " bypass hold not confirmed after " CLR_BRIGHT "%.1f s" CLR_RESET "\n", elapsed_sec);
+        } else {
+            printf("[FAIL] bypass hold not confirmed after %.1f s\n", elapsed_sec);
+        }
+        log_step_record("verb:on", "bypass hold NOT confirmed");
+        return 1;
+    }
 
     if (isatty(STDOUT_FILENO)) {
         printf("bypass charging enabled " CLR_BRIGHT "[✓]" CLR_RESET " " CLR_BRIGHT "%.1f s" CLR_RESET "\n", elapsed_sec);
@@ -1377,15 +1396,19 @@ static int handle_verb_off(void) {
     dot_ctx.stage = 2; // waiting for settle
 
     BatteryInfo bAfter;
+    memset(&bAfter, 0, sizeof(bAfter));
+    bool read_ok = false;
     int max_polls = isatty(STDOUT_FILENO) ? 20 : 8;
     for (int poll = 0; poll < max_polls; poll++) {
         if (battery_get_info(&bAfter)) {
+            read_ok = true;
             if (ok && (bAfter.isCharging || bAfter.notChargingReason == 0 || bAfter.amperage > 0)) {
                 break;
             }
         }
         usleep(50000); // 50ms
     }
+    if (!read_ok) read_ok = battery_get_info(&bAfter);
 
     if (has_thread) {
         dot_ctx.stop = true;
@@ -1394,6 +1417,21 @@ static int handle_verb_off(void) {
 
     gettimeofday(&tv_end, NULL);
     double elapsed_sec = (tv_end.tv_sec - tv_start.tv_sec) + (tv_end.tv_usec - tv_start.tv_usec) / 1000000.0;
+
+    // Truth-table verdict: charging really resumed only with AC attached and
+    // either an active charge or a zero not-charging reason.
+    bool resumed = read_ok && bAfter.acAttached &&
+                   (bAfter.isCharging || bAfter.notChargingReason == 0);
+
+    if (!resumed) {
+        if (isatty(STDOUT_FILENO)) {
+            printf(CLR_YELLOW "[FAIL]" CLR_RESET " charging resume not confirmed after " CLR_BRIGHT "%.1f s" CLR_RESET "\n", elapsed_sec);
+        } else {
+            printf("[FAIL] charging resume not confirmed after %.1f s\n", elapsed_sec);
+        }
+        log_step_record("verb:off", "charging resume NOT confirmed");
+        return 1;
+    }
 
     if (isatty(STDOUT_FILENO)) {
         printf(CLR_GREEN "charging" CLR_RESET " resumed [" CLR_GREEN "%+d mA" CLR_RESET "] " CLR_BRIGHT "%.1f s" CLR_RESET "\n", bAfter.amperage, elapsed_sec);
