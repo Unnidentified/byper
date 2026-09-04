@@ -6,11 +6,23 @@
     <domains enable_anywhere="true" enable_currentUserHome="false" enable_localSystem="true"/>
     <welcome file="Welcome.rtf"/>
     <license file="License.rtf"/>
+    <conclusion file="Conclusion.rtf"/>
     <choices-outline>
-        <line choice="byperApp"/>
+        <line choice="byperUpgrade"/>
+        <line choice="byperUninstall"/>
     </choices-outline>
-    <choice id="byperApp" title="byper" description="The byper app, plus the one small helper it needs to pause charging. If an older version is installed, it and its settings are removed first for a clean install.">
+    <choice id="byperUpgrade"
+            title="Upgrade / clean reinstall (keeps your settings)"
+            description="Installs a fresh copy of byper. Old program files are replaced, your settings are kept. Recommended when updating or fixing a broken install."
+            selected="!choices.byperUninstall.selected">
         <pkg-ref id="com.gefaass.byper"/>
     </choice>
+    <choice id="byperUninstall"
+            title="Uninstall byper (removes everything, including settings)"
+            description="Removes byper completely: the app, its helper, and all of its settings."
+            selected="!choices.byperUpgrade.selected">
+        <pkg-ref id="com.gefaass.byper.uninstall"/>
+    </choice>
     <pkg-ref id="com.gefaass.byper" onConclusion="none">byper-pkg-component.pkg</pkg-ref>
+    <pkg-ref id="com.gefaass.byper.uninstall" onConclusion="none">byper-uninstall-component.pkg</pkg-ref>
 </installer-gui-script>
