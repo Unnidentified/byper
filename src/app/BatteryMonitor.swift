@@ -1154,6 +1154,11 @@ final class BatteryMonitor: ObservableObject {
             DispatchQueue.main.async {
                 self.powerMode = mode
                 self.appliedPowerMode = mode
+                // Never-both invariant: if a race latched Slow Charge while bypass
+                // was applying, bypass wins and the flag clears.
+                if mode == .bypass && self.slowChargeEnabled {
+                    self.slowChargeEnabled = false
+                }
                 if blocksUI {
                     self.isTransitioning = false
                     self.transitionTicker?.invalidate()
@@ -1461,6 +1466,10 @@ final class BatteryMonitor: ObservableObject {
         guard !slowChargeEnabled else { return }
         guard !isTransitioning else { return }
         isTransitioning = true
+        // Declare the apply: bypassActiveOrPending must cover THIS window too,
+        // or the Slow Charge switch stays unlocked while the hold is in flight
+        // and both end up latched (the race that dimmed both switches).
+        targetPowerMode = .bypass
         transitionStartTime = Date()
         transitionMessage = "Holding..."
         startTransitionTicker()
@@ -1497,9 +1506,16 @@ final class BatteryMonitor: ObservableObject {
                 }
                 
                 self.isTransitioning = false
-                    self.transitionTicker?.invalidate()
-                    self.transitionStartTime = nil
+                self.targetPowerMode = nil
+                self.transitionTicker?.invalidate()
+                self.transitionStartTime = nil
                 self.transitionMessage = ""
+                // Bypass won: if a race (enable during the apply window) left the
+                // Slow Charge flag latched, clear it so the never-both invariant
+                // holds in the persisted state, not just in the cycle guards.
+                if self.isHold && self.slowChargeEnabled {
+                    self.slowChargeEnabled = false
+                }
             }
         }
     }
