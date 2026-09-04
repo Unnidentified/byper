@@ -308,10 +308,11 @@ struct BatteryDropdownView: View {
                     .labelsHidden()
                     .scaleEffect(0.70, anchor: .trailing)
                     // clamp the hidden layout footprint (scaleEffect keeps the full
-                    // switch width) so inline numbers never expand the row; offset
-                    // keeps the visual right edge aligned as before
-                    .frame(width: 36)
-                    .offset(x: -7.5)
+                    // switch width) so inline numbers never expand the row. Frame +
+                    // trailing padding align the switch's visual right edge with the
+                    // Docked pill's right edge on the presets row (visual switch =
+                    // 38 x 0.70 = 26.6pt, trailing at the row's 5pt pill padding)
+                    .frame(width: 26.6, alignment: .trailing)
                     .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
                     .grayscale(monitor.isPluggedIn ? 0 : 1)
                     .opacity(monitor.isPluggedIn ? 1 : 0.4)
@@ -379,11 +380,8 @@ struct BatteryDropdownView: View {
                     ))
                     .labelsHidden()
                     .scaleEffect(0.70, anchor: .trailing)
-                    // clamp the hidden layout footprint (scaleEffect keeps the full
-                    // switch width) so inline numbers never expand the row; offset
-                    // keeps the visual right edge aligned as before
-                    .frame(width: 36)
-                    .offset(x: -7.5)
+                    // same Docked-right alignment as the bypass row (see comment there)
+                    .frame(width: 26.6, alignment: .trailing)
                     .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
                     .padding(.trailing, 5)
                 }
@@ -450,11 +448,8 @@ struct BatteryDropdownView: View {
                     Toggle("", isOn: $monitor.autoBypassThresholdEnabled)
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
-                        // clamp the hidden layout footprint (scaleEffect keeps the full
-                        // switch width) so inline numbers never expand the row; offset
-                        // keeps the visual right edge aligned as before
-                        .frame(width: 36)
-                        .offset(x: -7.5)
+                        // same Docked-right alignment as the bypass row (see comment there)
+                        .frame(width: 26.6, alignment: .trailing)
                         .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
                         .padding(.trailing, 5)
                 }
@@ -511,11 +506,8 @@ struct BatteryDropdownView: View {
                     ))
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
-                        // clamp the hidden layout footprint (scaleEffect keeps the full
-                        // switch width) so inline numbers never expand the row; offset
-                        // keeps the visual right edge aligned as before
-                        .frame(width: 36)
-                        .offset(x: -7.5)
+                        // same Docked-right alignment as the bypass row (see comment there)
+                        .frame(width: 26.6, alignment: .trailing)
                         .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
                         .padding(.trailing, 5)
                 }
