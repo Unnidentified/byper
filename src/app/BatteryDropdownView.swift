@@ -325,7 +325,7 @@ struct BatteryDropdownView: View {
 
                 // Slow Charge: duty-cycled burst charging (hold/burst alternation)
                 HStack(spacing: 4) {
-                    Image(systemName: "gauge.with.needle")
+                    Image(systemName: "battery.25percent")
                         .font(.custom("FiraCode-Regular", size: 10))
                         .foregroundColor(monitor.slowChargeEnabled ? Self.coolBrownOrange : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
