@@ -16,7 +16,16 @@ BYP_MON_DEST="/usr/local/bin/byp-mon.command"
 APP_DEST="/Applications/byper.app"
 
 echo "[*] Building native CLI binary and menu bar companion app (byper)..."
-make -C "$DIR" all
+# Building under root leaves root-owned artifacts in the project bundle and
+# every later user-level rebuild fails with "can't write output file". Run the
+# build as the invoking user, and if the script itself was sudo'd, hand the
+# artifacts back afterwards. Only the install steps below need privileges.
+if [ -n "$SUDO_USER" ] && [ "$(id -u)" = "0" ]; then
+    sudo -u "$SUDO_USER" make -C "$DIR" all
+    chown -R "$SUDO_USER" "$DIR/byper.app" "$DIR/bin" 2>/dev/null || true
+else
+    make -C "$DIR" all
+fi
 
 echo "[*] Installing CLI tools to /usr/local/bin..."
 sudo mkdir -p /usr/local/bin

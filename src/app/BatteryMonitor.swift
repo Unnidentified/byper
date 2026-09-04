@@ -116,18 +116,27 @@ final class BatteryMonitor: ObservableObject {
     // "Always On": the cycle keeps governing the charger whenever plugged and not
     // bypassing — including at full battery (holds it instead of letting macOS
     // idle top-off charge it). Without it the cycle stands down at 100%.
-    // Mutually exclusive with "Off on exit": while one is on, the other is locked
-    // in the UI (see BatteryDropdownView) until the first is disabled.
+    // Mutually exclusive with "Off on exit": enabling one while the other is on
+    // is REFUSED at the model level (the UI lock is cosmetic only — custom
+    // ToggleStyle bodies do not reliably honor .disabled()).
     @Published var slowChargeAlwaysOn: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_always") {
         didSet {
+            if slowChargeAlwaysOn && slowChargeOffOnExit {
+                slowChargeAlwaysOn = false // refuse: the other option is active
+                return
+            }
             UserDefaults.standard.set(slowChargeAlwaysOn, forKey: "byp_slow_charge_always")
             updateSlowChargeCycle()
         }
     }
     // "Off on exit": quitting the app resumes normal charging instead of leaving
-    // a rest-phase hold in place.
+    // a rest-phase hold in place. Same mutual exclusion, enforced here too.
     @Published var slowChargeOffOnExit: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_off_exit") {
         didSet {
+            if slowChargeOffOnExit && slowChargeAlwaysOn {
+                slowChargeOffOnExit = false // refuse: the other option is active
+                return
+            }
             UserDefaults.standard.set(slowChargeOffOnExit, forKey: "byp_slow_charge_off_exit")
         }
     }
@@ -521,7 +530,12 @@ final class BatteryMonitor: ObservableObject {
             powerMode = .charging
         }
         // Persisted Slow Charge must re-arm at launch (the didSet never fires for
-        // the UserDefaults-seeded initial value)
+        // the UserDefaults-seeded initial value). Also normalize the mutually
+        // exclusive sub-options in case a stale build persisted both on.
+        if slowChargeAlwaysOn && slowChargeOffOnExit {
+            slowChargeOffOnExit = false
+            UserDefaults.standard.set(false, forKey: "byp_slow_charge_off_exit")
+        }
         updateSlowChargeCycle()
         
         let notifName = Notification.Name("NSProcessInfoPowerStateDidChangeNotification")
