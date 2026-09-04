@@ -805,6 +805,14 @@ struct BatteryDropdownView: View {
         .frame(width: 280)
         .fixedSize(horizontal: true, vertical: false)
           .background(
+            // Near-opaque dark base: the popover appearance is locked dark, but on
+            // light wallpapers the vibrancy bleed made white text invisible. 0.86
+            // keeps a hint of translucency while guaranteeing contrast everywhere.
+            Color(red: 0.11, green: 0.10, blue: 0.10)
+                .opacity(0.86)
+                .ignoresSafeArea()
+          )
+          .background(
             Color(red: 0.47, green: 0.16, blue: 0.00) // #782800 — low-level wash over the whole popover
                 .opacity(0.10)
                 .ignoresSafeArea()
