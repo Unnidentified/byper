@@ -35,14 +35,9 @@ productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
 # Brand the .pkg file with the app icon in Finder, deliver to Desktop
 OUT="$HOME/Desktop/byper-installer.pkg"
 rm -f "$HOME/Desktop/byper-installer.pkg" "$HOME/Desktop/byper.pkg"
-if [ -f "$HOME/Desktop/icon.png" ]; then
-    sips -i "$HOME/Desktop/icon.png" >/dev/null 2>&1
-    if DeRez -only icns "$HOME/Desktop/icon.png" > icon.rsrc 2>/dev/null; then
-        cp byper-installer.pkg "$OUT"
-        Rez -append icon.rsrc -o "$OUT" && SetFile -a C "$OUT"
-    else
-        cp byper-installer.pkg "$OUT"
-    fi
+if DeRez -only icns "$DIR/src/app/AppIcon.icns" > icon.rsrc 2>/dev/null; then
+    cp byper-installer.pkg "$OUT"
+    Rez -append icon.rsrc -o "$OUT" && SetFile -a C "$OUT"
 else
     cp byper-installer.pkg "$OUT"
 fi
