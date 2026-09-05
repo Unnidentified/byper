@@ -36,15 +36,17 @@ productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
 OUT="$HOME/Desktop/byper-installer.pkg"
 rm -f "$HOME/Desktop/byper-installer.pkg" "$HOME/Desktop/byper.pkg"
 cp byper-installer.pkg "$OUT"
-# A raw .icns is a data-fork icon file, so DeRez can't read it directly. Wrap it
-# into a real resource fork with a Rez 'read' statement, DeRez THAT back to Rez
-# source text, then append it as the pkg's custom-icon resource.
-cat > "$W/appicon.rdef" <<REZ
-read 'icns' (128) "appicon.icns";
-REZ
-cp "$DIR/src/app/AppIcon.icns" "$W/appicon.icns"
-if (cd "$W" && Rez appicon.rdef -o appicon.rsrc >/dev/null 2>&1 \
-      && DeRez -only icns appicon.rsrc > icon.rsrc 2>/dev/null); then
-    Rez -append "$W/icon.rsrc" -o "$OUT" && SetFile -a C "$OUT"
+# A raw .icns is a data-fork icon file, and Finder custom icons require resource ID
+# -16455 (kCustomIconResource). Use macOS NSWorkspace to reliably set the custom icon
+# directly from the asset image.
+ICON_SRC="$DIR/assets/icon.png"
+[ ! -f "$ICON_SRC" ] && ICON_SRC="$DIR/src/app/AppIcon.icns"
+if [ -f "$ICON_SRC" ]; then
+    swift -e '
+        import AppKit
+        let args = CommandLine.arguments
+        guard args.count >= 3, let img = NSImage(contentsOfFile: args[1]) else { exit(1) }
+        NSWorkspace.shared.setIcon(img, forFile: args[2], options: [])
+    ' "$ICON_SRC" "$OUT" >/dev/null 2>&1 || true
 fi
 echo "[OK] $OUT"
