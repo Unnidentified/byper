@@ -100,6 +100,7 @@ See [`docs/INSTALL.md`](docs/INSTALL.md) for SUID details, permissions, and shel
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | PowerUIAgent bridge, lldb injection mechanics, SMC registers, state machines |
 | [`docs/INSTALL.md`](docs/INSTALL.md) | PKG installer scripts, source compilation, SUID requirements, uninstallation |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | SUID issues, linker failures, attach-denied troubleshooting, quarantine attributes |
+| [`docs/CUSTOM-FILE-ICONS.md`](docs/CUSTOM-FILE-ICONS.md) | How the pkg's Finder custom icon is set (NSWorkspace), and why Rez/DeRez approaches fail |
 | [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) | SIP boundary (`csrutil enable --without debug`), OS-level debounce limits, supported hardware |
 
 ---
