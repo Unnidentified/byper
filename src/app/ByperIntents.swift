@@ -59,6 +59,7 @@ struct ToggleBypassIntent: AppIntent {
     }
 }
 
+#if !VANILLA
 @available(macOS 13.0, *)
 struct ApplyTravelPresetIntent: AppIntent {
     static var title: LocalizedStringResource = "Apply Travel Preset"
@@ -86,3 +87,4 @@ struct ApplyDeskPresetIntent: AppIntent {
         return .result(dialog: "Docked preset activated")
     }
 }
+#endif

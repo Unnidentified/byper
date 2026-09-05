@@ -246,6 +246,7 @@ struct BatteryDropdownView: View {
 
             // 2. AC Power Bypass Control Section (3-Way Switch: Charging, Disable, Bypass)
 
+                #if !VANILLA
                 // Presets: Travel / Docked — click to activate, click again to restore; long-press a name to rename
                 HStack(spacing: 4) {
                     Image(systemName: "switch.2")
@@ -267,6 +268,7 @@ struct BatteryDropdownView: View {
                 }
                 .frame(height: 16)
                 .masterRowProbe("presets")
+                #endif
 
                 // Rounded enclosure: encompasses all the settings below the presets
                 VStack(alignment: .leading, spacing: 4) {
@@ -418,6 +420,7 @@ struct BatteryDropdownView: View {
                     .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
                 }
 
+                #if !VANILLA
                 // Threshold Menu: Auto Bypass at Battery Threshold
                 HStack(spacing: 4) {
                     Image(systemName: "gauge.with.needle")
@@ -477,6 +480,7 @@ struct BatteryDropdownView: View {
                         .frame(height: 12)
                         .allowsHitTesting(monitor.masterRowEnabled("threshold"))
                 }
+                #endif
 
                 // Caffeinate Menu: Keep screen on (auto with bypass, or always)
                 HStack(spacing: 4) {
@@ -538,6 +542,7 @@ struct BatteryDropdownView: View {
                     .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 }
 
+                #if !VANILLA
                 // Slow Charge: duty-cycled burst charging (hold/burst alternation)
                 HStack(spacing: 4) {
                     Image(systemName: "battery.25percent")
@@ -616,6 +621,7 @@ struct BatteryDropdownView: View {
                     .frame(height: 16)
                     .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
                 }
+                #endif
 
                 HStack {
                     Button(action: {

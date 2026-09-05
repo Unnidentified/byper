@@ -63,6 +63,17 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 - **Diagnostics & Integration:** CSV session recorder to Desktop with live REC timer, global hotkey (`⌘⌥B`), and App Intents for macOS Shortcuts (macOS 13+).
 - **Self-Updater:** Warns when local project build is newer than installed application.
 
+### byper vanilla (2.2.0)
+
+A reduced variant with only the dependable features: **Bypass Charge**, **Powersave** (manual + per-app auto LPM), **Caffeinate**, and **Settings**. Presets, the Threshold automation, and Slow Charge are compiled out — not just hidden.
+
+> [!WARNING]
+> **Known issues in the full build (why vanilla exists):**
+> - **Threshold:** the automation currently only engages while its toggle is *on and freshly armed* — it does not reliably fire afterwards. Treat the Threshold toggle as non-functional for now.
+> - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause). **Do not use the Slow Charge or Threshold toggles** in the full build until fixed — vanilla excludes both.
+
+Build it: `make vanilla && ./pkg/build_pkg_vanilla.sh` — produces `byper-vanilla-installer.pkg` (Finder-branded during the build) and `byper-vanilla-installer.dmg` (icon survives download).
+
 ---
 
 ## Installation

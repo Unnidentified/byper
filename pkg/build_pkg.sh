@@ -20,14 +20,14 @@ chmod +x "$W"/scripts/*
 
 cd "$W"
 pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper \
-         --version 2.1.0 --install-location /Applications byper-pkg-component.pkg
+         --version 2.2.0 --install-location /Applications byper-pkg-component.pkg
 
 # Component 2: uninstaller (no payload, script-only)
 mkdir -p "$W/uninstall-scripts"
 cp "$DIR"/pkg/uninstall-postinstall "$W/uninstall-scripts/postinstall"
 chmod +x "$W"/uninstall-scripts/postinstall
 pkgbuild --nopayload --scripts uninstall-scripts --identifier com.gefaass.byper.uninstall \
-         --version 2.1.0 byper-uninstall-component.pkg
+         --version 2.2.0 byper-uninstall-component.pkg
 
 productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
              --resources "$DIR/pkg" byper-installer.pkg

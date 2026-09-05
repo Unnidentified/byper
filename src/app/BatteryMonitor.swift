@@ -109,6 +109,15 @@ final class BatteryMonitor: ObservableObject {
     // during the rest phase are ignored so the cycle can't self-cancel.
     @Published var slowChargeEnabled: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_enabled") {
         didSet {
+            #if VANILLA
+            // Vanilla build: Slow Charge is not offered (known issue where the
+            // duty cycle re-engages bypass after some time). Force the flag off
+            // so no stale persisted state can ever arm the cycle.
+            if slowChargeEnabled {
+                slowChargeEnabled = false
+                UserDefaults.standard.set(false, forKey: "byp_slow_charge_enabled")
+            }
+            #else
             // Only one or another: refuse to enable Slow Charge while Bypass is
             // engaged OR still applying (the multi-second LLDB window, during
             // which powerMode/appliedPowerMode have not flipped yet).
@@ -116,6 +125,7 @@ final class BatteryMonitor: ObservableObject {
                 slowChargeEnabled = false
                 return
             }
+            #endif
             UserDefaults.standard.set(slowChargeEnabled, forKey: "byp_slow_charge_enabled")
             updateSlowChargeCycle()
         }
@@ -334,9 +344,19 @@ final class BatteryMonitor: ObservableObject {
     }
     // Per-row master-slider cutoffs: knob position (1 - level) over the menu body
     // disables each feature as it passes down and restores it sliding back up.
+    #if VANILLA
+    static let masterRowOrder = ["bypass", "lpm", "caffeine", "settings"]
+    #else
     static let masterRowOrder = ["presets", "bypass", "lpm", "threshold", "caffeine", "slowcharge", "settings"]
+    #endif
     static func masterRowBoundary(_ key: String) -> Double {
         switch key {
+        #if VANILLA
+        case "bypass": return 0.20
+        case "lpm": return 0.45
+        case "caffeine": return 0.70
+        case "settings": return 0.90
+        #else
         case "presets": return 0.30
         case "bypass": return 0.10
         case "lpm": return 0.30
@@ -344,6 +364,7 @@ final class BatteryMonitor: ObservableObject {
         case "caffeine": return 0.70
         case "slowcharge": return 0.80
         case "settings": return 0.90
+        #endif
         default: return 1.1
         }
     }
@@ -590,10 +611,17 @@ final class BatteryMonitor: ObservableObject {
         // Persisted Slow Charge must re-arm at launch (the didSet never fires for
         // the UserDefaults-seeded initial value). Also normalize the mutually
         // exclusive sub-options in case a stale build persisted both on.
+        #if VANILLA
+        if slowChargeEnabled {
+            slowChargeEnabled = false
+            UserDefaults.standard.set(false, forKey: "byp_slow_charge_enabled")
+        }
+        #else
         if slowChargeAlwaysOn && slowChargeOffOnExit {
             slowChargeOffOnExit = false
             UserDefaults.standard.set(false, forKey: "byp_slow_charge_off_exit")
         }
+        #endif
         updateSlowChargeCycle()
         
         let notifName = Notification.Name("NSProcessInfoPowerStateDidChangeNotification")
@@ -1491,6 +1519,14 @@ final class BatteryMonitor: ObservableObject {
     // Auto Bypass at Threshold: engage hold once SoC drops to the configured threshold.
     // Manual resume snoozes the trigger until the battery climbs back above the threshold.
     func checkAutoBypassThreshold() {
+        #if VANILLA
+        // Vanilla build: the threshold automation is not offered (it currently
+        // only engages while this switch is freshly toggled and has known
+        // reliability issues). Stale persisted state must not auto-engage.
+        if autoBypassThresholdEnabled {
+            autoBypassThresholdEnabled = false
+        }
+        #else
         guard autoBypassThresholdEnabled, isPluggedIn else { return }
         // At/below threshold: clear any snooze and engage unless already holding.
         // (The old logic inverted this — it only engaged while ABOVE the threshold,
@@ -1498,6 +1534,7 @@ final class BatteryMonitor: ObservableObject {
         guard percentage <= autoBypassThreshold else { return }
         guard !thresholdSnoozed, !isHold, !isTransitioning else { return }
         engageAutoHoldOnPlug()
+        #endif
     }
 
     func engageAutoHoldOnPlug() {

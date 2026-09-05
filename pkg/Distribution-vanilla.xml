@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1">
+    <title>byper vanilla 2.2.0</title>
+    <organization>com.gefaass</organization>
+    <options customize="always" require-scripts="true"/>
+    <domains enable_anywhere="true" enable_currentUserHome="false" enable_localSystem="true"/>
+    <welcome file="Welcome.rtf"/>
+    <license file="License.rtf"/>
+    <choices-outline>
+        <line choice="byperVanillaUpgrade"/>
+        <line choice="byperVanillaUninstall"/>
+    </choices-outline>
+    <choice id="byperVanillaUpgrade"
+            title="Upgrade / clean reinstall (keeps your settings)"
+            description="Installs a fresh copy of byper vanilla (bypass charge, powersave, caffeinate, settings). Old program files are replaced, your settings are kept."
+            selected="!choices.byperVanillaUninstall.selected">
+        <pkg-ref id="com.gefaass.byper.vanilla"/>
+    </choice>
+    <choice id="byperVanillaUninstall"
+            title="Uninstall byper (removes everything, including settings)"
+            description="Removes byper completely: the app, its helper, and all of its settings."
+            selected="!choices.byperVanillaUpgrade.selected">
+        <pkg-ref id="com.gefaass.byper.uninstall"/>
+    </choice>
+    <pkg-ref id="com.gefaass.byper.vanilla" onConclusion="none">byper-vanilla-component.pkg</pkg-ref>
+    <pkg-ref id="com.gefaass.byper.uninstall" onConclusion="none">byper-vanilla-uninstall-component.pkg</pkg-ref>
+</installer-gui-script>
