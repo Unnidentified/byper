@@ -1,4 +1,10 @@
-# ⚡ byper — macOS Charge Bypass & Power Telemetry Toolkit
+
+
+
+
+<img width="524" height="521" alt="icon" src="https://github.com/user-attachments/assets/cef64c31-00c1-4df0-b52b-0e7601ede0d3" />
+
+# byper — a macOS Charge Bypass & Battery Utility
 
 A native Apple Silicon utility that gives you manual control over battery charging on macOS: hold the battery at its current charge and run the system directly off the AC adapter (0 mA battery draw), plus real-time hardware power telemetry.
 
