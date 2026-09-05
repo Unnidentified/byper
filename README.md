@@ -5,7 +5,7 @@ macOS true charge bypass and hardware battery utility for Apple Silicon (macOS 1
 Hold battery charge at any level and power the system entirely from the AC adapter (0 mA net battery draw). Includes real-time hardware power rail monitoring via a SUID-root CLI and a native SwiftUI menu bar companion.
 
 > [!IMPORTANT]
-> **History note.** Early commits (before the v2.1.0 rewrite) embedded a dev credential in `src/powerui.m`. It was scrubbed from the source **and** the entire git history (force-push); the current tree is clean. If you find an old clone or fork of this repo, treat it as containing the credential.
+> **SIP must be relaxed for bypass to work.** Run `csrutil enable --without debug` in Recovery — see [Prerequisites: System Integrity Protection (SIP)](#prerequisites-system-integrity-protection-sip) below for the full explanation.
 
 ---
 
