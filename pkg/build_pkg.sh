@@ -35,10 +35,16 @@ productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
 # Brand the .pkg file with the app icon in Finder, deliver to Desktop
 OUT="$HOME/Desktop/byper-installer.pkg"
 rm -f "$HOME/Desktop/byper-installer.pkg" "$HOME/Desktop/byper.pkg"
-if DeRez -only icns "$DIR/src/app/AppIcon.icns" > icon.rsrc 2>/dev/null; then
-    cp byper-installer.pkg "$OUT"
-    Rez -append icon.rsrc -o "$OUT" && SetFile -a C "$OUT"
-else
-    cp byper-installer.pkg "$OUT"
+cp byper-installer.pkg "$OUT"
+# A raw .icns is a data-fork icon file, so DeRez can't read it directly. Wrap it
+# into a real resource fork with a Rez 'read' statement, DeRez THAT back to Rez
+# source text, then append it as the pkg's custom-icon resource.
+cat > "$W/appicon.rdef" <<REZ
+read 'icns' (128) "appicon.icns";
+REZ
+cp "$DIR/src/app/AppIcon.icns" "$W/appicon.icns"
+if (cd "$W" && Rez appicon.rdef -o appicon.rsrc >/dev/null 2>&1 \
+      && DeRez -only icns appicon.rsrc > icon.rsrc 2>/dev/null); then
+    Rez -append "$W/icon.rsrc" -o "$OUT" && SetFile -a C "$OUT"
 fi
 echo "[OK] $OUT"
