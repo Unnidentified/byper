@@ -69,7 +69,7 @@ A reduced variant with only the dependable features: **Bypass Charge**, **Powers
 
 > [!WARNING]
 > **Known issues in the full build (why vanilla exists):**
-> - **Threshold:** the automation currently only engages while its toggle is *on and freshly armed* — it does not reliably fire afterwards. Treat the Threshold toggle as non-functional for now.
+> - **Threshold:** the automation usually misses its trigger — even with the toggle on, the hold often doesn't engage when the battery crosses the threshold. Consider it unreliable for now.
 > - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause). **Do not use the Slow Charge or Threshold toggles** in the full build until fixed — vanilla excludes both.
 
 Build it: `make vanilla && ./pkg/build_pkg_vanilla.sh` — produces `byper-vanilla-installer.pkg` (Finder-branded during the build) and `byper-vanilla-installer.dmg` (icon survives download).
