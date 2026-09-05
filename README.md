@@ -1,57 +1,33 @@
-# ⚡ `byp` — macOS Charge Bypass & Hardware Telemetry Toolkit
+# ⚡ byper — macOS Charge Bypass & Power Telemetry Toolkit
 
-A lightweight hardware charge bypass controller and real-time Apple Silicon power telemetry toolkit for macOS.
+A native Apple Silicon utility that gives you manual control over battery charging on macOS: hold the battery at its current charge and run the system directly off the AC adapter (0 mA battery draw), plus real-time hardware power telemetry.
 
-Enables manual control over battery charging inhibition (allowing your MacBook to run directly on AC adapter power with 0 mA battery draw) with a stacked real-time debug monitor and two-switch interactive selector.
+Ships as two halves of one binary:
+
+- **`byper` CLI** (`/usr/local/bin/byper`, symlinked as `byp` / `chbypass`) — C/ObjC engine, SUID root.
+- **`byper.app`** — SwiftUI menu bar companion that wraps the CLI. Replaces the stock battery menu extra with a custom icon, live telemetry, presets, and automations.
+
+> [!IMPORTANT]
+> **Private repository.** The dev-path fallback in `src/powerui.m` embeds a sudo password by design (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#the-bypass-mechanism)). Do not make this repo public without removing it.
 
 ---
 
-## 🚀 Quick Usage
+## Quick usage
 
-### 1. Interactive Selector & Control Switchboard
-Launch the interactive switchboard simply by typing:
 ```bash
-byp
-```
-Shows:
-- **Switch 1:** Bypass / Hold State `[🟢 ON (ACTIVE)]` / `[⚪ OFF (CHARGING)]`
-- **Switch 2:** Live Debug Monitor Stream `[▶ RUNNING]` / `[⏸ PAUSED]`
-- Live battery level, charging mode, net flow, and individual hardware rails.
-
-### 2. Direct CLI Commands
-```bash
-# Engage AC Bypass / On Hold mode (persists in background after closing terminal)
-byp on        # or: byp -on
-
-# Resume normal full charging (100%)
-byp off       # or: byp -off
-
-# Launch stacked timestamped debug telemetry monitor
-byp mon       # or: byp -m
-
-# Instant Hardware Power Rails Breakdown (SoC, DRAM, PMIC, Cells, Top Apps)
-byp p         # or: byp -p
-
-# Quick compact battery status
-byp s         # or: byp -s
-
-# Toggle state
-byp t         # or: byp -t
+byper            # live power + bypass monitor (interactive TUI)
+byper on         # engage bypass / hold: charging stops, system runs on AC
+byper off        # resume normal charging
+byper t          # toggle hold / charging
+byper s          # one-line status summary
+byper p          # hardware power rails breakdown (SoC, DRAM, PMIC, cells, top app)
+byper json       # machine-readable JSON telemetry
+byper mon        # stacked timestamped monitor stream (non-TTY friendly)
 ```
 
----
+When bypass is engaged, closing the terminal does **not** undo it — the hold lives in the hardware until `byper off` (or the app's switch) clears it.
 
-## 🔒 Persistent Background Operation
-
-- When Bypass is enabled (`byp on` or Switch 1 `ON`), **closing the terminal does NOT kill bypass charging**.
-- The bypass state stays active in the hardware/daemon until you explicitly call `byp off`.
-- Closing the terminal or pressing `Ctrl+C` in the monitor terminates **only** the log/debug monitor process.
-
----
-
-## 📊 Stacked Debug Monitor Output (`byp mon`)
-
-Each sample is printed with full timestamps and debug telemetry stacked sequentially:
+Sample monitor output:
 
 ```text
 [16:20:05] #1     Batt: 98% (AC Plugged) | Source: Power Adapter | State: ⏸ ON HOLD (BYPASS)
@@ -59,53 +35,66 @@ Each sample is printed with full timestamps and debug telemetry stacked sequenti
   ├─ Rails:  SoC: 1.67 W | DRAM: 3.43 W | PMIC: 3.28 W | DC-In: 0.26 W
   ├─ Cells:  C1: 4242 mV | C2: 4242 mV | C3: 4236 mV
   └─ Top App: agy (PID: 25764, 93.4% CPU, ~0.49 W)
-───────────────────────────────────────────────────────────────────────────────────────────────
-[16:20:07] #2     Batt: 98% (AC Plugged) | Source: Power Adapter | State: ⏸ ON HOLD (BYPASS)
-  ├─ Flow:   -858 mA | 10.90 W @ 12707 mV | Net Load: 10.90 W | Code: 0x01000000
-  ├─ Rails:  SoC: 1.65 W | DRAM: 3.40 W | PMIC: 3.25 W | DC-In: 0.26 W
-  ├─ Cells:  C1: 4242 mV | C2: 4242 mV | C3: 4236 mV
-  └─ Top App: WindowServer (PID: 415, 9.2% CPU, ~0.05 W)
-───────────────────────────────────────────────────────────────────────────────────────────────
 ```
 
----
+## Installation
 
-## 🛠️ Installation & Updating
+**Recommended:** download `byper-installer.pkg` from Releases and run it. The guided installer offers *Upgrade* (keeps settings) and *Uninstall*; the bypass helper is enabled by an in-app admin prompt on first use, and Command Line Tools (for `lldb`) auto-install if missing.
+
+**From source:**
 
 ```bash
-cd "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2"
-sudo ./install.sh
+make app          # builds bin/byper + byper.app (arm64, min macOS 11)
+sudo ./install.sh # installs CLI to /usr/local/bin + app to /Applications
 ```
-Installs both `/usr/local/bin/byp` and `/usr/local/bin/chbypass`.
 
----
+Details, including shell completions and the SUID requirement: [docs/INSTALL.md](docs/INSTALL.md).
 
-## 🖥️ Menu Bar Companion App (`byper.app`)
+## Menu bar app features
 
-A native SwiftUI menu bar app wraps the CLI (`make app` → `byper.app`). Install to `/Applications` and launch; it lives in the status bar and drives the same CLI binary (SUID root) — no duplicated logic.
+- **Custom battery icon** in the status bar with pre-rendered high-DPI assets and charge-state coloring.
+- **Master slider** (left rail): drag down to fade menu rows out chronologically; hitting the bottom snapshots and disables everything (bypass, LPM, caffeine, automations) — returning to the top restores the setup.
+- **Presets** (Travel / Docked): activate to snapshot and switch; click again to restore. Long-press to rename.
+- **Automations**: Auto Bypass on Connect / at Login / on external Display, and **Auto Bypass at Threshold** (engages hold when SoC ≤ threshold; manual resume snoozes until the battery climbs back above).
+- **Slow Charge**: 20 s hold / 40 s burst trickle duty-cycle to creep the battery toward a target instead of fast-charging. Mutually exclusive with Bypass at every layer.
+- **Caffeinate**: master toggle + auto-enable while bypass is active.
+- **Per-App Auto LPM**: Low Power Mode engages while a configured app is frontmost.
+- **Session Logger**: CSV battery telemetry to the Desktop with live REC timer and export.
+- **Global hotkey** ⌘⌥B toggles the popover; **Shortcuts/App Intents** expose Bypass On/Off/Toggle and presets (macOS 13+).
+- **Self-updater**: prompts when the project-folder build is newer than the installed app.
 
-### Build & Install
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How bypass actually works (PowerUIAgent + lldb injection), component map, state machines |
+| [docs/INSTALL.md](docs/INSTALL.md) | PKG installer, install.sh, building from source, uninstalling |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | SUID gotchas, rebuild linker failures, attach-denied diagnostics, quarantine |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | SIP boundary, OS-side debounce, supported hardware |
+
+## Repository layout
+
+```
+src/            C/ObjC engine: main.c (CLI+TUI), powerui.m (PowerUI bridge),
+                smc.c, battery.c, power.c
+src/app/        SwiftUI menu bar app + install helper
+pkg/            PKG installer scripts (preinstall = complete uninstaller)
+completions/    Zsh + Bash completions
+battery_icons_combined/  pre-rendered battery icon assets
+bar-app.md      original design blueprint for the companion app
+forensic-agent-plan.md   engineering directives (isolation rules, truth tables)
+```
+
+## Development
+
 ```bash
-make app          # assembles byper.app (CLI + SwiftUI binary, min macOS 11.0 Big Sur)
-# then copy to /Applications and keep the SUID bit on Contents/Resources/byper:
-sudo chown root:wheel /Applications/byper.app/Contents/Resources/byper
-sudo chmod 4755   /Applications/byper.app/Contents/Resources/byper
-# note: sudo ./install.sh and make install re-apply the SUID bit automatically
+make            # build CLI + app into bin/ and byper.app/
+make clean
+./pkg/build_pkg.sh   # assemble byper-installer.pkg (needs `make app` first)
 ```
-> ⚠️ **SUID is load-bearing**: a non-SUID CLI prints `enabled [✓]` but the SMC write silently fails. If bypass "enables" without engaging, check `ls -la` for `-rwsr-xr-x root:wheel` on both the bundle CLI and `/usr/local/bin/byper`.
 
-### App Features
-- **Master slider** (left rail): continuous 0→1 level. Dragging down fades menu rows out chronologically (top rows first, Settings last) with a visible grey floor; hitting the bottom snapshots + disables everything (bypass, LPM, caffeine, all automations), returning to the top restores the setup. Persisted as `byp_master_level`.
-- **Presets (Travel / Docked)**: click to activate, click again to restore your pre-activation setup. Fresh activations always start from factory defaults; manual changes made while a mode is active are captured and reused on re-activation. Long-press a name to rename.
-- **Automations**: Auto Bypass on Connect / at Login / on external Display, and **Auto Bypass at Threshold** (engages hold when SoC ≤ threshold; a manual resume snoozes it until the battery climbs back above). Threshold and background polls run in `.common` run-loop mode so they keep working with menus open or the screen asleep.
-- **Caffeinate**: master toggle + "Auto Enable on Bypass" (holds a `PreventUserIdleDisplaySleep` assertion while bypass is active).
-- **Per-App Auto LPM**: per-app checkmarks; LPM engages while a configured app is frontmost.
-- **Session Logger**: records battery telemetry to a CSV on the Desktop; live REC timer, reset, export.
-- **Global hotkey**: ⌘⌥B toggles the popover from anywhere.
-- **App Intents / Shortcuts**: Bypass On/Off/Toggle, Travel & Docked presets (macOS 13+).
-- **Self-updater**: on launch, if the project-folder build is newer than the installed app, it prompts to update (admin prompt attributed to byper).
+Before touching the code, read [`forensic-agent-plan.md`](forensic-agent-plan.md) — it defines the strict UI-vs-engine isolation rules and the hardware truth tables this project is built around.
 
-### Gotchas (learned the hard way)
-- `scaleEffect(0.70)` on the row switches does **not** shrink their layout footprint — inline numbers (threshold %, transition timer) overflow the row unless the switch's frame is clamped.
-- The popover auto-refit only fires on subscribed flags; any new expandable section must be added to the `Publishers.Merge` in `AppDelegate.applicationDidFinishLaunching` (or, on macOS 13+, rely on `NSHostingSizingOptions.preferredContentSize`).
-- Timers added with `Timer.scheduledTimer` stall in `.common`-tracked modes (open menus, screen sleep) — add them to `RunLoop.main` with `.common` explicitly.
+## Warning
+
+This tool pokes hardware power management via SMC keys and debugger injection into a system daemon. It is provided as-is, with no warranty. Use at your own risk; keep an eye on thermals when running on AC with the battery held.
