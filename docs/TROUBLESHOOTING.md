@@ -13,7 +13,7 @@ Fix: re-run `sudo ./install.sh`, or use the in-app admin prompt (it runs `src/ap
 
 ## `ld: can't write output file` when rebuilding
 
-Almost always root-owned build artifacts from a previous sudo'd build — not a busy file. `install.sh` now builds as the invoking user to prevent this; if it already happened:
+Almost always root-owned build artifacts from a previous sudo'd build, not a busy file. `install.sh` now builds as the invoking user to prevent this. If it already happened:
 
 ```bash
 sudo chown -R "$USER" bin byper.app
@@ -25,13 +25,13 @@ Then `make clean && make`. Always confirm `bin/byper`'s mtime is newer than the 
 
 The bypass needs to attach to `PowerUIAgent` as root, which macOS gates behind developer-tool policy. Things that matter:
 
-1. **DevToolsSecurity enabled** — the PKG postinstall runs `DevToolsSecurity -enable` and adds you to `_developer`; do the same manually on machines installed by hand:
+1. **DevToolsSecurity enabled.** The PKG postinstall runs `DevToolsSecurity -enable` and adds you to `_developer`; do the same manually on machines installed by hand:
    ```bash
    sudo DevToolsSecurity -enable
    sudo dseditgroup -o edit -a "$USER" -t user _developer
    ```
-2. **Command Line Tools installed** — `xcode-select --install` (the tool auto-installs if missing; check `xcode-select -p`).
-3. **SIP still blocks some attach policies** — on stock SIP, attach to system daemons can be refused per-build regardless of DevToolsSecurity. If `byper on` keeps failing:
+2. **Command Line Tools installed.** Run `xcode-select --install` (the tool auto-installs if missing; check `xcode-select -p`).
+3. **SIP still blocks some attach policies.** On stock SIP, attach to system daemons can be refused per-build regardless of DevToolsSecurity. If `byper on` keeps failing:
    ```bash
    BYP_LLDB_DEBUG=1 byper on   # writes /tmp/byp_lldb_debug.log (wiped on reboot)
    ```
@@ -41,7 +41,7 @@ The bypass needs to attach to `PowerUIAgent` as root, which macOS gates behind d
 
 Two known causes:
 
-- **The apply is asynchronous.** The lldb worker runs detached; UI/engine fields can lag up to ~45 s behind a tap. The verify-poll gates truth — wait for the state to flip rather than re-tapping.
+- **The apply is asynchronous.** The lldb worker runs detached; UI/engine fields can lag up to ~45 s behind a tap. The verify-poll gates truth, so wait for the state to flip rather than re-tapping.
 - **OS-side debounce.** PowerUIAgent swallows rapid opposite toggles (off → on within seconds) and lands the second one late. This is an OS behavior, not a bug in byper.
 
 ## Bypass re-engages by itself / Slow Charge fights Bypass
@@ -58,10 +58,10 @@ xattr -dr com.apple.quarantine /Applications/byper.app
 
 ## Popover UI issues
 
-- **Rows overflow their row** — inline numbers next to the row switches need the switch's `frame` clamped; `scaleEffect(0.70)` does not shrink layout footprint.
-- **Popover doesn't resize when a section expands** — every expandable flag must be in the `Publishers.Merge` in `AppDelegate.applicationDidFinishLaunching`.
-- **Timers stall with menus open / screen asleep** — add timers to `RunLoop.main` with `.common` mode; a long-lived `beginActivity` assertion covers threshold polling while the display sleeps.
-- **Contrast on light wallpapers** — the popover has a near-opaque dark base; if text looks washed out, check you're on the bundled fonts (corrupt TTFs fall back to `.custom()` silently — the shipped FiraCode files are verified).
+- **Rows overflow their row.** Inline numbers next to the row switches need the switch's `frame` clamped; `scaleEffect(0.70)` does not shrink layout footprint.
+- **Popover doesn't resize when a section expands.** Every expandable flag must be in the `Publishers.Merge` in `AppDelegate.applicationDidFinishLaunching`.
+- **Timers stall with menus open / screen asleep.** Add timers to `RunLoop.main` with `.common` mode; a long-lived `beginActivity` assertion covers threshold polling while the display sleeps.
+- **Contrast on light wallpapers.** The popover has a near-opaque dark base. If text looks washed out, check you're on the bundled fonts (corrupt TTFs fall back to `.custom()` silently; the shipped FiraCode files are verified).
 
 ## Diagnostics cheat sheet
 

@@ -42,10 +42,10 @@ macOS has no public API for "stop charging at the current level." Every surfaced
 
 1. Locates `PowerUIAgent` by PID (sysctl `KERN_PROC_ALL`, no subprocess).
 2. Writes a tiny lldb batch script to `/tmp` (flock-serialized at `/tmp/byp_lldb.lock`).
-3. Forks an orphaned worker that runs `lldb -p <pid> --batch -s <script>` as **root** (SUID install → direct attach; dev builds fall back to `sudo -S`), calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately — the multi-second attach happens in the background, and the UI's verify-poll gates truth (engine fields can lag ~45 s behind a tap).
+3. Forks an orphaned worker that runs `lldb -p <pid> --batch -s <script>` as **root** (SUID install → direct attach; dev builds fall back to `sudo -S`), calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately. The multi-second attach happens in the background, and the UI's verify-poll gates truth (engine fields can lag ~45 s behind a tap).
 4. Hardware truth is confirmed by polling SMC registers, never by trusting the injection result.
 
-The actual charge inhibition is the SMC **mode-of-operation** value (MoO: 1 = charging, 7 = hold) — the daemon sets it, the CLI reads the truth table back from the SMC. Direct SMC writes to charge-limit keys (e.g. `CHBI`) were tested and are **rejected by the firmware**, which is why injection is the load-bearing path.
+The actual charge inhibition is the SMC **mode-of-operation** value (MoO: 1 = charging, 7 = hold). The daemon sets it, and the CLI reads the truth table back from the SMC. Direct SMC writes to charge-limit keys (e.g. `CHBI`) were tested and are **rejected by the firmware**, which is why injection is the load-bearing path.
 
 ### Dev-path authentication
 
@@ -65,7 +65,7 @@ These two features are mutually exclusive at four layers (model, gesture, bridge
 
 ### Slow Charge duty cycle
 
-Trickles the battery by holding (MoO 7) for 20 s, releasing for a 40 s charge burst, repeating until the target SoC. Keyed off `appliedPowerMode` (hardware truth), not the UI's requested state. Runs with a `beginActivity` assertion because App Nap suspends `Timer.scheduledTimer` timers when the screen sleeps — the original threshold-miss bug.
+Trickles the battery by holding (MoO 7) for 20 s, releasing for a 40 s charge burst, repeating until the target SoC. Keyed off `appliedPowerMode` (hardware truth), not the UI's requested state. Runs with a `beginActivity` assertion because App Nap suspends `Timer.scheduledTimer` timers when the screen sleeps. That was the original threshold-miss bug.
 
 ### Threshold automation
 
@@ -79,10 +79,10 @@ On launch the app clears stale holds when Slow Charge is enabled (a previous ses
 
 `make` produces:
 
-- `bin/byper` — clang, `-O3`, ObjC ARC, arm64 macOS 11.0+, ad-hoc codesigned.
-- `byper.app` — `swiftc -whole-module-optimization`, bundles the CLI at `Contents/Resources/byper` (SUID), the installer helper, FiraCode fonts, and high-DPI battery icons.
-- `byper-mon.command` — standalone monitor droplet.
+- `bin/byper`: clang, `-O3`, ObjC ARC, arm64 macOS 11.0+, ad-hoc codesigned.
+- `byper.app`: `swiftc -whole-module-optimization`, bundles the CLI at `Contents/Resources/byper` (SUID), the installer helper, FiraCode fonts, and high-DPI battery icons.
+- `byper-mon.command`: standalone monitor droplet.
 
 `pkg/build_pkg.sh` then wraps the app into `byper-installer.pkg` (productbuild; `pkg/preinstall` is the upgrade path and keeps settings, while the Uninstall choice's `pkg/uninstall-postinstall` is a complete uninstaller; the postinstall enables DevToolsSecurity and `_developer` membership so lldb can attach).
 
-`install.sh` builds **as the invoking user** even when sudo'd (root-owned build artifacts are the #1 cause of later `ld: can't write output file` failures), then installs the CLI SUID root: `chown root:wheel`, `chmod 4755`. The SUID bit is load-bearing — a non-SUID CLI prints `enabled [✓]` while the hardware write silently fails.
+`install.sh` builds **as the invoking user** even when sudo'd (root-owned build artifacts are the #1 cause of later `ld: can't write output file` failures), then installs the CLI SUID root: `chown root:wheel`, `chmod 4755`. The SUID bit is load-bearing. A non-SUID CLI prints `enabled [✓]` while the hardware write silently fails.

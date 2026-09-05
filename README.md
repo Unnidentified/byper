@@ -5,14 +5,14 @@ macOS true charge bypass and hardware battery utility for Apple Silicon (macOS 1
 Hold battery charge at any level and power the system entirely from the AC adapter (0 mA net battery draw). Includes real-time hardware power rail monitoring via a SUID-root CLI and a native SwiftUI menu bar companion.
 
 > [!IMPORTANT]
-> **SIP must be relaxed for bypass to work.** Run `csrutil enable --without debug` in Recovery — see [Prerequisites: System Integrity Protection (SIP)](#prerequisites-system-integrity-protection-sip) below for the full explanation.
+> **SIP must be relaxed for bypass to work.** Run `csrutil enable --without debug` in Recovery. See [Prerequisites: System Integrity Protection (SIP)](#prerequisites-system-integrity-protection-sip) below for the full explanation.
 
 ---
 
 ## Components
 
-- **`byper` CLI** (`/usr/local/bin/byper`, symlinked as `byp` and `chbypass`): High-performance C/Obj-C engine operating with SUID root. Provides hardware bypass control, an interactive TUI monitor, and JSON/stream telemetry.
-- **`byper.app`**: Native SwiftUI menu bar extra replacing the system battery icon. Exposes status, presets, automations, and quick controls.
+- The `byper` CLI (`/usr/local/bin/byper`, symlinked as `byp` and `chbypass`): a C/Obj-C engine running SUID root. Provides hardware bypass control, an interactive TUI monitor, and JSON/stream telemetry.
+- `byper.app`: a native SwiftUI menu bar extra replacing the system battery icon. Exposes status, presets, automations, and quick controls.
 
 ---
 
@@ -47,32 +47,32 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 ## Features
 
 ### Power & Telemetry Engine
-- **Hardware Charge Bypass:** Direct AC operation with 0 mA net battery draw.
-- **Slow Charge Trickle:** Alternating 20s hold / 40s burst duty-cycle to reduce battery degradation and thermal stress.
-- **Per-Rail Power Telemetry:** Real-time wattage metrics for SoC, DRAM, PMIC, and DC-In, alongside individual cell voltages.
-- **Process Power Attribution:** Automatic detection of top CPU/power consumers with estimated wattage.
+- Hardware charge bypass. Direct AC operation with 0 mA net battery draw.
+- Slow Charge trickle. Alternating 20s hold / 40s burst duty-cycle to reduce battery degradation and thermal stress.
+- Per-rail power telemetry. Real-time wattage metrics for SoC, DRAM, PMIC, and DC-In, alongside individual cell voltages.
+- Process power attribution. Automatic detection of top CPU/power consumers with estimated wattage.
 
 ### Menu Bar Companion (`byper.app`)
-- **Status Bar Icon:** Pre-rendered high-DPI assets reflecting live battery level, bypass status (`⏸`), and thermal state.
-- **Master Slider:** Left-rail slider that progressively dims menu rows; dragging to the bottom snapshots and disables all features (bypass, LPM, caffeine, automations). Restoring to top recovers previous state.
-- **Profiles & Presets:** Quick-switch between snapshot presets (*Travel*, *Docked*); long-press to rename.
-- **Automations:**
+- Status bar icon. Pre-rendered high-DPI assets reflecting live battery level, bypass status (`⏸`), and thermal state.
+- Master slider. A left-rail slider that progressively dims menu rows; dragging to the bottom snapshots and disables all features (bypass, LPM, caffeine, automations). Restoring to top recovers previous state.
+- Profiles and presets. Quick-switch between snapshot presets (*Travel*, *Docked*); long-press to rename.
+- Automations:
   - Auto-bypass on AC connection, login, or external display attachment.
   - SoC threshold trigger (engages hold when battery $\le$ configured target; manual resume snoozes until battery climbs back above).
-- **System Controls:** Master caffeine toggle (auto-enabled during bypass) and per-app Low Power Mode (LPM) triggering when specific applications are focused.
-- **Diagnostics & Integration:** CSV session recorder to Desktop with live REC timer, global hotkey (`⌘⌥B`), and App Intents for macOS Shortcuts (macOS 13+).
-- **Self-Updater:** Warns when local project build is newer than installed application.
+- System controls. Master caffeine toggle (auto-enabled during bypass) and per-app Low Power Mode (LPM) triggering when specific applications are focused.
+- Diagnostics and integration. CSV session recorder to Desktop with live REC timer, global hotkey (`⌘⌥B`), and App Intents for macOS Shortcuts (macOS 13+).
+- Self-updater. Warns when the local project build is newer than the installed application.
 
 ### byper vanilla (2.2.0)
 
-A reduced variant with only the dependable features: **Bypass Charge**, **Powersave** (manual + per-app auto LPM), **Caffeinate**, and **Settings**. Presets, the Threshold automation, and Slow Charge are compiled out — not just hidden.
+A reduced variant with only the dependable features: **Bypass Charge**, **Powersave** (manual + per-app auto LPM), **Caffeinate**, and **Settings**. Presets, the Threshold automation, and Slow Charge are compiled out, not just hidden.
 
 > [!WARNING]
 > **Known issues in the full build (why vanilla exists):**
-> - **Threshold:** the automation usually misses its trigger when the lid is closed (the whole point of the toggle) — even with the toggle on, the hold often doesn't engage when the battery crosses the threshold. Consider it unreliable for now.
-> - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** in the full build until fixed — vanilla excludes both.
+> - **Threshold:** the automation usually misses its trigger when the lid is closed (the whole point of the toggle). Even with the toggle on, the hold often doesn't engage when the battery crosses the threshold. Consider it unreliable for now.
+> - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** in the full build until fixed. Vanilla excludes both.
 
-Build it: `make vanilla && ./pkg/build_pkg_vanilla.sh` — produces `byper-vanilla-installer.pkg` (Finder-branded during the build) and `byper-vanilla-installer.dmg` (icon survives download).
+Build it with `make vanilla && ./pkg/build_pkg_vanilla.sh`. That produces `byper-vanilla-installer.pkg` (Finder-branded during the build) and `byper-vanilla-installer.dmg` (icon survives download).
 
 ---
 
@@ -86,7 +86,7 @@ Because `byper` attaches to `PowerUIAgent` via `lldb` to engage charge bypass, m
 csrutil enable --without debug
 ```
 
-This partially enables SIP—retaining filesystem, kernel extension, and NVRAM protections while permitting the required debugger attachment.
+This partially enables SIP. It keeps filesystem, kernel extension, and NVRAM protections while permitting the debugger attachment.
 
 ### Package Installer (Recommended)
 Download `byper-installer.pkg` from Releases. The package manages clean upgrades (preserving settings), configures Command Line Tools (`lldb`) if missing, and provisions the bypass helper via standard macOS authorization.
