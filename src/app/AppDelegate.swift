@@ -181,6 +181,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func checkForProjectUpdate() {
         guard Bundle.main.bundlePath.hasPrefix("/Applications/") else { return }
+        #if VANILLA
+        // Vanilla build: never self-update from the project folder. The project
+        // checkout may hold a full build (other branch), and silently replacing
+        // a vanilla install with it reintroduces the excluded features.
+        return
+        #else
         let projectExec = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/byper.app/Contents/MacOS/byper"
         let installedExec = "/Applications/byper.app/Contents/MacOS/byper"
         guard FileManager.default.fileExists(atPath: projectExec) else { return }
@@ -190,6 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if installedDate == nil || newDate > installedDate! {
             runPrivilegedInstall()
         }
+        #endif
     }
 
     // AuthorizationExecuteWithPrivileges is deprecated-out of the Swift overlay but the
