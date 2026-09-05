@@ -1,22 +1,46 @@
 #!/bin/bash
-# byper UNINSTALL postinstall: remove every trace of byper on this Mac —
-# the app, the SUID CLI and symlinks, completions, legacy daemon, temp
-# state, and all app settings.
+# byper UNINSTALL postinstall: reset the hardware to stock, then remove every
+# trace of byper on this Mac — the app, the SUID CLI and symlinks, completions,
+# legacy daemon, temp state, and all app settings.
 set -e
 
+# ── 1. Hardware reset FIRST (while the CLI still exists) ──
+# Release any bypass hold and restore normal charging: the machine must return
+# to stock power behavior before the tool that could undo it is deleted.
+if [ -x /usr/local/bin/byper ]; then
+    /usr/local/bin/byper off >/dev/null 2>&1 || true
+    # Also clear LPM so every power knob byper may have touched is back to stock.
+    /usr/local/bin/byper lpm off >/dev/null 2>&1 || true
+    /usr/bin/pmset -a lowpowermode 0 >/dev/null 2>&1 || true
+    sleep 2
+    # Verify the hold actually released; retry once (the OS-side debounce can
+    # swallow the first toggle off → on within seconds).
+    FLOW=$(/usr/local/bin/byper s 2>/dev/null | head -1)
+    case "$FLOW" in
+        *BYPASS*|*"ON HOLD"*)
+            /usr/local/bin/byper off >/dev/null 2>&1 || true
+            sleep 2
+            ;;
+    esac
+fi
+
+# Kill any stale lldb worker from a previous session before removing state.
+pkill -f "lldb" 2>/dev/null || true
 pkill -f "byper.app/Contents/MacOS/byper" 2>/dev/null || true
 sleep 1
 
+# ── 2. Remove binaries, app, state ──
 rm -f  /usr/local/bin/byper /usr/local/bin/byp /usr/local/bin/chbypass
 rm -f  /usr/local/bin/byper-mon.command /usr/local/bin/byp-mon.command
 rm -f  /usr/local/bin/chbypass-service
 rm -f  /usr/local/share/zsh/site-functions/_byper /usr/local/share/zsh/site-functions/_byp
 rm -f  /usr/local/share/bash-completion/completions/byper /usr/local/share/bash-completion/completions/byp
-rm -rf /Applications/byper.app /Applications/byp.app
+rm -rf /Applications/byper.app /Applications/byp.app /Applications/byper-vanilla.app
 rm -f  /Library/LaunchDaemons/com.gefaass.chbypass.plist
 rm -f  /tmp/byp.state /tmp/byp_lldb.lock /tmp/byp_lldb_worker.log
 rm -f  /tmp/byp_cmd_*.lldb 2>/dev/null || true
 
+# ── 3. Remove settings ──
 defaults delete com.gefaass.byper 2>/dev/null || true
 killall cfprefsd 2>/dev/null || true
 rm -f  "$HOME/Library/Preferences/com.gefaass.byper.plist"

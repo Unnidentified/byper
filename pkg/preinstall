@@ -1,9 +1,12 @@
 #!/bin/bash
 # byper preinstall (UPGRADE path): remove all binaries/components but KEEP
-# the app settings. Clean files in, configs preserved.
+# the app settings. Clean files in, configs preserved. Handles both bundle
+# names (byper.app and the older byper-vanilla.app) so an upgrade over
+# either variant cleans up fully.
 set -e
 
 pkill -f "byper.app/Contents/MacOS/byper" 2>/dev/null || true
+pkill -f "byper-vanilla.app/Contents/MacOS/byper" 2>/dev/null || true
 sleep 1
 
 rm -f  /usr/local/bin/byper /usr/local/bin/byp /usr/local/bin/chbypass
@@ -11,7 +14,7 @@ rm -f  /usr/local/bin/byper-mon.command /usr/local/bin/byp-mon.command
 rm -f  /usr/local/bin/chbypass-service
 rm -f  /usr/local/share/zsh/site-functions/_byper /usr/local/share/zsh/site-functions/_byp
 rm -f  /usr/local/share/bash-completion/completions/byper /usr/local/share/bash-completion/completions/byp
-rm -rf /Applications/byper.app /Applications/byp.app
+rm -rf /Applications/byper.app /Applications/byp.app /Applications/byper-vanilla.app
 rm -f  /Library/LaunchDaemons/com.gefaass.chbypass.plist
 rm -f  /tmp/byp.state /tmp/byp_lldb.lock /tmp/byp_lldb_worker.log
 rm -f  /tmp/byp_cmd_*.lldb 2>/dev/null || true

@@ -1,8 +1,24 @@
 #!/bin/bash
-# byper postinstall: SUID CLI + symlinks + completions
+# byper postinstall (vanilla branch): SUID CLI + symlinks + completions.
+# Works no matter which bundle name the payload used (byper.app or
+# byper-vanilla.app from older installers) so an upgrade over either
+# variant never fails.
 set -e
 
-CLI_SRC="/Applications/byper.app/Contents/Resources/byper"
+# Locate the freshly-installed app bundle (payload order: vanilla first).
+APP_PATH=""
+for CAND in /Applications/byper.app /Applications/byper-vanilla.app; do
+    if [ -f "$CAND/Contents/Resources/byper" ]; then
+        APP_PATH="$CAND"
+        break
+    fi
+done
+if [ -z "$APP_PATH" ]; then
+    echo "postinstall: no installed byper app bundle found" >&2
+    exit 1
+fi
+
+CLI_SRC="$APP_PATH/Contents/Resources/byper"
 DEST="/usr/local/bin/byper"
 
 mkdir -p /usr/local/bin
@@ -13,7 +29,7 @@ codesign -s - -f "$DEST" >/dev/null 2>&1 || true
 ln -sf "$DEST" /usr/local/bin/byp
 ln -sf "$DEST" /usr/local/bin/chbypass
 
-APP_RES="/Applications/byper.app/Contents/Resources"
+APP_RES="$APP_PATH/Contents/Resources"
 mkdir -p /usr/local/share/zsh/site-functions /usr/local/share/bash-completion/completions
 if [ -f "$APP_RES/completions/_byp" ]; then
     cp -f "$APP_RES/completions/_byp" /usr/local/share/zsh/site-functions/_byper
