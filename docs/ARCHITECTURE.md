@@ -83,6 +83,6 @@ On launch the app clears stale holds when Slow Charge is enabled (a previous ses
 - `byper.app` — `swiftc -whole-module-optimization`, bundles the CLI at `Contents/Resources/byper` (SUID), the installer helper, FiraCode fonts, and high-DPI battery icons.
 - `byper-mon.command` — standalone monitor droplet.
 
-`pkg/build_pkg.sh` then wraps the app into `byper-installer.pkg` (productbuild; `pkg/preinstall` doubles as a complete uninstaller, `pkg/postinstall` enables DevToolsSecurity and `_developer` membership so lldb can attach).
+`pkg/build_pkg.sh` then wraps the app into `byper-installer.pkg` (productbuild; `pkg/preinstall` is the upgrade path and keeps settings, while the Uninstall choice's `pkg/uninstall-postinstall` is a complete uninstaller; the postinstall enables DevToolsSecurity and `_developer` membership so lldb can attach).
 
 `install.sh` builds **as the invoking user** even when sudo'd (root-owned build artifacts are the #1 cause of later `ld: can't write output file` failures), then installs the CLI SUID root: `chown root:wheel`, `chmod 4755`. The SUID bit is load-bearing — a non-SUID CLI prints `enabled [✓]` while the hardware write silently fails.

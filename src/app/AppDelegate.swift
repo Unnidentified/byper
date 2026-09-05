@@ -181,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func checkForProjectUpdate() {
         guard Bundle.main.bundlePath.hasPrefix("/Applications/") else { return }
-        let projectExec = "/Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2/byper.app/Contents/MacOS/byper"
+        let projectExec = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/byper.app/Contents/MacOS/byper"
         let installedExec = "/Applications/byper.app/Contents/MacOS/byper"
         guard FileManager.default.fileExists(atPath: projectExec) else { return }
         let projectDate = (try? FileManager.default.attributesOfItem(atPath: projectExec))?[.modificationDate] as? Date
@@ -210,8 +210,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // attributed to byper and SecurityAgent can offer Touch ID. `do shell script
         // ... with administrator privileges` routes the request through /bin/sh and
         // shows up as "a script started by bash" instead.
-        let projectApp = "/Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2/byper.app"
-        let projectCli = "/Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2/bin/byper"
+        let projectApp = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/byper.app"
+        let projectCli = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/bin/byper"
         guard let helper = Bundle.main.path(forResource: "byper-installer", ofType: nil),
               FileManager.default.isExecutableFile(atPath: helper) else { return }
 

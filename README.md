@@ -114,7 +114,8 @@ src/
 ├── battery.c           # IOPowerSources / Smart Battery reader
 ├── power.c             # Power rail parser (SoC, DRAM, PMIC) & cell telemetry
 └── app/                # SwiftUI menu bar application and helper
-pkg/                    # Package builder scripts and uninstaller
+pkg/                    # Package builder scripts (preinstall = upgrade path keeping
+                        # settings; uninstall-postinstall = complete uninstaller)
 completions/            # Zsh and Bash shell completion scripts
 battery_icons_combined/ # Pre-rendered menu bar icon assets
 bar-app.md              # Companion app UI specification

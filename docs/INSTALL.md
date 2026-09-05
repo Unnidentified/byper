@@ -4,10 +4,10 @@ Two supported paths: the guided PKG (recommended for any Mac that isn't the deve
 
 ## Option A — PKG installer (recommended)
 
-1. Get `byper-installer.pkg` (Releases, or build it: `make app && ./pkg/build_pkg.sh`).
+1. Get `byper-installer.pkg` (build it: `make app && ./pkg/build_pkg.sh`; published on Releases as `byper-installer-sip.pkg`).
 2. Open it. The Installation Type pane offers:
    - **Upgrade / clean reinstall** — replaces the app, keeps your settings.
-   - **Uninstall** — removes everything including settings (the preinstall script doubles as a complete uninstaller: app, CLI, completions, LaunchDaemons, defaults, caches).
+   - **Uninstall** — removes everything including settings (the uninstall choice's postinstall script, `pkg/uninstall-postinstall`, doubles as a complete uninstaller: app, CLI, completions, LaunchDaemons, defaults, caches; the preinstall script is the upgrade path and deliberately keeps settings).
 3. First bypass toggle triggers one admin prompt (attributed to byper) that installs the root helper and fixes SUID ownership.
 
 The postinstall also enables **DevToolsSecurity** and adds you to the **_developer** group — required for the lldb attach path to work on a fresh machine.
@@ -29,7 +29,7 @@ Installs to:
 | `/usr/local/bin/byp`, `/usr/local/bin/chbypass` | symlinks to the same binary |
 | `/usr/local/bin/byper-mon.command` (+ `byp-mon.command`) | standalone monitor |
 | `/usr/local/share/zsh/site-functions/_byper`, `_byp` | Zsh completions |
-| `/usr/local/share/bash-completion/completions/byp.bash` | Bash completion |
+| `/usr/local/share/bash-completion/completions/byper`, `byp` | Bash completions |
 | `/Applications/byper.app` | menu bar app |
 
 `install.sh` builds as the invoking user even when run with sudo, so build artifacts never end up root-owned.
@@ -57,8 +57,7 @@ sudo chmod 4755      /Applications/byper.app/Contents/Resources/byper
 
 ## Uninstalling
 
-- Run the PKG and choose **Uninstall**, or
-- `~/Desktop/byper-cleaner.command` (shipped alongside) removes every trace on demand, or
+- Run the PKG and choose **Uninstall** (its postinstall removes every trace, including settings), or
 - manually: remove the paths in the table above, `defaults delete com.gefaass.byper`, and clear `~/Library/{Preferences/com.gefaass.byper.plist, Caches/com.gefaass.byper, Saved Application State/com.gefaass.byper.savedState}`.
 
 ## Verifying the install works

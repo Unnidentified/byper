@@ -7,7 +7,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct BatteryAssetResolver {
-    static let fallbackDir = "/Users/gefaass/Desktop/addon-modules/working/macos-ch.bypass #2/battery_icons_combined/standard/dark/2x"
+    static let fallbackDir = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/battery_icons_combined/standard/dark/2x"
     
     // Proportional dimensions: 28.8 x 16.1 pt (aspect ratio ~1.786)
     static let targetWidth: CGFloat = 28.8
