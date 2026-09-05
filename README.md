@@ -1,6 +1,6 @@
 # <img src="https://github.com/Unnidentified/byper/blob/main/assets/icon.png?raw=true" width="38" height="38" align="absmiddle" alt="byper icon" /> byper
 
-macOS charge bypass and hardware battery telemetry utility for Apple Silicon (macOS 11+).
+macOS charge bypass and hardware battery utility for Apple Silicon (macOS 11+).
 
 Hold battery charge at any level and power the system entirely from the AC adapter (0 mA net battery draw). Includes real-time hardware power rail monitoring via a SUID-root CLI and a native SwiftUI menu bar companion.
 
