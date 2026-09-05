@@ -1,14 +1,18 @@
+<div align="center">
 
+  <img src="assets/icon.png" alt="byper icon" width="140" align="left">
 
+  # byper — a macOS Charge Bypass & Battery Utility
 
+  Hold the battery at its current charge and run your MacBook directly off the AC adapter (0 mA battery draw), with real-time hardware power telemetry — via a SUID-root CLI and a SwiftUI menu bar app that replaces the stock battery icon.
 
-<img width="524" height="521" alt="icon" src="https://github.com/user-attachments/assets/cef64c31-00c1-4df0-b52b-0e7601ede0d3" />
+  `byper on` · `byper off` · `byp mon` · Apple Silicon · macOS 11+
 
-# byper — a macOS Charge Bypass & Battery Utility
+</div>
 
-A native Apple Silicon utility that gives you manual control over battery charging on macOS: hold the battery at its current charge and run the system directly off the AC adapter (0 mA battery draw), plus real-time hardware power telemetry.
+<br clear="left">
 
-Ships as two halves of one binary:
+**byper** ships as two halves of one binary:
 
 - **`byper` CLI** (`/usr/local/bin/byper`, symlinked as `byp` / `chbypass`) — C/ObjC engine, SUID root.
 - **`byper.app`** — SwiftUI menu bar companion that wraps the CLI. Replaces the stock battery menu extra with a custom icon, live telemetry, presets, and automations.
