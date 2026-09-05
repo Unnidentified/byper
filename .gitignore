@@ -1,11 +1,8 @@
-# build artifacts
-bin/
+# Build artifacts — these ship via GitHub Releases, not git
+*.pkg
+*.dmg
 byper.app/
-byp.app/
-*.o
-
-# macOS cruft
+byper-vanilla.app/
+bin/
 .DS_Store
-
-# agent tool state
 .empryo/
