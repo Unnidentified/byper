@@ -25,7 +25,7 @@ PowerUIAgent debounces rapid opposite commands: toggling off then on within seco
 ## Distribution
 
 - Ad-hoc signed, not Developer ID — Gatekeeper hard-blocks quarantine-flagged copies (WhatsApp/AirDrop transfer) until "Abrir igualmente" or `xattr -dr`.
-- The dev-path fallback in `src/powerui.m` embeds a sudo password; this is why the repository is private (see [ARCHITECTURE.md](ARCHITECTURE.md#the-embedded-password)).
+- No credentials are embedded anywhere in the source; the non-root dev path reads `BYP_SUDO_PASS` from the environment instead (see [ARCHITECTURE.md](ARCHITECTURE.md#dev-path-authentication)).
 
 ## Single-user assumptions
 

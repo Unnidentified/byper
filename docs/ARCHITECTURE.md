@@ -47,15 +47,15 @@ macOS has no public API for "stop charging at the current level." Every surfaced
 
 The actual charge inhibition is the SMC **mode-of-operation** value (MoO: 1 = charging, 7 = hold) — the daemon sets it, the CLI reads the truth table back from the SMC. Direct SMC writes to charge-limit keys (e.g. `CHBI`) were tested and are **rejected by the firmware**, which is why injection is the load-bearing path.
 
-### The embedded password
+### Dev-path authentication
 
-The dev-path fallback (`sudo -S lldb`) needs the user's password on stdin, and it is hardcoded in `src/powerui.m` (search for the pipe write near "Password goes into the pipe"). This is intentional for this personal project but makes the repository non-publishable:
+The dev-path fallback (`sudo -S lldb`) for non-root builds reads the sudo password from the `BYP_SUDO_PASS` environment variable, set by the developer in their own shell. **No credential is embedded in the repository:**
 
-- SUID install path: root attaches directly, password unused.
-- Dev path (non-root build): the password feeds `sudo -S`.
-- PKG installs for other users never touch it (they use the admin-dialog helper + SUID).
+- SUID install path: root attaches directly, `sudo -S` unused.
+- Dev path (non-root build): export `BYP_SUDO_PASS` in your shell before running dev builds (or just run them via `sudo`).
+- PKG installs never touch it (they use the admin-dialog helper + SUID).
 
-**To open-source:** strip that pipe write and require either the SUID install or an interactive sudo prompt.
+The repository is therefore safe to publish once the history rewrite below is verified.
 
 ## State machines worth knowing
 

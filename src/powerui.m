@@ -182,16 +182,24 @@ static void run_lldb_script(const char *script_path) {
         return;
     }
 
-    // Password goes into the pipe BEFORE the fork so both the worker and the
-    // fork-failure fallback can hand lldb a ready stdin.
+    // Prepare a stdin pipe for the lldb worker BEFORE the fork so both the
+    // worker and the fork-failure fallback can hand lldb a ready stdin.
+    // No credential is embedded in the source: for the non-root dev path the
+    // password is taken from the BYP_SUDO_PASS environment variable (set it
+    // in your shell only); SUID/root installs never use it.
     int pipefd[2];
     if (pipe(pipefd) != 0) {
         close(lock_fd);
         unlink(script_path);
         return;
     }
-    ssize_t pw = write(pipefd[1], "REDACTED\n", 10);
-    (void)pw;
+    const char *env_pw = getenv("BYP_SUDO_PASS");
+    if (env_pw && *env_pw) {
+        ssize_t pw = write(pipefd[1], env_pw, strlen(env_pw));
+        (void)pw;
+        ssize_t nl = write(pipefd[1], "\n", 1);
+        (void)nl;
+    }
     close(pipefd[1]);
 
     pid_t worker = fork();
