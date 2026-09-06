@@ -1,14 +1,18 @@
 # ============================================================
-#  macos-ch.bypass — Makefile
+#  macos-ch.bypass — Makefile (vanilla branch)
 #  Compiles CLI binary 'byper' & Native GUI 'byper.app'
+#  VANILLA build: bypass charge, powersave, caffeinate, settings.
+#  Presets / Threshold / Slow Charge are compiled out.
 # ============================================================
 
 CC = clang
-CFLAGS = -O3 -Wall -Wextra -std=c11 -fobjc-arc -target arm64-apple-macos11.0
+CFLAGS = -O3 -Wall -Wextra -std=c11 -fobjc-arc -target arm64-apple-macos11.0 -D VANILLA
 FRAMEWORKS = -framework IOKit -framework CoreFoundation -framework Foundation
 
 SWIFTC = swiftc
-SWIFT_FLAGS = -O -whole-module-optimization -target arm64-apple-macos11.0
+# VANILLA is the default (and only) variant on this branch: the compile-time
+# flag removes the Presets, Threshold, and Slow Charge rows and machinery.
+SWIFT_FLAGS = -O -whole-module-optimization -target arm64-apple-macos11.0 -D VANILLA
 SWIFT_FRAMEWORKS = -framework AppKit -framework SwiftUI -framework Foundation -framework IOKit -framework Carbon -framework AppIntents
 
 SRC = src/main.c src/smc.c src/battery.c src/power.c src/powerui.m
@@ -24,14 +28,6 @@ APP_ICONS = $(APP_RES)/icons
 HELPER_SRC = src/app/install_helper.c
 HELPER_BIN = $(APP_RES)/byper-installer
 SWIFT_SRC = src/app/BatteryAssetResolver.swift src/app/BatteryMonitor.swift src/app/BatteryDropdownView.swift src/app/CLIEngineBridge.swift src/app/AppDelegate.swift src/app/ByperIntents.swift
-
-# Vanilla variant: bypass + powersave + caffeinate + settings only.
-# Same sources, compiled with -D VANILLA so the gated rows/machines are compiled out.
-VANILLA_APP_NAME = byper-vanilla.app
-VANILLA_APP_DIR = $(VANILLA_APP_NAME)/Contents
-VANILLA_APP_BIN = $(VANILLA_APP_DIR)/MacOS/byper
-VANILLA_APP_RES = $(VANILLA_APP_DIR)/Resources
-VANILLA_SWIFT_FLAGS = $(SWIFT_FLAGS) -D VANILLA
 
 HIGHRES_ICONS_DIR = src/app/icons_highres
 FALLBACK_ICONS_DIR = battery_icons_combined/standard/dark/2x
@@ -64,25 +60,8 @@ $(APP_BIN): $(SWIFT_SRC) src/app/Info.plist $(TARGET)
 	@codesign -s - -f $(APP_NAME) >/dev/null 2>&1 || true
 	@echo "App bundle assembled: $(APP_NAME)"
 
-# Vanilla variant — assembled from scratch with the icon bundled from the start.
-vanilla: $(TARGET) $(VANILLA_APP_BIN)
-
-$(VANILLA_APP_BIN): $(SWIFT_SRC) src/app/Info.plist $(TARGET)
-	@rm -rf $(VANILLA_APP_NAME)
-	@mkdir -p $(VANILLA_APP_DIR)/MacOS $(VANILLA_APP_RES) $(APP_ICONS)
-	@cp -f src/app/Info.plist $(VANILLA_APP_DIR)/Info.plist
-	@cp -f src/app/AppIcon.icns $(VANILLA_APP_RES)/AppIcon.icns
-	@cp -f $(TARGET) $(VANILLA_APP_RES)/byper
-	$(CC) $(CFLAGS) $(HELPER_SRC) -o $(VANILLA_APP_RES)/byper-installer
-	@mkdir -p $(VANILLA_APP_RES)/fonts
-	@cp -f src/app/fonts/*.ttf $(VANILLA_APP_RES)/fonts/
-	@if [ -d "$(HIGHRES_ICONS_DIR)" ]; then cp -f $(HIGHRES_ICONS_DIR)/*.png $(APP_ICONS)/; elif [ -d "$(FALLBACK_ICONS_DIR)" ]; then cp -f $(FALLBACK_ICONS_DIR)/*.png $(APP_ICONS)/; fi
-	$(SWIFTC) $(VANILLA_SWIFT_FLAGS) $(SWIFT_FRAMEWORKS) $(SWIFT_SRC) -o $(VANILLA_APP_BIN)
-	@codesign -s - -f $(VANILLA_APP_NAME) >/dev/null 2>&1 || true
-	@echo "App bundle assembled: $(VANILLA_APP_NAME)"
-
 clean:
-	rm -rf $(TARGET_DIR) $(APP_NAME) byp.app byper-vanilla.app
+	rm -rf $(TARGET_DIR) $(APP_NAME) byp.app
 
 install: all
 	@echo "[*] Installing CLI tools to /usr/local/bin..."
@@ -97,7 +76,6 @@ install: all
 	@sudo chmod 755 /usr/local/bin/byper-mon.command
 	@sudo ln -sf /usr/local/bin/byper-mon.command /usr/local/bin/byp-mon.command
 	@echo "[*] Installing byper.app to /Applications..."
-	@pkill -f "byper.app" 2>/dev/null || true
 	@pkill -f "/Applications/byper.app" 2>/dev/null || true
 	@sudo rm -rf /Applications/byp.app /Applications/byper.app
 	@sudo cp -R $(APP_NAME) /Applications/byper.app
@@ -115,4 +93,4 @@ uninstall:
 	@sudo rm -rf /Applications/byp.app /Applications/byper.app
 	@echo "[OK] Uninstalled."
 
-.PHONY: all clean install uninstall app vanilla
+.PHONY: all clean install uninstall app

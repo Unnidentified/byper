@@ -1,6 +1,8 @@
 #!/bin/bash
 # Build byper-installer.pkg — guided Installer.app package (run `make app` first).
-# Two paths presented in the Installation Type pane:
+# VANILLA branch build: the app is compiled with -D VANILLA by the Makefile, so
+# this script just packages what `make app` produced. Two paths presented in the
+# Installation Type pane:
 #   • Upgrade / clean reinstall (keeps app settings)
 #   • Uninstall (removes everything, including settings)
 set -e
@@ -19,7 +21,7 @@ cp "$DIR"/pkg/preinstall "$DIR"/pkg/postinstall "$W/scripts/"
 chmod +x "$W"/scripts/*
 
 cd "$W"
-pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper \
+pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper.vanilla \
          --version 2.2.0 --install-location /Applications byper-pkg-component.pkg
 
 # Component 2: uninstaller (no payload, script-only)
@@ -32,11 +34,12 @@ pkgbuild --nopayload --scripts uninstall-scripts --identifier com.gefaass.byper.
 productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
              --resources "$DIR/pkg" byper-installer.pkg
 
-# Brand the .pkg file with the app icon in Finder (icon applied at build time)
+# Brand the .pkg file with the app icon in Finder, deliver to the project folder.
+# Applied here, during the build (NSWorkspace one-call: writes the -16455 icns
+# resource, sets kHasCustomIcon, notifies Finder). Never injected post-hoc.
 OUT="$DIR/byper-installer.pkg"
-# A raw .icns is a data-fork icon file, and Finder custom icons require resource ID
-# -16455 (kCustomIconResource). Use macOS NSWorkspace to reliably set the custom icon
-# directly from the asset image.
+rm -f "$OUT"
+cp byper-installer.pkg "$OUT"
 ICON_SRC="$DIR/assets/icon.png"
 [ ! -f "$ICON_SRC" ] && ICON_SRC="$DIR/src/app/AppIcon.icns"
 if [ -f "$ICON_SRC" ]; then
@@ -47,4 +50,16 @@ if [ -f "$ICON_SRC" ]; then
         NSWorkspace.shared.setIcon(img, forFile: args[2], options: [])
     ' "$ICON_SRC" "$OUT" >/dev/null 2>&1 || true
 fi
+
+# Wrap in a DMG: bare files lose resource forks over HTTP, a DMG filesystem
+# preserves them, so the custom icon survives the download.
+DMG_STAGE="$W/dmg"
+mkdir -p "$DMG_STAGE"
+ditto "$OUT" "$DMG_STAGE/byper-installer.pkg"
+DMG_OUT="$DIR/byper-installer.dmg"
+rm -f "$DMG_OUT"
+hdiutil create -volname "byper vanilla 2.2.0" -srcfolder "$DMG_STAGE" -format UDZO -o "$DMG_OUT" >/dev/null 2>&1
+rm -rf "$DMG_STAGE"
+
 echo "[OK] $OUT"
+echo "[OK] $DMG_OUT"
