@@ -98,26 +98,61 @@ struct CLIEngineBridge {
         
         let process = Process()
         let pipe = Pipe()
-        
+
         process.executableURL = URL(fileURLWithPath: validBinary)
         process.arguments = args
         process.standardOutput = pipe
         process.standardError = pipe
-        
+
         do {
             try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            // Bounded read: readDataToEndOfFile blocks until EVERY descendant
+            // closes the pipe's write end. A grandchild that outlives the CLI
+            // (softwareupdate CLT install kicked off by the first toggle, a
+            // wedged lldb worker) would hold it open and hang the toggle — the
+            // "counter counts forever" bug. Poll with a deadline instead; after
+            // 90 s kill the process and treat the round as failed.
+            let deadline = Date().addingTimeInterval(90)
+            var collected = Data()
+            let handle = pipe.fileHandleForReading
+            while true {
+                let available = handle.availableData
+                if !available.isEmpty {
+                    collected.append(available)
+                    continue
+                }
+                // EOF or empty peek: stop when the process is done
+                if process.isRunning {
+                    if Date() > deadline {
+                        process.terminate()
+                        Thread.sleep(forTimeInterval: 0.2)
+                        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                        collected.append(Data("timed out".utf8))
+                    } else {
+                        Thread.sleep(forTimeInterval: 0.1)
+                        continue
+                    }
+                }
+                // drain anything left, then finish
+                let tail = handle.availableData
+                if !tail.isEmpty { collected.append(tail) }
+                if !process.isRunning { break }
+                if Date() > deadline {
+                    process.terminate()
+                    break
+                }
+            }
             process.waitUntilExit()
-            let output = String(data: data, encoding: .utf8) ?? ""
+            let output = String(data: collected, encoding: .utf8) ?? ""
             let status = process.terminationStatus
-            
+
             // If command failed with permission error and we haven't prompted yet, try installing helper
             if status != 0 && allowPrompt && !isHelperInstalled {
                 if installHelperWithAdminPrivileges() {
                     return runCommand(args, allowPrompt: false)
                 }
             }
-            
+
             return (output.trimmingCharacters(in: .whitespacesAndNewlines), status)
         } catch {
             return (error.localizedDescription, -1)
