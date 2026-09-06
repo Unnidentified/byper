@@ -1606,6 +1606,17 @@ final class BatteryMonitor: ObservableObject {
         let ticker = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self = self, self.isTransitioning else { return }
             self.transitionElapsed = Date().timeIntervalSince(t0)
+            // Hard cap: if the apply never completes (CLI wedged, pipe held by a
+            // grandchild, helper prompt dismissed), end the transition after 60 s
+            // instead of counting forever. The user can re-toggle.
+            if self.transitionElapsed > 60 {
+                self.isTransitioning = false
+                self.targetPowerMode = nil
+                self.transitionStartTime = nil
+                self.transitionMessage = ""
+                self.transitionTicker?.invalidate()
+                self.transitionTicker = nil
+            }
         }
         RunLoop.main.add(ticker, forMode: .common)
         transitionTicker = ticker

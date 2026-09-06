@@ -108,9 +108,12 @@ static bool ensure_lldb_available(void) {
         pclose(fp);
     }
     if (label[0] == '\0') return false;
-    char cmd[512];
+    // Run detached with ALL fds redirected: a backgrounded softwareupdate that
+    // inherits the caller's stdout would hold the app's read pipe open after
+    // this CLI exits and hang the toggle ("counter counts forever").
+    char cmd[640];
     snprintf(cmd, sizeof(cmd),
-        "softwareupdate --install \"%s\" --no-scan >/dev/null 2>&1 &", label);
+        "softwareupdate --install \"%s\" --no-scan >/dev/null 2>&1 </dev/null &", label);
     system(cmd);
     return false; // installing asynchronously; this round fails, the next works
 }
