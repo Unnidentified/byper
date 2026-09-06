@@ -1,5 +1,5 @@
 # ============================================================
-#  macos-ch.bypass — Makefile (vanilla branch)
+#  macos-ch.bypass — Makefile
 #  Compiles CLI binary 'byper' & Native GUI 'byper.app'
 #  VANILLA build: bypass charge, powersave, caffeinate, settings.
 #  Presets / Threshold / Slow Charge are compiled out.

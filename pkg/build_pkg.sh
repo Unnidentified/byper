@@ -21,15 +21,15 @@ cp "$DIR"/pkg/preinstall "$DIR"/pkg/postinstall "$W/scripts/"
 chmod +x "$W"/scripts/*
 
 cd "$W"
-pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper.vanilla \
-         --version 2.2.0 --install-location /Applications byper-pkg-component.pkg
+pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper \
+         --version 2.2.5 --install-location /Applications byper-pkg-component.pkg
 
 # Component 2: uninstaller (no payload, script-only)
 mkdir -p "$W/uninstall-scripts"
 cp "$DIR"/pkg/uninstall-postinstall "$W/uninstall-scripts/postinstall"
 chmod +x "$W"/uninstall-scripts/postinstall
 pkgbuild --nopayload --scripts uninstall-scripts --identifier com.gefaass.byper.uninstall \
-         --version 2.2.0 byper-uninstall-component.pkg
+         --version 2.2.5 byper-uninstall-component.pkg
 
 productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
              --resources "$DIR/pkg" byper-installer.pkg
@@ -58,7 +58,7 @@ mkdir -p "$DMG_STAGE"
 ditto "$OUT" "$DMG_STAGE/byper-installer.pkg"
 DMG_OUT="$DIR/byper-installer.dmg"
 rm -f "$DMG_OUT"
-hdiutil create -volname "byper vanilla 2.2.0" -srcfolder "$DMG_STAGE" -format UDZO -o "$DMG_OUT" >/dev/null 2>&1
+hdiutil create -volname "byper 2.2.5" -srcfolder "$DMG_STAGE" -format UDZO -o "$DMG_OUT" >/dev/null 2>&1
 rm -rf "$DMG_STAGE"
 
 echo "[OK] $OUT"

@@ -63,14 +63,14 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 - Diagnostics and integration. CSV session recorder to Desktop with live REC timer, global hotkey (`⌘⌥B`), and App Intents for macOS Shortcuts (macOS 13+).
 - Self-updater. Warns when the local project build is newer than the installed application.
 
-### byper vanilla (this branch)
+### Feature set
 
-This branch **is** the vanilla build: a reduced variant with only the dependable features: **Bypass Charge**, **Powersave** (manual + per-app auto LPM), **Caffeinate**, and **Settings**. Presets, the Threshold automation, and Slow Charge are compiled out here, not just hidden. The `main` branch carries the full build.
+byper ships a focused feature set: **Bypass Charge**, **Presets** (Travel / Docked), **Powersave** (manual + per-app auto LPM), **Threshold**, **Caffeinate**, **Slow Charge**, and **Settings**.
 
 > [!WARNING]
-> **Known issues in the full build on `main` (why this branch exists):**
+> **Known issues:**
 > - **Threshold:** the automation usually misses its trigger when the lid is closed (the whole point of the toggle). Even with the toggle on, the hold often doesn't engage when the battery crosses the threshold. Consider it unreliable for now.
-> - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** in the full build until fixed. This branch excludes both.
+> - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** until fixed.
 
 Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` (Finder-branded during the build) and `byper-installer.dmg` (icon survives download).
 
