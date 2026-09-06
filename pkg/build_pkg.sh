@@ -32,10 +32,8 @@ pkgbuild --nopayload --scripts uninstall-scripts --identifier com.gefaass.byper.
 productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
              --resources "$DIR/pkg" byper-installer.pkg
 
-# Brand the .pkg file with the app icon in Finder, deliver to Desktop
-OUT="$HOME/Desktop/byper-installer.pkg"
-rm -f "$HOME/Desktop/byper-installer.pkg" "$HOME/Desktop/byper.pkg"
-cp byper-installer.pkg "$OUT"
+# Brand the .pkg file with the app icon in Finder (icon applied at build time)
+OUT="$DIR/byper-installer.pkg"
 # A raw .icns is a data-fork icon file, and Finder custom icons require resource ID
 # -16455 (kCustomIconResource). Use macOS NSWorkspace to reliably set the custom icon
 # directly from the asset image.
