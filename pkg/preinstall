@@ -1,9 +1,33 @@
 #!/bin/bash
 # byper preinstall (UPGRADE path): remove all binaries/components but KEEP
-# the app settings. Clean files in, configs preserved. Handles both bundle
+# the app settings. Clean files in, configs preserved. The bypass state itself
+# is reset to default (same as the uninstaller's hardware reset) so an upgrade
+# never leaves the new build inheriting a stale hold. Handles both bundle
 # names (byper.app and the older byper-vanilla.app) so an upgrade over
 # either variant cleans up fully.
 set -e
+
+# ── Bypass state reset FIRST (while the CLI still exists) ──
+# Release any bypass hold so the machine returns to stock charging before the
+# old binary is deleted. Settings (defaults domain) stay untouched.
+if [ -x /usr/local/bin/byper ]; then
+    /usr/local/bin/byper off >/dev/null 2>&1 || true
+    sleep 2
+    # Verify the hold actually released; retry once (the OS-side debounce can
+    # swallow the first toggle off → on within seconds).
+    FLOW=$(/usr/local/bin/byper s 2>/dev/null | head -1)
+    case "$FLOW" in
+        *BYPASS*|*"ON HOLD"*|*"hold"*)
+            /usr/local/bin/byper off >/dev/null 2>&1 || true
+            sleep 2
+            ;;
+    esac
+fi
+# The CLI binary may be non-SUID or absent while a hold persists in the PMU;
+# a plain run of the new binary would still clear it, so also drop the CLI's
+# persisted mode key: the new build boots with bypass off at the app level.
+defaults delete com.gefaass.byper byp_power_mode 2>/dev/null || true
+defaults delete com.gefaass.byper byp_cached_hold 2>/dev/null || true
 
 pkill -f "byper.app/Contents/MacOS/byper" 2>/dev/null || true
 pkill -f "byper-vanilla.app/Contents/MacOS/byper" 2>/dev/null || true
