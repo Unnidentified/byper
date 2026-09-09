@@ -284,7 +284,7 @@ struct BatteryDropdownView: View {
                         .foregroundColor(monitor.isPluggedIn && isBypass ? iconColor : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
-                    Text("Bypass Charge")
+                    Text("Byper")
                         .font(.custom("FiraCode-SemiBold", size: 11))
                         .foregroundColor(monitor.isPluggedIn && isBypass ? .white : Color(white: 0.38))
                         .lineLimit(1)
@@ -486,12 +486,12 @@ struct BatteryDropdownView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "display")
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.caffeineActive ? Self.solarGold : Color(white: 0.38))
+                        .foregroundColor(monitor.caffeineAlwaysOn ? Self.solarGold : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
                     Text("Caffeinate")
                         .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(monitor.caffeineActive ? .white : Color(white: 0.38))
+                        .foregroundColor(monitor.caffeineAlwaysOn ? .white : Color(white: 0.38))
 
                     Spacer()
 

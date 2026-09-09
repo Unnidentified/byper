@@ -65,7 +65,7 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 
 ### Feature set
 
-byper ships a focused feature set: **Bypass Charge**, **Presets** (Travel / Docked), **Powersave** (manual + per-app auto LPM), **Threshold**, **Caffeinate**, **Slow Charge**, and **Settings**.
+byper ships a focused feature set: **Byper** (bypass charge), **Presets** (Travel / Docked), **Powersave** (manual + per-app auto LPM), **Threshold**, **Caffeinate**, **Slow Charge**, and **Settings**.
 
 > [!WARNING]
 > **Known issues:**
@@ -73,6 +73,26 @@ byper ships a focused feature set: **Bypass Charge**, **Presets** (Travel / Dock
 > - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** until fixed.
 
 Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` (Finder-branded during the build) and `byper-installer.dmg` (icon survives download).
+
+### Changelog
+
+#### 2.2.6
+- Menu bar popover narrowed to a squared layout (280 → 244 pt).
+- Status-bar icon state is now hardware-first: the plug glyph tracks the engine hold (including the in-flight apply window) and the bolt only shows while the battery is physically charging, eliminating flicker and stale-label states.
+- Fixed a poller race where the CLI status poll could erase the bypass memory on unplug, so a remembered bypass failed to re-engage on the next charger connect (was random).
+- Caffeinate row now lights up only from the manual switch; the auto-on-bypass behavior keeps working without hijacking the row's visual state. The manual switch has priority.
+- Powersave hardened: the manual switch outranks per-app auto LPM; the auto reconciler now runs as a desired-state comparison (self-heals failed applies, re-engages when the manual switch goes off with an auto app still focused, clears latched state when the selection empties), and respects master-slider stand-down.
+- Row label "Bypass Charge" renamed to "Byper".
+
+#### 2.2.5
+- Vanilla feature set is now the only build; all vanilla-variant naming dropped.
+- Installer branding kept in the repo folder; DMG wrapper preserves the Finder icon through downloads.
+
+#### 2.2.0
+- First DMG-distributed release; icon branding applied during the build; credential scrub with full history rewrite.
+
+#### 2.1.0
+- PKG v2 installer with Upgrade (keeps settings) / Uninstall paths; bypass engine, toolchain bootstrap and menu bar app foundations.
 
 ---
 

@@ -78,6 +78,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 self.monitor.isLowPowerMode = enabled
                 DispatchQueue.global(qos: .userInitiated).async {
                     _ = CLIEngineBridge.setLowPowerModeSync(enabled: enabled)
+                    DispatchQueue.main.async {
+                        // Manual switch outranks auto: turning it OFF hands
+                        // control straight back to the per-app automation
+                        // (re-engages if an auto app is frontmost, no-op otherwise).
+                        if !enabled { self.monitor.reconcileAutoLPM() }
+                    }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                         self.monitor.refresh()
                     }

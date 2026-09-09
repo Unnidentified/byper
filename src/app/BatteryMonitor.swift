@@ -1143,10 +1143,10 @@ final class BatteryMonitor: ObservableObject {
         }
         
         if #available(macOS 12.0, *) {
-            self.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled || self.isAutoLPMTriggered
+            self.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled || self.isAutoLPMTriggered || self.isManualLowPowerMode
         } else {
             // macOS 11 has no public low-power query; manual + auto-LPM flags still drive the UI
-            self.isLowPowerMode = self.isAutoLPMTriggered
+            self.isLowPowerMode = self.isAutoLPMTriggered || self.isManualLowPowerMode
         }
         checkAutoBypassThreshold()
         
@@ -1464,7 +1464,10 @@ final class BatteryMonitor: ObservableObject {
     // real window on screen. Clicking a menu bar icon, the desktop files or the wallpaper never
     // takes the front window away, so Battery Saver stays enabled through those.
     func reconcileAutoLPM() {
-        guard !isManualLowPowerMode, !autoLPMBundleIds.isEmpty else { return }
+        // The manual switch outranks the per-app automation: while it is on the
+        // reconciler never touches LPM. Master slider stand-down wins too (the
+        // row was deliberately disabled — auto must not sneak it back on).
+        guard masterRowEnabled("lpm"), !isManualLowPowerMode else { return }
         guard let ownerBundleID = Self.frontmostRealWindowOwnerBundleID() else {
             // No real window on screen at all (front window closed or minimized to a bare desktop)
             if isAutoLPMTriggered {
@@ -1474,8 +1477,11 @@ final class BatteryMonitor: ObservableObject {
             }
             return
         }
+        // Desired-state comparison, not edge-only: re-engages after the manual
+        // switch goes off with an auto app still frontmost, clears a latched
+        // engagement when the selection empties, and self-heals a failed apply.
         if autoLPMBundleIds.contains(ownerBundleID) {
-            if !isLowPowerMode && !isAutoLPMTriggered {
+            if !isLowPowerMode {
                 isAutoLPMTriggered = true
                 isLowPowerMode = true
                 CLIEngineBridge.setLowPowerMode(enabled: true)
