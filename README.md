@@ -20,7 +20,7 @@ Hold battery charge at any level and power the system entirely from the AC adapt
 
 ```bash
 byper            # Interactive real-time TUI monitor
-byper on         # Engage charge bypass (run strictly off AC)
+byper on         # Engage charge bypass (plugged in)
 byper off        # Resume standard charging
 byper t          # Toggle bypass state
 byper s          # One-line status summary
@@ -72,27 +72,30 @@ byper ships a focused feature set: **Byper** (bypass charge), **Presets** (Trave
 > - **Threshold:** the automation usually misses its trigger when the lid is closed (the whole point of the toggle). Even with the toggle on, the hold often doesn't engage when the battery crosses the threshold. Consider it unreliable for now.
 > - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** until fixed.
 
-Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` (Finder-branded during the build) and `byper-installer.dmg` (icon survives download).
+Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` and `byper-installer.dmg` (ships via Releases).
 
 ### Changelog
 
 #### 2.2.6
 - Menu bar popover narrowed to a squared layout (280 → 244 pt).
-- Status-bar icon state is now hardware-first: the plug glyph tracks the engine hold (including the in-flight apply window) and the bolt only shows while the battery is physically charging, eliminating flicker and stale-label states.
-- Fixed a poller race where the CLI status poll could erase the bypass memory on unplug, so a remembered bypass failed to re-engage on the next charger connect (was random).
-- Caffeinate row now lights up only from the manual switch; the auto-on-bypass behavior keeps working without hijacking the row's visual state. The manual switch has priority.
-- Powersave hardened: the manual switch outranks per-app auto LPM; the auto reconciler now runs as a desired-state comparison (self-heals failed applies, re-engages when the manual switch goes off with an auto app still focused, clears latched state when the selection empties), and respects master-slider stand-down.
 - Row label "Bypass Charge" renamed to "Byper".
+- Engine-confirmed icon state: the plug lands when the apply completes and tracks the hold; the bolt shows the moment charging is requested and stays while the hardware confirms it.
+- Fixed a poller race where the CLI status poll could erase the bypass memory on unplug, so a remembered bypass failed to re-engage on the next charger connect (was random).
+- Caffeinate row lights up only from the manual switch; auto-on-bypass keeps working without hijacking the row. The manual switch has priority.
+- Powersave hardened: the manual switch outranks per-app auto LPM; the auto reconciler is desired-state based (self-heals failed applies, re-engages after manual-off with an auto app focused, clears latched state) and respects master-slider stand-down.
+- Installer (Upgrade path) resets only the bypass state to default before swapping files; every other setting is preserved.
 
 #### 2.2.5
-- Vanilla feature set is now the only build; all vanilla-variant naming dropped.
-- Installer branding kept in the repo folder; DMG wrapper preserves the Finder icon through downloads.
+- One build for everyone: the reduced feature set (Byper, Powersave, Caffeinate, Settings) is the product; variant naming dropped.
+- Installer hardened: postinstall works over any previously installed variant; the uninstaller resets the hardware to stock before removing anything.
 
 #### 2.2.0
-- First DMG-distributed release; icon branding applied during the build; credential scrub with full history rewrite.
+- Distribution moved to DMG-wrapped installers.
+- Credential scrub: an embedded dev credential removed from the source and the entire git history (force-push); the dev path now reads `BYP_SUDO_PASS` from the environment.
+- Powersave, Caffeinate and Settings reliability fixes; per-app auto LPM introduced.
 
 #### 2.1.0
-- PKG v2 installer with Upgrade (keeps settings) / Uninstall paths; bypass engine, toolchain bootstrap and menu bar app foundations.
+- Initial build.
 
 ---
 
