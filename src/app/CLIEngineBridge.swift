@@ -24,6 +24,10 @@ struct BypassStatus: Decodable {
     let pmuConfigured: Int?
     let notChargingReason: UInt32?
     let notChargingReasonDesc: String?
+    let deviceName: String?
+    let serial: String?
+    let adapterPdoCount: Int?
+    let adapterSelectedPdo: Int?
 }
 
 struct CLIEngineBridge {

@@ -544,6 +544,10 @@ final class BatteryMonitor: ObservableObject {
     }
     private var caffeineAssertionID: IOPMAssertionID = 0
     private var caffeineCancellable: AnyCancellable?
+    // @Published mirror of the effective caffeinate state (manual switch OR the
+    // auto-on-bypass path). caffeineActive is a plain computed property, which
+    // SwiftUI cannot observe; the row reads this instead.
+    @Published var caffeineEngaged: Bool = false
     var caffeineActive: Bool { caffeineAssertionID != 0 }
 
     private var runLoopSource: CFRunLoopSource?
@@ -746,6 +750,11 @@ final class BatteryMonitor: ObservableObject {
                     latched = true   // rising edge of bypass engagement arms the auto path
                 } else if !bypass {
                     latched = false
+                } else if bypass && !state.latched {
+                    // Checking the box MID-bypass: no bypass edge fires (bypass was
+                    // already high), so the box change itself must latch. State
+                    // semantics: auto on + bypass engaged = caffeinate on.
+                    latched = true
                 }
                 return (prevBypass: Optional(bypass), latched: latched, always: always)
             }
@@ -758,7 +767,9 @@ final class BatteryMonitor: ObservableObject {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] active in
-                self?.updateCaffeineAssertion(active: active)
+                guard let self = self else { return }
+                self.updateCaffeineAssertion(active: active)
+                self.caffeineEngaged = active
             }
 
         // While a preset is active, every toggle change the user makes is saved into that mode
@@ -884,34 +895,46 @@ final class BatteryMonitor: ObservableObject {
         let timeFmt = DateFormatter()
         timeFmt.dateFormat = "HH:mm:ss"
         let tStr = timeFmt.string(from: Date())
-        
+
         let status = CLIEngineBridge.getStatus()
         let amps = status?.amperage_mA ?? 0
         let temp = status?.temperature_C ?? self.temperature
         let watts = status?.wattage_W ?? self.currentWatts
-        
+        let volts = Double(status?.voltage_mV ?? 0) / 1000.0
+
         let stateStr: String
-        let flowStr: String
         if self.isHold {
             stateStr = "Bypass (Hold)"
-            flowStr = String(format: "%+d mA", amps)
         } else if self.isCharging {
             stateStr = "Fast Charging"
-            flowStr = String(format: "%+d mA", amps)
         } else if self.isPluggedIn {
             stateStr = "AC Attached"
-            flowStr = String(format: "%+d mA", amps)
         } else {
             stateStr = "On Battery"
-            flowStr = String(format: "%+d mA", amps)
         }
-        
-        let powerStr = String(format: "%.1f W", abs(watts))
-        let tempStr = String(format: "%.1f°C", temp)
-        let elapsedStr = String(format: "+%02d:%02d", elapsed / 60, elapsed % 60)
+
+        let powerStr = String(format: "%.2f W", abs(watts))
+        let tempStr = String(format: "%.2f°C", temp)
+        let elapsedStr = String(format: "+%02d:%02d:%02d", elapsed / 3600, (elapsed / 60) % 60, elapsed % 60)
         let battStr = "\(self.percentage)%"
-        
-        let line = "\(tStr),\(elapsedStr),\(battStr),\(stateStr),\(flowStr),\(powerStr),\(tempStr)"
+        let ncrStr = status?.notChargingReason.map { String(format: "0x%08X", $0) } ?? "-"
+        let ncrDesc = status?.notChargingReasonDesc ?? ""
+        let voltStr = String(format: "%.3f V", volts)
+        let cyclesStr = "\(status?.cycleCount ?? 0)"
+        let adapterW = status?.adapterWatts ?? 0
+        let adapterStr = adapterW > 0 ? "\(adapterW) W" : "-"
+        let lpmStr = self.isLowPowerMode ? "On" : "Off"
+        let caffeineStr = self.caffeineActive ? "On" : "Off"
+        let cellMin = status.map { s -> Int in
+            // cell voltages aren't in the JSON snapshot; SoC pack voltage is the proxy
+            s.voltage_mV ?? 0
+        }
+        let healthStr = status?.deviceName ?? "-"
+
+        // Columns: Time, Elapsed, Batt %, Power State, Current (mA), Power (W),
+        // Voltage (V), Temp (°C), NCR (hex), NCR Description, Cycles,
+        // Adapter (W), LPM, Caffeinate, Battery Chip, Pack mV
+        let line = "\(tStr),\(elapsedStr),\(battStr),\(stateStr),\(amps),\(powerStr),\(voltStr),\(tempStr),\(String(format: "0x%08X", status?.notChargingReason ?? 0)),\(ncrDesc),\(cyclesStr),\(adapterStr),\(lpmStr),\(caffeineStr),\(healthStr),\(cellMin ?? 0)"
         sessionLogRecords.append(line)
     }
 
@@ -970,7 +993,8 @@ final class BatteryMonitor: ObservableObject {
         lines.append(String(format: "Battery Info: %d Charge Cycles,,,,,,", cycles))
         lines.append(String(format: "Power Adapter: %@,,,,,,", adInfo))
         lines.append(",,,,,,")
-        lines.append("Time,Elapsed,Batt,Power State,Current Flow,Power Draw,Temp")
+        lines.append(",")
+        lines.append("Time,Elapsed,Batt %,Power State,Current (mA),Power (W),Voltage (V),Temp (°C),NCR (hex),NCR Description,Cycles,Adapter (W),LPM,Caffeinate,Battery Chip,Pack mV")
         return lines
     }
 
@@ -999,8 +1023,8 @@ final class BatteryMonitor: ObservableObject {
                 let watts = status?.wattage_W ?? self.currentWatts
                 let stateStr = self.isHold ? "Bypass (Hold)" : (self.isCharging ? "Fast Charging" : (self.isPluggedIn ? "AC Connected" : "On Battery"))
                 let flowStr = (self.isHold || abs(amps) < 50) ? "0 mA (Resting)" : String(format: "%+d mA", amps)
-                
-                bodyLines.append("\(tStr),+00:00,\(self.percentage)%,\(stateStr),\(flowStr),\(String(format: "%.1f W", abs(watts))),\(String(format: "%.1f°C", temp))")
+
+                bodyLines.append("\(tStr),+00:00:00,\(self.percentage)%,\(stateStr),\(amps),\(String(format: "%.2f W", abs(watts))),\(String(format: "%.3f V", Double(status?.voltage_mV ?? 0) / 1000.0)),\(String(format: "%.2f°C", temp)),\(String(format: "0x%08X", status?.notChargingReason ?? 0)),\(status?.notChargingReasonDesc ?? ""),\(status?.cycleCount ?? 0),\(status?.adapterWatts ?? 0),\(self.isLowPowerMode ? "On" : "Off"),\(self.caffeineActive ? "On" : "Off"),\(status?.deviceName ?? "-"),\(status?.voltage_mV ?? 0)")
             }
             
             let fullContent = (headerLines + bodyLines + [
@@ -1257,6 +1281,14 @@ final class BatteryMonitor: ObservableObject {
                 } else {
                     self.pendingEngineApply = false
                 }
+                // Counter ends the instant the apply ends, success or fail. The
+                // counter must never outlive its apply: a [FAIL] round that left
+                // the hardware limbo used to leave it counting into the next
+                // toggle, which read as "the counter loops".
+                self.counterValue = 0
+                self.counterCounting = false
+                self.counterTicker?.invalidate()
+                self.counterTicker = nil
                 self.updateSlowChargeCycle()
                 self.refresh()
             }

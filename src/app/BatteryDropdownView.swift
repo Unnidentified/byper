@@ -486,12 +486,12 @@ struct BatteryDropdownView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "display")
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.caffeineAlwaysOn ? Self.solarGold : Color(white: 0.38))
+                        .foregroundColor(monitor.caffeineAlwaysOn || monitor.caffeineEngaged ? Self.solarGold : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
                     Text("Caffeinate")
                         .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(monitor.caffeineAlwaysOn ? .white : Color(white: 0.38))
+                        .foregroundColor(monitor.caffeineAlwaysOn || monitor.caffeineEngaged ? .white : Color(white: 0.38))
 
                     Spacer()
 
