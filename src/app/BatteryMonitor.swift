@@ -1197,6 +1197,11 @@ final class BatteryMonitor: ObservableObject {
         // App Intents) is covered - the UI lock alone was bypassable during the
         // LLDB apply window.
         if mode == .bypass && slowChargeEnabled { return }
+        // Same-mode apply already in flight: stacking a second CLI round-trip
+        // restarts the transition/counter timers on every completion and the
+        // counter loops. Ignore repeats of the request that is running.
+        if isTransitioning, targetPowerMode == mode { return }
+        if pendingEngineApply, powerMode == mode { return }
 
         counterStart = Date()
         startCounterTicker()
@@ -1218,11 +1223,20 @@ final class BatteryMonitor: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            _ = CLIEngineBridge.setPowerModeSync(mode)
+            let result = CLIEngineBridge.setPowerModeSync(mode)
             // C-level powerui already polled IOKit and confirmed the hardware state — no need to re-poll here
             DispatchQueue.main.async {
-                self.powerMode = mode
-                self.appliedPowerMode = mode
+                if result.exitCode == 0 {
+                    self.powerMode = mode
+                    self.appliedPowerMode = mode
+                } else {
+                    // Apply failed (engine printed [FAIL]: the OS debounce can
+                    // swallow a toggle). Committing the requested mode anyway
+                    // made the poller reconcile against stale state and re-arm
+                    // the counter on every retry. Leave the old applied mode
+                    // standing and let refresh() read hardware truth.
+                    self.refresh()
+                }
                 // Never-both invariant: if a race latched Slow Charge while bypass
                 // was applying, bypass wins and the flag clears.
                 if mode == .bypass && self.slowChargeEnabled {
@@ -1642,7 +1656,17 @@ final class BatteryMonitor: ObservableObject {
         let ticker = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             if self.isTransitioning || self.pendingEngineApply {
-                self.counterValue = Date().timeIntervalSince(t0)
+                // Hard cap: same ceiling as the transition ticker. A wedged
+                // pendingEngineApply must not count forever.
+                let elapsed = Date().timeIntervalSince(t0)
+                if elapsed > 60 {
+                    self.counterValue = 0
+                    self.counterCounting = false
+                    self.counterTicker?.invalidate()
+                    self.counterTicker = nil
+                } else {
+                    self.counterValue = elapsed
+                }
             } else {
                 self.counterValue = 0
                 self.counterCounting = false
