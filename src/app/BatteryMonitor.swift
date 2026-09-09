@@ -1572,6 +1572,11 @@ final class BatteryMonitor: ObservableObject {
                 if self.isPluggedIn {
                     if self.isHold {
                         self.powerSourceTitle = "Power Adapter (Hold)"
+                        // The automation just engaged bypass: commit the mode now,
+                        // or the toggle/icon read powerMode == .charging until the
+                        // next IOKit reconcile flickers them off then on again.
+                        self.powerMode = .bypass
+                        self.appliedPowerMode = .bypass
                     } else if self.isCharging {
                         self.powerSourceTitle = "Power Adapter (Charging)"
                     } else {
@@ -1671,10 +1676,27 @@ final class BatteryMonitor: ObservableObject {
         // Query Unified CLI Engine for Hardware Bypass Hold State & Telemetry
         if let status = CLIEngineBridge.getStatus() {
             if let ac = status.acAttached {
+                let wasPlugged = self.isPluggedIn
                 self.isPluggedIn = ac
                 if !ac {
+                    // Mirror the IOKit unplug edge: record the hold BEFORE
+                    // clearing it, or a CLI poll that wins the race erases the
+                    // bypass memory and the replug never re-engages (the random
+                    // "bypass forgotten" flip).
+                    if wasPlugged {
+                        self.lastHoldPriorToUnplug = self.isHold && self.slowPhase != .rest
+                        self.lastPluggedState = false
+                    }
                     self.isHold = false
                     self.isCharging = false
+                } else if !wasPlugged {
+                    // This poller saw the re-plug first: run the same connect
+                    // edge as the IOKit path. lastPluggedState must be synced
+                    // here too or BOTH pollers fire their edge independently.
+                    self.lastPluggedState = true
+                    if (self.autoHoldOnPlug || self.lastHoldPriorToUnplug) && !self.isTransitioning {
+                        self.engageAutoHoldOnPlug()
+                    }
                 }
             }
             if let ch = status.isCharging {

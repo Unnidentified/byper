@@ -820,7 +820,7 @@ struct BatteryDropdownView: View {
             monitor.renamingPreset = nil
         }
         .padding(11)
-        .frame(width: 280)
+        .frame(width: 244)
         .fixedSize(horizontal: true, vertical: false)
           .background(
             // Near-opaque dark base: the popover appearance is locked dark, but on

@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         hostingController.view.layoutSubtreeIfNeeded()
         let initialFitting = hostingController.view.fittingSize
-        popover.contentSize = NSSize(width: 280, height: max(initialFitting.height, 250))
+        popover.contentSize = NSSize(width: 244, height: max(initialFitting.height, 250))
         popover.contentViewController = hostingController
         // Lock the popover to the dark look: vibrancy/popover materials otherwise follow the
         // desktop appearance and wash out on light backgrounds
@@ -148,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
-        // Instant popover frame snap when dropdown menus expand/collapse (locked to width: 280).
+        // Instant popover frame snap when dropdown menus expand/collapse (locked to width: 244).
         // showLoggerInfo (Logger "i" description) and isCaffeineMenuExpanded also change the
         // content height — without them the popover keeps its expanded height on collapse.
         Publishers.Merge4(
@@ -281,17 +281,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         view.layoutSubtreeIfNeeded()
         let fitting = view.fittingSize
         if fitting.height > 0 {
-            popover.contentSize = NSSize(width: 280, height: fitting.height)
+            popover.contentSize = NSSize(width: 244, height: fitting.height)
         }
     }
 
     func updateButton(_ button: NSStatusBarButton) {
         let isPluggedIn = monitor.isPluggedIn
-        let isBypass: Bool
-        let isCharging: Bool
-        
-        isBypass = isPluggedIn && (monitor.appliedPowerMode == .bypass || monitor.isHold)
-        isCharging = isPluggedIn && !isBypass && (monitor.appliedPowerMode == .charging)
+        // Hardware-first icon state. Bypass = engine hold OR the pending/intent
+        // union (bypassActiveOrPending covers powerMode, in-flight applies and
+        // slider passes), so the plug icon is up the instant the toggle flips
+        // and survives any poller race. Bolt = the battery is REALLY charging
+        // (hardware flag), never a mode label — a stale appliedPowerMode must
+        // not draw a bolt over an active hold.
+        let isBypass = isPluggedIn && (monitor.bypassActiveOrPending || monitor.appliedPowerMode == .bypass)
+        let isCharging = isPluggedIn && !isBypass && monitor.isCharging
         
         let key = "\(monitor.percentage)_\(isPluggedIn)_\(isCharging)_\(isBypass)_\(monitor.isLowPowerMode)_\(monitor.isTransitioning)_\(monitor.transitionMessage)"
         
@@ -323,7 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 view.layoutSubtreeIfNeeded()
                 let fitting = view.fittingSize
                 if fitting.height > 0 {
-                    popover.contentSize = NSSize(width: 280, height: fitting.height)
+                    popover.contentSize = NSSize(width: 244, height: fitting.height)
                 }
             }
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
