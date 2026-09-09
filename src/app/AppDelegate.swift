@@ -300,7 +300,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // (hardware flag), never a mode label — a stale appliedPowerMode must
         // not draw a bolt over an active hold.
         let isBypass = isPluggedIn && (monitor.bypassActiveOrPending || monitor.appliedPowerMode == .bypass)
-        let isCharging = isPluggedIn && !isBypass && monitor.isCharging
+        // Bolt the moment charging is requested (applied mode) and while the
+        // hardware flag confirms it. The PMU takes a few seconds to leave the
+        // hold state after `off`, so hardware-only derivation idled in between.
+        // Safe now that automations commit appliedPowerMode on success.
+        let isCharging = isPluggedIn && !isBypass && (monitor.isCharging || monitor.appliedPowerMode == .charging)
         
         let key = "\(monitor.percentage)_\(isPluggedIn)_\(isCharging)_\(isBypass)_\(monitor.isLowPowerMode)_\(monitor.isTransitioning)_\(monitor.transitionMessage)"
         
