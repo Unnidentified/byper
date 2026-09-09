@@ -299,7 +299,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // and survives any poller race. Bolt = the battery is REALLY charging
         // (hardware flag), never a mode label — a stale appliedPowerMode must
         // not draw a bolt over an active hold.
-        let isBypass = isPluggedIn && (monitor.bypassActiveOrPending || monitor.appliedPowerMode == .bypass)
+        // Plug only when the apply is DONE: engine-confirmed hold or the
+        // engine-confirmed applied mode. Intent/transitioning states are
+        // excluded on purpose — the plug lands when the counter snaps back
+        // to 0.00s, not while the toggle is still in flight.
+        let isBypass = isPluggedIn && (monitor.isHold || monitor.appliedPowerMode == .bypass)
         // Bolt the moment charging is requested (applied mode) and while the
         // hardware flag confirms it. The PMU takes a few seconds to leave the
         // hold state after `off`, so hardware-only derivation idled in between.
