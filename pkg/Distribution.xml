@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
-    <title>byper 2.2.6</title>
+    <title>byper 2.2.7</title>
     <organization>com.gefaass</organization>
     <options customize="always" require-scripts="true"/>
     <domains enable_anywhere="true" enable_currentUserHome="false" enable_localSystem="true"/>
