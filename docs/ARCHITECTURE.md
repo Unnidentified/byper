@@ -55,7 +55,7 @@ The dev-path fallback (`sudo -S lldb`) for non-root builds reads the sudo passwo
 - Dev path (non-root build): export `BYP_SUDO_PASS` in your shell before running dev builds (or just run them via `sudo`).
 - PKG installs never touch it (they use the admin-dialog helper + SUID).
 
-The repository is therefore safe to publish once the history rewrite below is verified.
+The repository is therefore safe to publish; the credential-scrub history rewrite (2.2.0) was verified and force-pushed.
 
 ## State machines worth knowing
 

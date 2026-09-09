@@ -35,7 +35,7 @@ The bypass needs to attach to `PowerUIAgent` as root, which macOS gates behind d
    ```bash
    BYP_LLDB_DEBUG=1 byper on   # writes /tmp/byp_lldb_debug.log (wiped on reboot)
    ```
-   and check the unified log for PowerUIAgent attach denials. If your build refuses root attach, there is currently no non-SIP workaround (see [LIMITATIONS.md](LIMITATIONS.md)).
+   and check the unified log for PowerUIAgent attach denials. If your build refuses root attach, relax SIP's debug restriction once in Recovery (`csrutil enable --without debug` — full explanation in the README prerequisites; see also [LIMITATIONS.md](LIMITATIONS.md)).
 
 ## Toggle seems to hang or does nothing for ~30–60 s
 

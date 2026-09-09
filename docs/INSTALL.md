@@ -2,10 +2,15 @@
 
 Two supported paths: the guided PKG (recommended for any Mac that isn't the development machine) and install.sh from a source checkout. Target: Apple Silicon, macOS 11 Big Sur or newer. Intel is not built; the target triple is `arm64-apple-macos11.0`, and a universal2 build would be needed for Intel.
 
-## Option A: PKG installer (recommended)
+## Option A: One-line install (recommended)
 
-1. Get `byper-installer.pkg` (build it: `make app && ./pkg/build_pkg.sh`; published on Releases as `byper-installer-sip.pkg`).
-2. Open it. The Installation Type pane offers:
+```bash
+curl -fsSL https://byper.org/install | bash
+```
+
+Downloads the latest `byper-installer.pkg` from Releases, verifies it, and opens the standard macOS Installer. Or download `byper-installer.pkg` / `byper-installer.dmg` from [Releases](https://github.com/Unnidentified/byper/releases/latest) directly (build locally with `make app && ./pkg/build_pkg.sh`).
+
+2. Open the pkg. The Installation Type pane offers:
    - **Install.** Replaces the app, keeps your settings.
    - **Uninstall.** Removes everything including settings (the uninstall choice's postinstall script, `pkg/uninstall-postinstall`, doubles as a complete uninstaller: app, CLI, completions, LaunchDaemons, defaults, caches; the preinstall script is the upgrade path and deliberately keeps settings).
 3. First bypass toggle triggers one admin prompt (attributed to byper) that installs the root helper and fixes SUID ownership.
