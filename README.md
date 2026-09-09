@@ -5,7 +5,15 @@ macOS true charge bypass and hardware battery utility for Apple Silicon (macOS 1
 Hold battery charge at any level and power the system entirely from the AC adapter (0 mA net battery draw). Includes real-time hardware power rail monitoring via a SUID-root CLI and a native SwiftUI menu bar companion.
 
 > [!IMPORTANT]
-> **SIP must be relaxed for bypass to work.** Run `csrutil enable --without debug` in Recovery. See [Prerequisites: System Integrity Protection (SIP)](#prerequisites-system-integrity-protection-sip) below for the full explanation.
+> **SIP must be relaxed for bypass to work.** Run `csrutil enable --without debug` in Recovery. See [prerequisites](#prerequisites-system-integrity-protection-sip) below for the full explanation.
+
+## Install
+
+```bash
+curl -fsSL https://byper.org/install | bash
+```
+
+Downloads the latest installer from Releases, verifies it, and opens the standard macOS Installer (you confirm the actual install; admin prompt).
 
 ---
 
