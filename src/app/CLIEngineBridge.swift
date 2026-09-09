@@ -232,9 +232,13 @@ struct CLIEngineBridge {
     }
     
     static func setLowPowerMode(enabled: Bool) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            _ = runCommand(["lpm", enabled ? "1" : "0"])
-        }
+        // Fire-and-forget is too slow for app-focus transitions: the 90s-bounded
+        // pipe poll plus the async hop serialized every switch behind a worker
+        // thread. pmset is a single fast call (the CLI's lpm verb has no verify
+        // poll), so run it synchronously on the calling queue — the reconciler
+        // fires at most one call per state change and this keeps switch latency
+        // at the process-spawn floor.
+        _ = runCommand(["lpm", enabled ? "1" : "0"], allowPrompt: false)
     }
     
     // Slow exponential moving average (EMA) curve for CPU monitoring

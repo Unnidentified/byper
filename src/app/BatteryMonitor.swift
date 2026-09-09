@@ -721,6 +721,12 @@ final class BatteryMonitor: ObservableObject {
                 plugged && (mode == .bypass || (hold && self?.slowPhase != .rest))
             }
             .removeDuplicates()
+        // Auto caffeine is EDGE-OR-STATE: checking "Auto Enable on Bypass" while
+        // bypass is ALREADY engaged must light caffeinate immediately (the old
+        // edge-only scan treated the pre-existing engagement as "no rising
+        // edge" and never latched). Rising edges arm it as before; the first
+        // emission seeds with live state so an already-bypassing session with
+        // the box checked is caffeinated right away.
         caffeineCancellable = Publishers.CombineLatest(
                 Publishers.CombineLatest($autoCaffeineOnBypass, bypassEngaged),
                 $caffeineAlwaysOn
@@ -729,10 +735,9 @@ final class BatteryMonitor: ObservableObject {
                 let (auto, bypass) = next.0
                 let always = next.1
                 guard let prev = state.prevBypass else {
-                    // First emission seeds with the live bypass state: if bypass is
-                    // ALREADY engaged when the user checks the box, that must not
-                    // count as a rising edge — checking only arms the NEXT engagement.
-                    return (prevBypass: Optional(bypass), latched: false, always: always)
+                    // Seed: caffeinate is on right away when the box is checked
+                    // during an active bypass (state semantics, not edge-only).
+                    return (prevBypass: Optional(bypass), latched: auto && bypass, always: always)
                 }
                 var latched = state.latched
                 if !auto {
@@ -1494,6 +1499,8 @@ final class BatteryMonitor: ObservableObject {
         // Desired-state comparison, not edge-only: re-engages after the manual
         // switch goes off with an auto app still frontmost, clears a latched
         // engagement when the selection empties, and self-heals a failed apply.
+        // The per-app trigger also outranks the OS-level LPM: if macOS LPM is
+        // somehow off while an auto app is frontmost, re-assert it.
         if autoLPMBundleIds.contains(ownerBundleID) {
             if !isLowPowerMode {
                 isAutoLPMTriggered = true

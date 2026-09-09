@@ -528,7 +528,7 @@ struct BatteryDropdownView: View {
 
                 if monitor.isCaffeineMenuExpanded {
                     HStack {
-                        Text("Auto Enable on Bypass")
+                        Text("On Bypass")
                             .font(.custom("FiraCode-Medium", size: 10.5))
                             .foregroundColor(.white)
                         Spacer()
