@@ -79,20 +79,21 @@ Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer
 ### Changelog
 
 #### 2.2.7
-This one is all about the small stuff that made the app feel unreliable. Toggling bypass used to leave the seconds counter running in the background — it now stops the moment the apply finishes, whether it worked or not, and mashing the toggle can no longer stack applies on top of each other. Checking "On Bypass" while bypass is already running now lights up Caffeinate right away (previously it silently did nothing), and the row shows the real caffeinate state no matter what turned it on. Switching between watched apps in per-app Powersave is near-instant now instead of lagging a beat behind.
-
-The session log export got a proper upgrade too: 16 columns per sample now, including pack voltage, the exact not-charging reason code the PMU reports, cycle count, adapter wattage, and whether LPM and Caffeinate were active at each sample. Much better for figuring out what actually happened during a session.
-
-Also fixed in this round: the menu bar pill used to flicker when you clicked it (the app was fighting macOS's own highlight — that's gone), the thermal graph had occasional sudden cuts from sensor misreads (anything jumping more than 8°C between polls is discarded now), and the installer got simpler — the choices just say "Install" and "Uninstall", and the app opens by itself when the install finishes.
+- Toggle counter no longer loops: the counter ends the instant its apply finishes (success or fail), same-mode applies can't stack, and a failed apply no longer poisons the next toggle.
+- "On Bypass" (caffeinate) checked during an active bypass lights the Caffeinate row immediately; the row now reflects the effective caffeinate state from either source.
+- Per-app Powersave switching is much faster (synchronous apply) and re-asserts LPM if the OS flag is off while a watched app is frontmost.
+- Session log export extended to 16 columns per sample: voltage, NCR code + description, cycle count, adapter watts, LPM and Caffeinate state, battery chip, pack mV.
+- Installer: choices are literally "Install" and "Uninstall"; the app opens automatically after install/upgrade.
+- Fixed the menu bar pill flicker on click (the app no longer fights AppKit's own highlight) and sudden graph cuts (sensor misreads above 8°C between polls are rejected).
 
 #### 2.2.6
-This release was a consistency pass over the things that acted up day to day. The battery icon now only shows states the engine has actually confirmed: the plug appears when the apply really completes, and the bolt shows while the battery is genuinely charging — no more flicker, no more stale bolt sitting on top of a hold, and no more idle gap right after you disable bypass while the PMU catches up.
-
-There was also a random one: unplugging the charger could erase the "remembered bypass", so plugging back in sometimes just... didn't re-engage. Two pollers were racing each other on the plug event; they share the same edges now.
-
-Caffeinate and Powersave got clear priority rules. The manual switch always wins over the automations, and the per-app LPM reconciler now works off desired state instead of one-shot triggers — it heals failed applies, picks back up when you turn the manual switch off with a watched app still focused, and cleans up when you remove apps from the list. The installer's Upgrade path also got a small fix: it resets only the bypass state before swapping files, so an upgrade can't inherit a stale hold, while everything else stays untouched.
-
-On the looks side: the popover is squarer now (280 → 244 pt) and the "Bypass Charge" row is just called **Byper**.
+- Menu bar popover narrowed to a squared layout (280 → 244 pt).
+- Row label "Bypass Charge" renamed to "Byper".
+- Engine-confirmed icon state: the plug lands when the apply completes and tracks the hold; the bolt shows the moment charging is requested and stays while the hardware confirms it.
+- Fixed a poller race where the CLI status poll could erase the bypass memory on unplug, so a remembered bypass failed to re-engage on the next charger connect (was random).
+- Caffeinate row lights up only from the manual switch; auto-on-bypass keeps working without hijacking the row. The manual switch has priority.
+- Powersave hardened: the manual switch outranks per-app auto LPM; the auto reconciler is desired-state based (self-heals failed applies, re-engages after manual-off with an auto app focused, clears latched state) and respects master-slider stand-down.
+- Installer (Upgrade path) resets only the bypass state to default before swapping files; every other setting is preserved.
 
 #### 2.2.5
 - One build for everyone: the reduced feature set (Byper, Powersave, Caffeinate, Settings) is the product; variant naming dropped.
