@@ -350,12 +350,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     // MARK: - NSPopoverDelegate (Starts/Stops on-demand polling & animation only while open)
     func popoverWillShow(_ notification: Notification) {
-        statusItem.button?.isHighlighted = true
+        // The system draws its own highlight pill while the button is pressed;
+        // forcing isHighlighted here fought that rendering and made the pill
+        // background flicker on every click. Leave it to AppKit.
         monitor.startActivePolling()
     }
 
     func popoverDidClose(_ notification: Notification) {
-        statusItem.button?.isHighlighted = false
         monitor.stopActivePolling()
         // Drop any in-progress preset rename so reopening the popover starts clean
         monitor.renamingPreset = nil

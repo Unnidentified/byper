@@ -1826,18 +1826,24 @@ final class BatteryMonitor: ObservableObject {
             temperatureHistory = Array(repeating: temp, count: 24)
             return
         }
-        
+
         var history = temperatureHistory
         let lastIdx = history.count - 1
+        // Reject sensor glitches: a jump larger than 8°C between polls is a
+        // misread (the Kelvin/deci-celsius fallback flips scale on bad
+        // registers), not physics. Skipping it removes the sudden graph cuts.
+        if abs(temp - history[lastIdx]) > 8.0 && history[lastIdx] > 0 {
+            return
+        }
         history[lastIdx] = (0.02 * temp) + (0.98 * history[lastIdx])
-        
+
         if now - lastTempBinTime >= 3600 {
             history.removeFirst()
             history.append(temp)
             lastTempBinTime = now
             save24hTemperatureHistory()
         }
-        
+
         self.temperatureHistory = history
     }
     

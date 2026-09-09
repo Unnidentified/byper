@@ -30,7 +30,7 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 ```
 
 > [!NOTE]
-> Bypass state persists in hardware across terminal closures until explicitly cleared with `byper off` or via the menu bar toggle.
+> Bypass state persists in hardware across terminal closures until explicitly cleared with `byper off`, the menu bar toggle, or the app's "Off on exit" setting.
 
 ### Telemetry Output Sample
 
@@ -77,6 +77,14 @@ Global controls on top of the rows: the master slider and the `⌘⌥B` hotkey.
 Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` and `byper-installer.dmg` (ships via Releases).
 
 ### Changelog
+
+#### 2.2.7
+- Toggle counter no longer loops: the counter ends the instant its apply finishes (success or fail), same-mode applies can't stack, and a failed apply no longer poisons the next toggle.
+- "On Bypass" (caffeinate) checked during an active bypass lights the Caffeinate row immediately; the row now reflects the effective caffeinate state from either source.
+- Per-app Powersave switching is much faster (synchronous apply) and re-asserts LPM if the OS flag is off while a watched app is frontmost.
+- Session log export extended to 16 columns per sample: voltage, NCR code + description, cycle count, adapter watts, LPM and Caffeinate state, battery chip, pack mV.
+- Installer: choices are literally "Install" and "Uninstall"; the app opens automatically after install/upgrade.
+- Fixed the menu bar pill flicker on click (the app no longer fights AppKit's own highlight) and sudden graph cuts (sensor misreads above 8°C between polls are rejected).
 
 #### 2.2.6
 - Menu bar popover narrowed to a squared layout (280 → 244 pt).
@@ -151,7 +159,7 @@ src/
 ├── battery.c           # IOPowerSources / Smart Battery reader
 ├── power.c             # Power rail parser (SoC, DRAM, PMIC) & cell telemetry
 └── app/                # SwiftUI menu bar application and helper
-pkg/                    # Package builder scripts (preinstall = upgrade path keeping
+pkg/                    # Package builder scripts (preinstall = install path keeping
                         # settings; uninstall-postinstall = complete uninstaller)
 completions/            # Zsh and Bash shell completion scripts
 battery_icons_combined/ # Pre-rendered menu bar icon assets

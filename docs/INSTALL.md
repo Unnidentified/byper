@@ -6,7 +6,7 @@ Two supported paths: the guided PKG (recommended for any Mac that isn't the deve
 
 1. Get `byper-installer.pkg` (build it: `make app && ./pkg/build_pkg.sh`; published on Releases as `byper-installer-sip.pkg`).
 2. Open it. The Installation Type pane offers:
-   - **Upgrade / clean reinstall.** Replaces the app, keeps your settings.
+   - **Install.** Replaces the app, keeps your settings.
    - **Uninstall.** Removes everything including settings (the uninstall choice's postinstall script, `pkg/uninstall-postinstall`, doubles as a complete uninstaller: app, CLI, completions, LaunchDaemons, defaults, caches; the preinstall script is the upgrade path and deliberately keeps settings).
 3. First bypass toggle triggers one admin prompt (attributed to byper) that installs the root helper and fixes SUID ownership.
 

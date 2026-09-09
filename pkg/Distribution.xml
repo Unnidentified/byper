@@ -11,13 +11,13 @@
         <line choice="byperUninstall"/>
     </choices-outline>
     <choice id="byperUpgrade"
-            title="Upgrade / clean reinstall (keeps your settings)"
-            description="Installs a fresh copy of byper. Old program files are replaced, your settings are kept. Recommended when updating or fixing a broken install."
+            title="Install"
+            description="Installs a fresh copy of byper. Old program files are replaced, your settings are kept."
             selected="!choices.byperUninstall.selected">
         <pkg-ref id="com.gefaass.byper"/>
     </choice>
     <choice id="byperUninstall"
-            title="Uninstall byper (removes everything, including settings)"
+            title="Uninstall"
             description="Removes byper completely: the app, its helper, and all of its settings."
             selected="!choices.byperUpgrade.selected">
         <pkg-ref id="com.gefaass.byper.uninstall"/>

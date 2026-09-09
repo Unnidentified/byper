@@ -60,4 +60,12 @@ if ! dscl . -read /Groups/_developer GroupMembership 2>/dev/null | grep -q "$GRO
 fi
 
 rm -f /tmp/byp.state
+
+# Open the freshly installed app for the user (install/upgrade only).
+# LaunchAFterInstall: run as the console user, not root; skip on uninstall
+# (the uninstall component's postinstall removes the app).
+CONSOLE_USER=$(stat -f %Su /dev/console)
+if [ "$CONSOLE_USER" != "root" ] && [ -d "$APP_PATH" ]; then
+    launchctl asuser "$(id -u "$CONSOLE_USER")" sudo -u "$CONSOLE_USER" open "$APP_PATH" >/dev/null 2>&1 || true
+fi
 exit 0
