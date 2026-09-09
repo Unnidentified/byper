@@ -47,30 +47,32 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 ## Features
 
 ### Power & Telemetry Engine
-- Hardware charge bypass. Direct AC operation with 0 mA net battery draw.
-- Slow Charge trickle. Alternating 20s hold / 40s burst duty-cycle to reduce battery degradation and thermal stress.
+- Hardware charge bypass. Direct AC operation with 0 mA net battery draw, held at the state of charge you engage at.
 - Per-rail power telemetry. Real-time wattage metrics for SoC, DRAM, PMIC, and DC-In, alongside individual cell voltages.
 - Process power attribution. Automatic detection of top CPU/power consumers with estimated wattage.
+- Low Power Mode control (`byper lpm on|off`).
 
 ### Menu Bar Companion (`byper.app`)
-- Status bar icon. Pre-rendered high-DPI assets reflecting live battery level, bypass status (`⏸`), and thermal state.
+- Status bar icon. Pre-rendered high-DPI assets reflecting the live battery level, charging and bypass states.
+- Live telemetry. Thermal curve, adapter readout, and an apply counter in the popover header.
 - Master slider. A left-rail slider that progressively dims menu rows; dragging to the bottom snapshots and disables all features (bypass, LPM, caffeine, automations). Restoring to top recovers previous state.
-- Profiles and presets. Quick-switch between snapshot presets (*Travel*, *Docked*); long-press to rename.
-- Automations:
-  - Auto-bypass on AC connection, login, or external display attachment.
-  - SoC threshold trigger (engages hold when battery $\le$ configured target; manual resume snoozes until battery climbs back above).
-- System controls. Master caffeine toggle (auto-enabled during bypass) and per-app Low Power Mode (LPM) triggering when specific applications are focused.
-- Diagnostics and integration. CSV session recorder to Desktop with live REC timer, global hotkey (`⌘⌥B`), and App Intents for macOS Shortcuts (macOS 13+).
-- Self-updater. Warns when the local project build is newer than the installed application.
+- Diagnostics and integration. CSV session recorder to Desktop with live REC timer, global hotkey (`⌘⌥B`), and App Intents for macOS Shortcuts (bypass on / off / toggle; macOS 13+).
 
 ### Feature set
 
-byper ships a focused feature set: **Byper** (bypass charge), **Presets** (Travel / Docked), **Powersave** (manual + per-app auto LPM), **Threshold**, **Caffeinate**, **Slow Charge**, and **Settings**.
+One row per feature in the popover:
 
-> [!WARNING]
-> **Known issues:**
-> - **Threshold:** the automation usually misses its trigger when the lid is closed (the whole point of the toggle). Even with the toggle on, the hold often doesn't engage when the battery crosses the threshold. Consider it unreliable for now.
-> - **Slow Charge:** after some time the duty cycle re-enables bypass charge on its own (unknown cause), freezing both toggles into an un-clickable state afterwards. **Do not use the Slow Charge or Threshold toggles** until fixed.
+| Feature | What it does |
+| :--- | :--- |
+| **Byper** | Charge bypass: the system runs off the adapter with 0 mA net battery draw from the moment it engages. Optional "Off on exit" resumes charging when the app quits. |
+| **Powersave** | Manual Low Power Mode, plus per-app auto LPM: pick apps and macOS drops into LPM while one of them is frontmost. The manual switch outranks the automation. |
+| **Caffeinate** | Keeps the display awake. "Always", or "Auto Enable on Bypass" which arms it for every bypass engagement. The manual switch has priority. |
+| **Settings** | Automations: auto bypass on charger connect, at login, or on external display attach. Plus the session Logger (CSV to Desktop with a live timer). |
+
+Global controls on top of the rows: the master slider and the `⌘⌥B` hotkey.
+
+> [!NOTE]
+> **Presets (Travel / Docked), Threshold, and Slow Charge are not in the build.** They misbehaved (a threshold trigger that missed with the lid closed, a Slow Charge duty cycle that re-engaged bypass on its own), so they are compiled out rather than shipped unreliable. They may return once fixed.
 
 Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` and `byper-installer.dmg` (ships via Releases).
 
