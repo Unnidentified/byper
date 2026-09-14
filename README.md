@@ -7,16 +7,6 @@ Hold battery charge at any level and power the system entirely from the AC adapt
 > [!IMPORTANT]
 > **SIP must be relaxed for bypass to work.** Run `csrutil enable --without debug` in Recovery. See [prerequisites](#prerequisites-system-integrity-protection-sip) below for the full explanation.
 
-## Install
-
-```bash
-curl -fsSL https://byper.org/install | bash
-```
-
-Downloads the latest installer from Releases, verifies it, and opens the standard macOS Installer (you confirm the actual install; admin prompt).
-
----
-
 ## Components
 
 byper delivers two interfaces around a shared hardware engine:
