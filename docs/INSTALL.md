@@ -8,7 +8,7 @@ Two supported paths: the guided PKG (recommended for any Mac that isn't the deve
 curl -fsSL https://byper.org/install | bash
 ```
 
-Downloads the latest `byper-installer.pkg` from Releases, verifies it, and opens the standard macOS Installer. Or download `byper-installer.pkg` / `byper-installer.dmg` from [Releases](https://github.com/Unnidentified/byper/releases/latest) directly (build locally with `make app && ./pkg/build_pkg.sh`).
+Downloads the latest installer package from Releases, verifies it, and opens the standard macOS Installer. Or download `byper-installer-<version>.pkg` / `byper-installer-<version>.dmg` from [Releases](https://github.com/Unnidentified/byper/releases/latest) directly (build locally with `make app && ./pkg/build_pkg.sh`).
 
 2. Open the pkg. The Installation Type pane offers:
    - **Install.** Replaces the app, keeps your settings.

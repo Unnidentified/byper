@@ -82,7 +82,7 @@ Global controls on top of the rows: the master slider and the `⌘⌥B` hotkey.
 > [!NOTE]
 > **Presets (Travel / Docked), Threshold, and Slow Charge are not in the build.** They misbehaved (a threshold trigger that missed with the lid closed, a Slow Charge duty cycle that re-engaged bypass on its own), so they are compiled out rather than shipped unreliable. They may return once fixed.
 
-Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer.pkg` and `byper-installer.dmg` (ships via Releases).
+Build here with `make app && ./pkg/build_pkg.sh`. That produces the installer packages (ships via Releases as `byper-installer-<version>.pkg` and `byper-installer-<version>.dmg`).
 
 ### Changelog
 
@@ -137,7 +137,7 @@ csrutil enable --without debug
 This partially enables SIP. It keeps filesystem, kernel extension, and NVRAM protections while permitting the debugger attachment.
 
 ### Package Installer (Recommended)
-Download `byper-installer.pkg` from Releases. The package manages clean upgrades (preserving settings), configures Command Line Tools (`lldb`) if missing, and provisions the bypass helper via standard macOS authorization.
+Download `byper-installer-<version>.pkg` from Releases. The package manages clean upgrades (preserving settings), configures Command Line Tools (`lldb`) if missing, and provisions the bypass helper via standard macOS authorization.
 
 ### Building from Source
 
