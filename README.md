@@ -14,8 +14,6 @@ byper delivers two interfaces around a shared hardware engine:
 - **`byper` CLI** (`/usr/local/bin/byper`, symlinked as `byp` and `chbypass`): A C/Obj-C engine running SUID root. Manages hardware charge bypass, provides an interactive real-time TUI monitor, per-rail power telemetry, and machine-readable JSON streaming.
 - **`byper.app`**: A native SwiftUI menu bar extra replacing the macOS battery menu. Exposes hardware status, toggles, automations, and quick controls directly from the menu bar.
 
----
-
 ## Features
 
 ### Charge Bypass & Power Engine
@@ -39,9 +37,7 @@ byper delivers two interfaces around a shared hardware engine:
 | **Powersave** | Manual Low Power Mode, plus per-app auto LPM: drops into LPM while a designated app is frontmost. Manual switch outranks automation. |
 | **Caffeinate** | Prevents display and system idle sleep. "Always", or "Auto Enable on Bypass". Manual switch takes priority. |
 | **Settings** | Automations: auto-bypass on charger connect, at login, or on external display attach. Includes session log export. |
-
-> [!NOTE]
-> **Presets (Travel / Docked), Threshold, and Slow Charge are currently omitted from the latest builds.** They proved unreliable under lid-closed sleep or duty cycles, so they are compiled out rather than shipped broken.
+> Presets (Travel / Docked), Threshold, and Slow Charge are currently omitted from the latest builds. (proved unreliable). Bypass state persists app closures until explicitly cleared with `byper off`, the menu bar toggle, or the app's "Off on exit" setting.
 
 ---
 
@@ -57,9 +53,6 @@ byper p          # Hardware power rails (SoC, DRAM, PMIC, cells, top process)
 byper json       # Telemetry snapshot formatted as JSON
 byper mon        # Continuous timestamped stream (non-TTY friendly)
 ```
-
-> [!NOTE]
-> Bypass state persists in hardware across terminal closures until explicitly cleared with `byper off`, the menu bar toggle, or the app's "Off on exit" setting.
 
 ### Telemetry Output Sample
 
@@ -201,4 +194,4 @@ Contributors must review [`forensic-agent-plan.md`](forensic-agent-plan.md) befo
 ## Disclaimers
 
 > [!CAUTION]
-> This utility modifies power management state using SMC keys and process injection into system daemons (`PowerUIAgent`). It is provided as-is without warranty. Monitor system temperatures under sustained heavy workloads while running on bypass, and ensure your power adapter provides adequate wattage for peak system load.
+> This utility modifies power management state using SMC keys and process injection into system daemons (`PowerUIAgent`). It is provided as-is without warranty.
