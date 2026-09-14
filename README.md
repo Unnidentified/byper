@@ -26,7 +26,7 @@ byper delivers two interfaces around a shared hardware engine:
 
 ### Menu Bar Companion (`byper.app`)
 - **Status bar icon:** Pre-rendered high-DPI assets reflecting battery percentage, charging state, and engine-confirmed bypass.
-- **Thermal curve:** 24-hour glowing dissipation graph with live temperature readouts.
+- **Thermal curve:** 24-hour temp graph with live readouts.
 - **Master slider:** Vertical rail slider that progressively dims menu rows; dragging to the bottom snapshots and disables all active functions (bypass, LPM, caffeinate, automations). Restoring to top recovers previous state.
 - **Session Logger:** Live CSV telemetry recorder to Desktop with timestamped metrics.
 - **Shortcuts integration:** Global hotkey (`⌘⌥B`) and App Intents for macOS Shortcuts (bypass on / off / toggle; macOS 13+).
