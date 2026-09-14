@@ -42,7 +42,7 @@ macOS has no public API for "stop charging at the current level." Every surfaced
 
 1. Locates `PowerUIAgent` by PID (sysctl `KERN_PROC_ALL`, no subprocess).
 2. Writes a tiny lldb batch script to `/tmp` (flock-serialized at `/tmp/byp_lldb.lock`).
-3. Forks an orphaned worker that runs `lldb -p <pid> --batch -s <script>` as **root** (SUID install → direct attach; dev builds fall back to `sudo -S`), calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately. The multi-second attach happens in the background, and the UI's verify-poll gates truth (engine fields can lag ~45 s behind a tap).
+3. Forks an orphaned worker that runs `lldb -p <pid> --batch -s <script>` as **root** (SUID install → direct attach; dev builds fall back to `sudo -S`), calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately. The multi-second attach happens in the background, and the UI's verify-poll gates truth (engine retries on a tightened 1.5s/3.5s/6s/10s curve so hold lands promptly after AC renegotiation, capped at 45s).
 4. Hardware truth is confirmed by polling SMC registers, never by trusting the injection result.
 
 The actual charge inhibition is the SMC **mode-of-operation** value (MoO: 1 = charging, 7 = hold). The daemon sets it, and the CLI reads the truth table back from the SMC. Direct SMC writes to charge-limit keys (e.g. `CHBI`) were tested and are **rejected by the firmware**, which is why injection is the load-bearing path.

@@ -23,7 +23,7 @@
 #include "power.h"
 #include "powerui.h"
 
-#define VERSION "3.5.0"
+#define VERSION "2.2.8"
 
 // ANSI Formatting (3-Color keyword map: Green, Cyan, Yellow; Dim structure, Bright values)
 #define CLR_RESET   "\033[0m"
