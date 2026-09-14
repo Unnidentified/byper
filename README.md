@@ -86,6 +86,8 @@ Build here with `make app && ./pkg/build_pkg.sh`. That produces the installer pa
 
 ### Changelog
 
+#### 2.2.9
+- Fixed installer hang on battery: `preinstall` and `uninstall-postinstall` scripts now check if AC power is connected before attempting a hardware hold reset, and the engine's `powerui_disable_hold` immediately returns when on battery instead of running an impossible 45-second verification loop waiting for AC.
 #### 2.2.8
 - Fast bypass reconnect & hardware hold synchronization: tightened verification injection retries from 15s to 1.5s/3.5s/6s/10s so `PowerUIAgent` receives the hold call immediately after the AC handshake settles, turning the MagSafe plug LED green promptly without lag.
 - Disconnect state persistence: unplugging with bypass enabled preserves the configured state in the UI toggle (dimmed on-battery display with `powerplug.fill` icon) and re-engages seamlessly on replug.

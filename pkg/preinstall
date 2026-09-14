@@ -11,17 +11,17 @@ set -e
 # Release any bypass hold so the machine returns to stock charging before the
 # old binary is deleted. Settings (defaults domain) stay untouched.
 if [ -x /usr/local/bin/byper ]; then
-    /usr/local/bin/byper off >/dev/null 2>&1 || true
-    sleep 2
-    # Verify the hold actually released; retry once (the OS-side debounce can
-    # swallow the first toggle off → on within seconds).
-    FLOW=$(/usr/local/bin/byper s 2>/dev/null | head -1)
-    case "$FLOW" in
-        *BYPASS*|*"ON HOLD"*|*"hold"*)
-            /usr/local/bin/byper off >/dev/null 2>&1 || true
-            sleep 2
-            ;;
-    esac
+    AC_ATTACHED=$(/usr/local/bin/byper json 2>/dev/null | grep -o '"acAttached": *true' || true)
+    if [ -n "$AC_ATTACHED" ]; then
+        /usr/local/bin/byper off >/dev/null 2>&1 || true
+        sleep 1
+        FLOW=$(/usr/local/bin/byper s 2>/dev/null | head -1)
+        case "$FLOW" in
+            *BYPASS*|*"ON HOLD"*|*"hold"*)
+                /usr/local/bin/byper off >/dev/null 2>&1 || true
+                ;;
+        esac
+    fi
 fi
 # The CLI binary may be non-SUID or absent while a hold persists in the PMU;
 # a plain run of the new binary would still clear it, so also drop the CLI's

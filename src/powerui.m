@@ -393,6 +393,9 @@ bool powerui_enable_hold(void) {
         @autoreleasepool {
             BatteryInfo bInfo;
             battery_get_info(&bInfo);
+            if (!bInfo.acAttached) {
+                return false;
+            }
             int soc = bInfo.percentage;
             if (soc <= 0 || soc > 100) soc = 80;
 
@@ -459,6 +462,12 @@ bool powerui_disable_hold(void) {
             notify_post("com.apple.powerui.mclstatuschanged");
             kick_kernel_battery_manager();
 
+            // If not connected to AC power, battery is discharging and cannot
+            // charge or hold — reset is already complete; return immediately.
+            if (!bInfo.acAttached) {
+                return true;
+            }
+
             // 5. Live hardware verification poll (≤45s, 100ms intervals). If the
             // target state hasn't arrived after ~10s (observed: PowerUIAgent's
             // state machine transiently swallows the resume right after an
@@ -471,14 +480,14 @@ bool powerui_disable_hold(void) {
                 usleep(100000);
                 kick_kernel_battery_manager();
                 battery_get_info(&bInfo);
-                if (bInfo.acAttached && (bInfo.isCharging || bInfo.notChargingReason == 0)) {
+                if (!bInfo.acAttached || bInfo.isCharging || bInfo.notChargingReason == 0) {
                     return true;
                 }
             }
 
             // Return hardware truth
             battery_get_info(&bInfo);
-            return (bInfo.acAttached && (bInfo.isCharging || bInfo.notChargingReason == 0));
+            return (!bInfo.acAttached || bInfo.isCharging || bInfo.notChargingReason == 0);
         }
     } @catch (NSException *e) { return false; }
 }

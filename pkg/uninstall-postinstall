@@ -8,20 +8,20 @@ set -e
 # Release any bypass hold and restore normal charging: the machine must return
 # to stock power behavior before the tool that could undo it is deleted.
 if [ -x /usr/local/bin/byper ]; then
-    /usr/local/bin/byper off >/dev/null 2>&1 || true
+    AC_ATTACHED=$(/usr/local/bin/byper json 2>/dev/null | grep -o '"acAttached": *true' || true)
+    if [ -n "$AC_ATTACHED" ]; then
+        /usr/local/bin/byper off >/dev/null 2>&1 || true
+        sleep 1
+        FLOW=$(/usr/local/bin/byper s 2>/dev/null | head -1)
+        case "$FLOW" in
+            *BYPASS*|*"ON HOLD"*)
+                /usr/local/bin/byper off >/dev/null 2>&1 || true
+                ;;
+        esac
+    fi
     # Also clear LPM so every power knob byper may have touched is back to stock.
     /usr/local/bin/byper lpm off >/dev/null 2>&1 || true
     /usr/bin/pmset -a lowpowermode 0 >/dev/null 2>&1 || true
-    sleep 2
-    # Verify the hold actually released; retry once (the OS-side debounce can
-    # swallow the first toggle off → on within seconds).
-    FLOW=$(/usr/local/bin/byper s 2>/dev/null | head -1)
-    case "$FLOW" in
-        *BYPASS*|*"ON HOLD"*)
-            /usr/local/bin/byper off >/dev/null 2>&1 || true
-            sleep 2
-            ;;
-    esac
 fi
 
 # Kill any stale lldb worker from a previous session before removing state.
