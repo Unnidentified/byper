@@ -55,6 +55,30 @@ struct CLIEngineBridge {
         return FileManager.default.isExecutableFile(atPath: path)
     }
     
+    private static var activePowerProcess: Process?
+    private static let powerProcessLock = NSLock()
+
+    static func cancelActivePowerCommand() {
+        powerProcessLock.lock()
+        let proc = activePowerProcess
+        activePowerProcess = nil
+        powerProcessLock.unlock()
+
+        if let proc = proc, proc.isRunning {
+            proc.terminate()
+            kill(proc.processIdentifier, SIGTERM)
+            Thread.sleep(forTimeInterval: 0.05)
+            if proc.isRunning {
+                kill(proc.processIdentifier, SIGKILL)
+            }
+        }
+        let pkill = Process()
+        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        pkill.arguments = ["-9", "-f", "byp_cmd_"]
+        try? pkill.run()
+        pkill.waitUntilExit()
+        unlink("/tmp/byp_lldb.lock")
+    }
     @discardableResult
     static func installHelperWithAdminPrivileges() -> Bool {
         guard let bundledPath = Bundle.main.resourceURL?.appendingPathComponent("byper").path ?? Bundle.main.path(forResource: "byper", ofType: nil),
@@ -108,6 +132,13 @@ struct CLIEngineBridge {
         process.standardOutput = pipe
         process.standardError = pipe
 
+        let isPowerCmd = args.contains("on") || args.contains("off") || args.contains("t")
+        if isPowerCmd {
+            powerProcessLock.lock()
+            activePowerProcess = process
+            powerProcessLock.unlock()
+        }
+
         do {
             try process.run()
             // Bounded read: readDataToEndOfFile blocks until EVERY descendant
@@ -147,6 +178,13 @@ struct CLIEngineBridge {
                 }
             }
             process.waitUntilExit()
+            if isPowerCmd {
+                powerProcessLock.lock()
+                if activePowerProcess === process {
+                    activePowerProcess = nil
+                }
+                powerProcessLock.unlock()
+            }
             let output = String(data: collected, encoding: .utf8) ?? ""
             let status = process.terminationStatus
 

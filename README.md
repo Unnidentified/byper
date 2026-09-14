@@ -90,6 +90,12 @@ Downloads the latest installer package from Releases, verifies it, and launches 
 
 Download `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnidentified/byper/releases/latest). The installer preserves your settings on upgrade, configures Command Line Tools if needed, and provisions the SUID helper.
 
+> [!TIP]
+> **"App is damaged and can't be opened" warning?** If macOS Gatekeeper blocks the app with a "move to Trash" prompt, clear the quarantine attribute in Terminal:
+> ```bash
+> xattr -cr /Applications/byper.app
+> ```
+> (or on a downloaded package: `xattr -c byper-installer-*.pkg`).
 ### Option C: Building from Source
 
 Requirements: macOS 11+, Apple Silicon, Xcode Command Line Tools.
@@ -147,6 +153,9 @@ Contributors must review [`forensic-agent-plan.md`](forensic-agent-plan.md) befo
 ---
 
 ## Changelog
+#### 2.3.0
+- Interruptible bypass toggle: flipping the toggle mid-apply cancels the in-flight engine command (SIGTERM→SIGKILL, orphan LLDB worker cleanup, lock file removal) instead of waiting for the full verify window; stale async completions are discarded by round ID, and after an interrupt a delayed IOKit re-poll reconciles UI state with hardware truth in case the killed command had already landed.
+- Interrupt teardown now clears all transition/counter timers and the stale `transitionEndTime` so a post-interrupt toggle never inherits a finished-look animation.
 
 #### 2.2.9
 - Fixed installer hang on battery: `preinstall` and `uninstall-postinstall` scripts check `acAttached` before attempting hardware hold release, and the engine's `powerui_disable_hold` returns immediately when on battery instead of running an impossible 45-second verification loop waiting for AC.

@@ -350,7 +350,7 @@ struct BatteryDropdownView: View {
                     .grayscale(monitor.isPluggedIn ? 0 : 1)
                     .opacity(monitor.isPluggedIn ? 1 : 0.4)
                     .padding(.trailing, 5)
-                    .disabled(!monitor.isPluggedIn || monitor.isTransitioning || (!monitor.masterRowEnabled("bypass")))
+                    .disabled(!monitor.isPluggedIn || (!monitor.masterRowEnabled("bypass")))
                     .allowsHitTesting(monitor.masterRowEnabled("bypass"))
                 }
                 .frame(height: 16)
@@ -981,18 +981,31 @@ struct MasterPowerSwitch: View {
         let railHeight = max(0, geo.size.height - topInset - bottomInset)
         let travel = max(0, railHeight - knob - 8)
         let level = monitor.masterLevel
+        let knobY = 4 + (1 - level) * travel
+        let fillTop = max(0, knobY - (level > 0.9 ? 4 * CGFloat((level - 0.9) / 0.1) : 0))
+        let fillHeight = max(geo.size.width, railHeight - fillTop)
+        let brownFill = Color(red: 114/255.0, green: 48/255.0, blue: 21/255.0) // #723015
+
         ZStack(alignment: .top) {
+            // Track background (dark charcoal)
             Capsule()
-                .fill(Color(red: 0.24 + 0.21 * level,   // fades brown progressively;
-                                green: 0.11 + 0.08 * level, // minimum keeps a clearly
-                                blue: 0.05 + 0.03 * level)) // visible warm tint
+                .fill(Color(white: 0.16))
+
+            // Active brown fill-in (#723015), rounded at top and bottom, moving in lockstep with the ball
+            Capsule()
+                .fill(brownFill)
+                .frame(width: geo.size.width, height: fillHeight)
+                .offset(y: fillTop)
+                .opacity(level > 0.001 ? 1 : 0)
+
+            // Slider ball (knob)
             Circle()
                 .fill(level > 0.001 ? Color(red: 0.78, green: 0.58, blue: 0.48) : Color(white: 0.60))
                 .frame(width: knob, height: knob)
                 // Subtle inner depth only: a drop shadow here spilled past the rail's
                 // rounded cap and read as a warm halo around the slider tip.
                 .overlay(Circle().stroke(Color.black.opacity(0.18), lineWidth: 1))
-                .offset(y: 4 + (1 - level) * travel)
+                .offset(y: knobY)
         }
         .clipShape(Capsule())
         .frame(width: geo.size.width, height: railHeight)

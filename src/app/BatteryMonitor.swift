@@ -251,6 +251,7 @@ final class BatteryMonitor: ObservableObject {
     private var transitionTicker: Timer?
     @Published var transitionEndTime: Date? = nil
     @Published var transitionMessage: String = ""
+    private var powerModeRoundId: UInt64 = 0
     @Published var isPopoverVisible: Bool = false
     @Published var exportMessage: String = ""
     @Published var isHoveringSettings: Bool = false
@@ -1278,6 +1279,55 @@ final class BatteryMonitor: ObservableObject {
         if isTransitioning, targetPowerMode == mode { return }
         if pendingEngineApply, powerMode == mode { return }
 
+        // Interrupt any in-flight apply moving in the opposite direction
+        if isTransitioning || pendingEngineApply {
+            CLIEngineBridge.cancelActivePowerCommand()
+            transitionTicker?.invalidate()
+            transitionTicker = nil
+            transitionStartTime = nil
+            transitionEndTime = nil
+            transitionMessage = ""
+            counterValue = 0
+            counterCounting = false
+            counterTicker?.invalidate()
+            counterTicker = nil
+            isTransitioning = false
+            pendingEngineApply = false
+            targetPowerMode = nil
+
+            // cancelActivePowerCommand() is best-effort: the killed CLI may have
+            // already landed on hardware, and its completion handler is discarded
+            // by the round guard below. Re-poll IOKit after a short settle delay
+            // and reconcile from hardware truth instead of trusting the snapshot.
+            // Only clear signals win: isHold -> bypass, isCharging -> charging.
+            // Ambiguous idle keeps the snapshot. Skipped when a newer round is
+            // already in flight (fall-through below) — its completion syncs.
+            let interruptRound = powerModeRoundId + 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self = self, self.powerModeRoundId == interruptRound,
+                      !self.isTransitioning, !self.pendingEngineApply else { return }
+                self.refreshIOKitOnly()
+                if self.isHold {
+                    self.appliedPowerMode = .bypass
+                    self.powerMode = .bypass
+                } else if self.isCharging {
+                    self.appliedPowerMode = .charging
+                    self.powerMode = .charging
+                }
+                self.refresh()
+            }
+
+            // If returning to the already-applied mode before the in-flight apply took effect:
+            if appliedPowerMode == mode {
+                powerModeRoundId = interruptRound
+                powerMode = mode
+                refresh()
+                return
+            }
+        }
+
+        powerModeRoundId += 1
+        let currentRound = powerModeRoundId
         if blocksUI {
             counterStart = Date()
             startCounterTicker()
@@ -1300,7 +1350,11 @@ final class BatteryMonitor: ObservableObject {
             guard let self = self else { return }
             let result = CLIEngineBridge.setPowerModeSync(mode)
             // C-level powerui already polled IOKit and confirmed the hardware state — no need to re-poll here
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self, self.powerModeRoundId == currentRound else {
+                    // This round was interrupted by a newer toggle. Discard its results.
+                    return
+                }
                 if result.exitCode == 0 {
                     self.powerMode = mode
                     self.appliedPowerMode = mode

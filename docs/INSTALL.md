@@ -14,6 +14,10 @@ Downloads the latest installer package from Releases, verifies it, and opens the
    - **Install.** Replaces the app, keeps your settings.
    - **Uninstall.** Removes everything including settings (the uninstall choice's postinstall script, `pkg/uninstall-postinstall`, doubles as a complete uninstaller: app, CLI, completions, LaunchDaemons, defaults, caches; the preinstall script is the upgrade path and deliberately keeps settings).
 3. First bypass toggle triggers one admin prompt (attributed to byper) that installs the root helper and fixes SUID ownership.
+If macOS Gatekeeper shows an "app is damaged and can't be opened" prompt, clear the quarantine attribute:
+```bash
+xattr -cr /Applications/byper.app
+```
 
 The postinstall also enables **DevToolsSecurity** and adds you to the **_developer** group. Both are required for the lldb attach path to work on a fresh machine.
 
