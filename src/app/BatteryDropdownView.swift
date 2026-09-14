@@ -109,9 +109,32 @@ struct BatteryDropdownView: View {
     static let graphWarmSolar = Color(red: 0.96, green: 0.58, blue: 0.16) // #F59429 - Warm Solar Copper
     static let thermoAmber = Color(red: 1.0, green: 0.60, blue: 0.12)    // #FF991F - Temperature Icon
 
-    private var effectiveHoldActive: Bool {
-        return monitor.isPluggedIn && (monitor.powerMode == .bypass || monitor.isHold)
+    private var isBypassActive: Bool {
+        return monitor.isPluggedIn && monitor.masterRowEnabled("bypass") &&
+            (monitor.isHold || monitor.appliedPowerMode == .bypass ||
+             (monitor.isTransitioning ? monitor.targetPowerMode == .bypass : monitor.powerMode == .bypass))
     }
+
+    private var isLowPowerActive: Bool {
+        return monitor.masterRowEnabled("lpm") && monitor.isLowPowerMode
+    }
+
+    private var isCaffeineActive: Bool {
+        return monitor.masterRowEnabled("caffeine") &&
+            (monitor.caffeineAlwaysOn || (monitor.isPluggedIn && monitor.caffeineEngaged) || monitor.caffeineActive)
+    }
+
+    #if !VANILLA
+    private var isSlowChargeActive: Bool {
+        return monitor.masterRowEnabled("slowcharge") && monitor.isPluggedIn &&
+            monitor.slowChargeEnabled && !monitor.bypassActiveOrPending
+    }
+
+    private var isThresholdActive: Bool {
+        return monitor.masterRowEnabled("threshold") && monitor.isPluggedIn &&
+            monitor.autoBypassThresholdEnabled
+    }
+    #endif
 
     private var themeColor: Color {
         if monitor.isLowPowerMode {
@@ -274,19 +297,19 @@ struct BatteryDropdownView: View {
                 VStack(alignment: .leading, spacing: 4) {
 
                 HStack(spacing: 4) {
-                    let activeMode = monitor.isTransitioning ? (monitor.targetPowerMode ?? monitor.powerMode) : monitor.powerMode
-                    let isBypass = (activeMode == .bypass)
+                    let isBypass = (monitor.isTransitioning ? (monitor.targetPowerMode ?? monitor.powerMode) : monitor.powerMode) == .bypass
+                    let isActive = isBypassActive
                     let iconName = isBypass ? "powerplug.fill" : "bolt.fill"
                     let iconColor = isBypass ? Self.coolBrownOrange : Self.emeraldGreen
                     
                     Image(systemName: iconName)
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.isPluggedIn && isBypass ? iconColor : Color(white: 0.38))
+                        .foregroundColor(isActive ? iconColor : (isBypass ? iconColor.opacity(0.6) : Color(white: 0.38)))
                         .frame(width: 18, alignment: .center)
 
                     Text("Byper")
                         .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(monitor.isPluggedIn && isBypass ? .white : Color(white: 0.38))
+                        .foregroundColor(isActive ? .white : (isBypass ? Color(white: 0.7) : Color(white: 0.38)))
                         .lineLimit(1)
 
                       Spacer()
@@ -305,11 +328,13 @@ struct BatteryDropdownView: View {
                       .padding(.trailing, 2)
 
                       Toggle("", isOn: Binding(
-                        get: { (monitor.isTransitioning ? (monitor.targetPowerMode ?? monitor.powerMode) : monitor.powerMode) == .bypass },
+                        get: { isBypass },
                         set: { val in
+                            #if !VANILLA
                             // Only one or another: Bypass cannot engage while Slow
                             // Charge is enabled (the switch is also visually locked)
                             guard !(val && monitor.slowChargeEnabled) else { return }
+                            #endif
                             onSelectPowerMode?(val ? .bypass : .charging)
                         }
                     ))
@@ -325,8 +350,7 @@ struct BatteryDropdownView: View {
                     .grayscale(monitor.isPluggedIn ? 0 : 1)
                     .opacity(monitor.isPluggedIn ? 1 : 0.4)
                     .padding(.trailing, 5)
-                    .disabled(!monitor.isPluggedIn || monitor.isTransitioning || monitor.slowChargeEnabled)
-                    .opacity(monitor.slowChargeEnabled ? 0.4 : 1)
+                    .disabled(!monitor.isPluggedIn || monitor.isTransitioning || (!monitor.masterRowEnabled("bypass")))
                     .allowsHitTesting(monitor.masterRowEnabled("bypass"))
                 }
                 .frame(height: 16)
@@ -352,13 +376,14 @@ struct BatteryDropdownView: View {
 
 
                 HStack(spacing: 4) {
+                    let isLPM = isLowPowerActive
                     Image(systemName: "leaf.fill")
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.masterRowEnabled("lpm") && (monitor.checkedVisibleApps > 0 || monitor.isLowPowerMode) ? Self.solarGold : Color(white: 0.38))
+                        .foregroundColor(isLPM ? Self.solarGold : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
                     Text("Powersave")
-                        .foregroundColor(monitor.masterRowEnabled("lpm") && (monitor.checkedVisibleApps > 0 || monitor.isLowPowerMode) ? .white : Color(white: 0.38))
+                        .foregroundColor(isLPM ? .white : Color(white: 0.38))
                         .font(.custom("FiraCode-SemiBold", size: 11))
                         
 
@@ -372,7 +397,7 @@ struct BatteryDropdownView: View {
                     }) {
                         Image(systemName: "chevron.right")
                             .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(Color(white: 0.45))
+                            .foregroundColor(monitor.checkedVisibleApps > 0 ? Self.solarGold : Color(white: 0.45))
                             .rotationEffect(.degrees(monitor.isAppPickerExpanded ? 90 : 0))
                             .contentShape(Rectangle())
                     }
@@ -381,7 +406,7 @@ struct BatteryDropdownView: View {
                     .padding(.trailing, 2)
 
                     Toggle("", isOn: Binding(
-                        get: { monitor.isLowPowerMode },
+                        get: { isLPM },
                         set: { val in
                             monitor.isLowPowerMode = val
                             onToggleLowPower?(val)
@@ -423,20 +448,21 @@ struct BatteryDropdownView: View {
                 #if !VANILLA
                 // Threshold Menu: Auto Bypass at Battery Threshold
                 HStack(spacing: 4) {
+                    let isThresh = isThresholdActive
                     Image(systemName: "gauge.with.needle")
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.autoBypassThresholdEnabled ? Self.coolBrownOrange : Color(white: 0.38))
+                        .foregroundColor(isThresh ? Self.coolBrownOrange : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
                     Text("Threshold")
                         .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(monitor.autoBypassThresholdEnabled ? .white : Color(white: 0.38))
+                        .foregroundColor(isThresh ? .white : Color(white: 0.38))
                         .lineLimit(1)
                           .fixedSize()
 
                       Text("- \(monitor.autoBypassThreshold)%")
                           .font(.custom("FiraCode-Bold", size: 9.5))
-                          .foregroundColor(monitor.autoBypassThresholdEnabled ? Self.coolBrownOrange : Color(white: 0.38))
+                          .foregroundColor(isThresh ? Self.coolBrownOrange : Color(white: 0.38))
                           .lineLimit(1)
                           .fixedSize()
 
@@ -455,13 +481,19 @@ struct BatteryDropdownView: View {
                     .accessibilityLabel("Threshold Slider")
                     .padding(.trailing, 2)
 
-                    Toggle("", isOn: $monitor.autoBypassThresholdEnabled)
+                    Toggle("", isOn: Binding(
+                        get: { isThresh },
+                        set: { val in monitor.autoBypassThresholdEnabled = val }
+                    ))
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
                         // same Docked-right alignment as the bypass row (see comment there)
                         .frame(width: 26.6, alignment: .trailing)
                         .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
+                        .grayscale(monitor.isPluggedIn ? 0 : 1)
+                        .opacity(monitor.isPluggedIn ? 1 : 0.4)
                         .padding(.trailing, 5)
+                        .disabled(!monitor.isPluggedIn)
                 }
                 .frame(height: 16)
                 .allowsHitTesting(monitor.masterRowEnabled("threshold"))
@@ -484,14 +516,15 @@ struct BatteryDropdownView: View {
 
                 // Caffeinate Menu: Keep screen on (auto with bypass, or always)
                 HStack(spacing: 4) {
+                    let isCaff = isCaffeineActive
                     Image(systemName: "display")
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.caffeineAlwaysOn || monitor.caffeineEngaged ? Self.solarGold : Color(white: 0.38))
+                        .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
                     Text("Caffeinate")
                         .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(monitor.caffeineAlwaysOn || monitor.caffeineEngaged ? .white : Color(white: 0.38))
+                        .foregroundColor(isCaff ? .white : Color(white: 0.38))
 
                     Spacer()
 
@@ -500,7 +533,7 @@ struct BatteryDropdownView: View {
                     }) {
                         Image(systemName: "chevron.right")
                             .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(Color(white: 0.38))
+                            .foregroundColor(monitor.autoCaffeineOnBypass ? Self.solarGold : Color(white: 0.38))
                             .rotationEffect(.degrees(monitor.isCaffeineMenuExpanded ? 90 : 0))
                             .contentShape(Rectangle())
                     }
@@ -509,11 +542,17 @@ struct BatteryDropdownView: View {
                     .padding(.trailing, 2)
 
                     Toggle("", isOn: Binding(
-                        // Master = plain Caffeinate (Always) only. It must not touch
-                        // the "Auto Enable on Bypass" arming checkbox — one does not
-                        // mean the other.
-                        get: { monitor.caffeineAlwaysOn },
-                        set: { val in monitor.caffeineAlwaysOn = val }
+                        get: { isCaff },
+                        set: { val in
+                            if val {
+                                monitor.caffeineAlwaysOn = true
+                            } else {
+                                monitor.caffeineAlwaysOn = false
+                                if monitor.caffeineEngaged {
+                                    monitor.autoCaffeineOnBypass = false
+                                }
+                            }
+                        }
                     ))
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
@@ -545,14 +584,15 @@ struct BatteryDropdownView: View {
                 #if !VANILLA
                 // Slow Charge: duty-cycled burst charging (hold/burst alternation)
                 HStack(spacing: 4) {
+                    let isSlowActive = isSlowChargeActive
                     Image(systemName: "battery.25percent")
                         .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(monitor.slowChargeEnabled ? Self.coolBrownOrange : Color(white: 0.38))
+                        .foregroundColor(isSlowActive ? Self.coolBrownOrange : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
                     Text("Slow Charge")
                         .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(monitor.slowChargeEnabled ? .white : Color(white: 0.38))
+                        .foregroundColor(isSlowActive ? .white : Color(white: 0.38))
                         .lineLimit(1)
 
                     Spacer()
@@ -570,7 +610,10 @@ struct BatteryDropdownView: View {
                     .accessibilityLabel("Slow Charge Options")
                     .padding(.trailing, 2)
 
-                    Toggle("", isOn: $monitor.slowChargeEnabled)
+                    Toggle("", isOn: Binding(
+                        get: { isSlowActive },
+                        set: { val in monitor.slowChargeEnabled = val }
+                    ))
                         .labelsHidden()
                         .scaleEffect(0.70, anchor: .trailing)
                         // same Docked-right alignment as the bypass row (see comment there)

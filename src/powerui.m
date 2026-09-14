@@ -411,7 +411,7 @@ bool powerui_enable_hold(void) {
             // state machine transiently swallows an engage right after a clear),
             // re-spawn a fresh LLDB session — a later session provably lands it.
             for (int i = 0; i < 450; i++) {
-                if (i > 0 && (i % 150) == 0) {
+                if (i > 0 && (i == 15 || i == 35 || i == 60 || i == 100 || (i % 150) == 0)) {
                     battery_get_info(&bInfo);
                     spawn_hold_enable_script(bInfo.percentage > 0 && bInfo.percentage <= 100 ? bInfo.percentage : soc);
                 }
@@ -464,7 +464,7 @@ bool powerui_disable_hold(void) {
             // state machine transiently swallows the resume right after an
             // engage), re-spawn a fresh LLDB session — a later session lands it.
             for (int i = 0; i < 450; i++) {
-                if (i > 0 && (i % 150) == 0) {
+                if (i > 0 && (i == 15 || i == 35 || i == 60 || i == 100 || (i % 150) == 0)) {
                     battery_get_info(&bInfo);
                     spawn_hold_disable_script(bInfo.percentage > 0 && bInfo.percentage <= 100 ? bInfo.percentage : soc);
                 }

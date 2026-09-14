@@ -1,14 +1,26 @@
 #!/bin/bash
-# Build byper-installer.pkg — guided Installer.app package (run `make app` first).
-# VANILLA branch build: the app is compiled with -D VANILLA by the Makefile, so
-# this script just packages what `make app` produced. Two paths presented in the
-# Installation Type pane:
-#   • Upgrade / clean reinstall (keeps app settings)
-#   • Uninstall (removes everything, including settings)
+# Build byper installer packages (guided Installer.app package).
+# Supports optional label argument, e.g. `build_pkg.sh test` produces
+# `byper-test.pkg` and `byper-test.dmg` labeled "byper 2.2.8 (test)".
 set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
+
+LABEL="${1:-}"
+if [ -n "$LABEL" ]; then
+    PKG_NAME="byper-${LABEL}.pkg"
+    DMG_NAME="byper-${LABEL}.dmg"
+    TITLE="byper 2.2.8 (${LABEL})"
+    VERSION="2.2.8-${LABEL}"
+    IDENTIFIER="com.gefaass.byper.${LABEL}"
+else
+    PKG_NAME="byper-installer.pkg"
+    DMG_NAME="byper-installer.dmg"
+    TITLE="byper 2.2.8"
+    VERSION="2.2.8"
+    IDENTIFIER="com.gefaass.byper"
+fi
 
 # Component 1: upgrade payload (fresh app; settings kept)
 mkdir -p "$W/payload"
@@ -21,25 +33,26 @@ cp "$DIR"/pkg/preinstall "$DIR"/pkg/postinstall "$W/scripts/"
 chmod +x "$W"/scripts/*
 
 cd "$W"
-pkgbuild --root payload --scripts scripts --identifier com.gefaass.byper \
-         --version 2.2.7 --install-location /Applications byper-pkg-component.pkg
+pkgbuild --root payload --scripts scripts --identifier "$IDENTIFIER" \
+         --version "$VERSION" --install-location /Applications byper-pkg-component.pkg
 
 # Component 2: uninstaller (no payload, script-only)
 mkdir -p "$W/uninstall-scripts"
 cp "$DIR"/pkg/uninstall-postinstall "$W/uninstall-scripts/postinstall"
 chmod +x "$W"/uninstall-scripts/postinstall
-pkgbuild --nopayload --scripts uninstall-scripts --identifier com.gefaass.byper.uninstall \
-         --version 2.2.7 byper-uninstall-component.pkg
+pkgbuild --nopayload --scripts uninstall-scripts --identifier "${IDENTIFIER}.uninstall" \
+         --version "$VERSION" byper-uninstall-component.pkg
 
-productbuild --distribution "$DIR/pkg/Distribution.xml" --package-path . \
-             --resources "$DIR/pkg" byper-installer.pkg
+DIST_XML="$W/Distribution.xml"
+sed "s|<title>byper 2.2.8</title>|<title>$TITLE</title>|g" "$DIR/pkg/Distribution.xml" > "$DIST_XML"
+
+productbuild --distribution "$DIST_XML" --package-path . \
+             --resources "$DIR/pkg" "$PKG_NAME"
 
 # Brand the .pkg file with the app icon in Finder, deliver to the project folder.
-# Applied here, during the build (NSWorkspace one-call: writes the -16455 icns
-# resource, sets kHasCustomIcon, notifies Finder). Never injected post-hoc.
-OUT="$DIR/byper-installer.pkg"
+OUT="$DIR/$PKG_NAME"
 rm -f "$OUT"
-cp byper-installer.pkg "$OUT"
+cp "$PKG_NAME" "$OUT"
 ICON_SRC="$DIR/assets/icon.png"
 [ ! -f "$ICON_SRC" ] && ICON_SRC="$DIR/src/app/AppIcon.icns"
 if [ -f "$ICON_SRC" ]; then
@@ -55,10 +68,10 @@ fi
 # preserves them, so the custom icon survives the download.
 DMG_STAGE="$W/dmg"
 mkdir -p "$DMG_STAGE"
-ditto "$OUT" "$DMG_STAGE/byper-installer.pkg"
-DMG_OUT="$DIR/byper-installer.dmg"
+ditto "$OUT" "$DMG_STAGE/$PKG_NAME"
+DMG_OUT="$DIR/$DMG_NAME"
 rm -f "$DMG_OUT"
-hdiutil create -volname "byper 2.2.7" -srcfolder "$DMG_STAGE" -format UDZO -o "$DMG_OUT" >/dev/null 2>&1
+hdiutil create -volname "$TITLE" -srcfolder "$DMG_STAGE" -format UDZO -o "$DMG_OUT" >/dev/null 2>&1
 rm -rf "$DMG_STAGE"
 
 echo "[OK] $OUT"

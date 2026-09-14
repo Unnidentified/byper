@@ -86,6 +86,13 @@ Build here with `make app && ./pkg/build_pkg.sh`. That produces `byper-installer
 
 ### Changelog
 
+#### 2.2.8
+- Fast bypass reconnect & hardware hold synchronization: tightened verification injection retries from 15s to 1.5s/3.5s/6s/10s so `PowerUIAgent` receives the hold call immediately after the AC handshake settles, turning the MagSafe plug LED green promptly without lag.
+- Disconnect state persistence: unplugging with bypass enabled preserves the configured state in the UI toggle (dimmed on-battery display with `powerplug.fill` icon) and re-engages seamlessly on replug.
+- Reconcile protection: transient charging state during initial USB-PD negotiation no longer overrides user bypass intent.
+- Engine failure honesty: if a hardware hold fails to land after the full verification window, the UI honestly reverts to charging instead of stranding in bypass.
+- Display & login item: display auto-hold registration uses native `CGDisplayRegisterReconfigurationCallback` with external display detection; login item registration strictly follows the `autoHoldAtLogin` setting.
+- Caffeinate assertions: system and display sleep prevention combined with native `caffeinate -d -i` subprocess.
 #### 2.2.7
 - Toggle counter no longer loops: the counter ends the instant its apply finishes (success or fail), same-mode applies can't stack, and a failed apply no longer poisons the next toggle.
 - "On Bypass" (caffeinate) checked during an active bypass lights the Caffeinate row immediately; the row now reflects the effective caffeinate state from either source.

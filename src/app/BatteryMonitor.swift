@@ -268,6 +268,9 @@ final class BatteryMonitor: ObservableObject {
     @Published var autoHoldOnPlug: Bool = UserDefaults.standard.bool(forKey: "byp_auto_hold_on_plug") {
         didSet {
             UserDefaults.standard.set(autoHoldOnPlug, forKey: "byp_auto_hold_on_plug")
+            if autoHoldOnPlug && isPluggedIn && !isHold {
+                engageAutoHoldOnPlug()
+            }
         }
     }
     @Published var autoHoldOnDisplay: Bool = {
@@ -278,12 +281,19 @@ final class BatteryMonitor: ObservableObject {
     }() {
         didSet {
             UserDefaults.standard.set(autoHoldOnDisplay, forKey: "byp_auto_hold_on_display")
+            if autoHoldOnDisplay && isPluggedIn && !isHold && Self.hasExternalDisplayConnected() {
+                engageAutoHoldOnPlug()
+            }
         }
     }
     @Published var lastHoldPriorToUnplug: Bool = false
     @Published var autoHoldAtLogin: Bool = UserDefaults.standard.bool(forKey: "byp_auto_hold_at_login") {
         didSet {
             UserDefaults.standard.set(autoHoldAtLogin, forKey: "byp_auto_hold_at_login")
+            updateLoginItem(enabled: autoHoldAtLogin)
+            if autoHoldAtLogin && isPluggedIn && !isHold {
+                engageAutoHoldOnPlug()
+            }
         }
     }
     @Published var autoCaffeineOnBypass: Bool = UserDefaults.standard.bool(forKey: "byp_auto_caffeine_on_bypass") {
@@ -333,6 +343,7 @@ final class BatteryMonitor: ObservableObject {
     // (the status icon stops showing our hold), then terminate. The captured flag
     // re-engages bypass at the next launch — quitting never leaves effects running.
     func saveStateAndQuit() {
+        updateCaffeineAssertion(active: false)
         let wasBypassing = isPluggedIn && (isHold || appliedPowerMode == .bypass || powerMode == .bypass)
         UserDefaults.standard.set(wasBypassing, forKey: "byp_resume_bypass_on_launch")
         if wasBypassing {
@@ -542,13 +553,18 @@ final class BatteryMonitor: ObservableObject {
             break
         }
     }
-    private var caffeineAssertionID: IOPMAssertionID = 0
+    private var caffeinateProcess: Process?
+    private var caffeineDisplayAssertion: IOPMAssertionID = 0
+    private var caffeineSystemAssertion: IOPMAssertionID = 0
     private var caffeineCancellable: AnyCancellable?
+    private var displayCallback: CGDisplayReconfigurationCallBack?
     // @Published mirror of the effective caffeinate state (manual switch OR the
     // auto-on-bypass path). caffeineActive is a plain computed property, which
     // SwiftUI cannot observe; the row reads this instead.
     @Published var caffeineEngaged: Bool = false
-    var caffeineActive: Bool { caffeineAssertionID != 0 }
+    var caffeineActive: Bool {
+        caffeineDisplayAssertion != 0 || caffeineSystemAssertion != 0 || (caffeinateProcess?.isRunning ?? false)
+    }
 
     private var runLoopSource: CFRunLoopSource?
     private var powerObserver: NSObjectProtocol?
@@ -572,12 +588,15 @@ final class BatteryMonitor: ObservableObject {
         installedApps = Self.loadCachedInstalledApps()
         hasLoadedInstalledApps = !installedApps.isEmpty
         refreshInstalledApps()
-        updateLoginItem(enabled: true)
+        updateLoginItem(enabled: autoHoldAtLogin)
         refresh() // Full synchronous hardware probe before any UI is rendered
         registerNotification()
         
         lastPluggedState = isPluggedIn
         if autoHoldAtLogin && isPluggedIn && !isHold {
+            engageAutoHoldOnPlug()
+        }
+        if autoHoldOnDisplay && isPluggedIn && !isHold && Self.hasExternalDisplayConnected() {
             engageAutoHoldOnPlug()
         }
         // Re-seed the last user request from hardware truth: a stale persisted
@@ -643,10 +662,23 @@ final class BatteryMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             guard let self = self else { return }
-            if self.autoHoldOnDisplay && self.isPluggedIn && NSScreen.screens.count > 1 {
+            if self.autoHoldOnDisplay && self.isPluggedIn && !self.isHold && Self.hasExternalDisplayConnected() {
                 self.engageAutoHoldOnPlug()
             }
         }
+        
+        let dispCallback: CGDisplayReconfigurationCallBack = { display, flags, userInfo in
+            guard let userInfo = userInfo else { return }
+            let monitor = Unmanaged<BatteryMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+            DispatchQueue.main.async {
+                if monitor.autoHoldOnDisplay && monitor.isPluggedIn && !monitor.isHold && BatteryMonitor.hasExternalDisplayConnected() {
+                    monitor.engageAutoHoldOnPlug()
+                }
+            }
+        }
+        self.displayCallback = dispCallback
+        let dispContext = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        CGDisplayRegisterReconfigurationCallback(dispCallback, dispContext)
         
         // Sleep / Wake Continuity Hook
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -758,11 +790,13 @@ final class BatteryMonitor: ObservableObject {
                 }
                 return (prevBypass: Optional(bypass), latched: latched, always: always)
             }
-            .map { state -> Bool in
-                var active = state.latched
-                if state.always { active = true }
-                if !self.isPluggedIn { active = false }
-                return active
+            .map { [weak self] state -> Bool in
+                guard let self = self else { return false }
+                // Always on: keeps machine awake whether on AC power or battery!
+                if state.always { return true }
+                // Auto on bypass: active while plugged in and bypassing
+                if state.latched && self.isPluggedIn { return true }
+                return false
             }
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
@@ -1078,18 +1112,17 @@ final class BatteryMonitor: ObservableObject {
                 let nowPlugged = extConn
                 if nowPlugged && !self.lastPluggedState {
                     self.isPluggedIn = true
-                    // Charger connect alone must NOT engage bypass: only the explicit
-                    // opt-in (autoHoldOnPlug) or the disconnect memory. The display
-                    // automation lives in the screen-change observer — a docked
-                    // display connecting fires it there; AC connecting does not.
-                    if self.autoHoldOnPlug || self.lastHoldPriorToUnplug {
+                    let shouldBypass = self.autoHoldOnPlug || self.lastHoldPriorToUnplug || self.powerMode == .bypass || self.appliedPowerMode == .bypass
+                    self.lastHoldPriorToUnplug = false
+                    if shouldBypass {
                         self.engageAutoHoldOnPlug()
                     }
                 } else if !nowPlugged && self.lastPluggedState {
-                    // A Slow Charge rest hold is ours, not user bypass — remembering
-                    // it here made the next charger connect "restore" a bypass the
-                    // user never toggled.
-                    self.lastHoldPriorToUnplug = self.isHold && slowPhase != .rest
+                    let wasBypassing = (self.isHold || self.appliedPowerMode == .bypass || self.powerMode == .bypass) && slowPhase != .rest
+                    self.lastHoldPriorToUnplug = wasBypassing
+                    if wasBypassing {
+                        self.powerMode = .bypass
+                    }
                 }
                 let wasPlugged = self.isPluggedIn
                 self.lastPluggedState = nowPlugged
@@ -1149,13 +1182,17 @@ final class BatteryMonitor: ObservableObject {
                         let nowPlugged = (psState == kIOPSACPowerValue)
                         if nowPlugged && !self.lastPluggedState {
                             self.isPluggedIn = true
-                            // Same rule as the IOKit path: charger connect alone
-                            // never engages bypass — opt-in or disconnect memory only.
-                            if self.autoHoldOnPlug || self.lastHoldPriorToUnplug {
+                            let shouldBypass = self.autoHoldOnPlug || self.lastHoldPriorToUnplug || self.powerMode == .bypass || self.appliedPowerMode == .bypass
+                            self.lastHoldPriorToUnplug = false
+                            if shouldBypass {
                                 self.engageAutoHoldOnPlug()
                             }
                         } else if !nowPlugged && self.lastPluggedState {
-                            self.lastHoldPriorToUnplug = self.isHold && slowPhase != .rest
+                            let wasBypassing = (self.isHold || self.appliedPowerMode == .bypass || self.powerMode == .bypass) && slowPhase != .rest
+                            self.lastHoldPriorToUnplug = wasBypassing
+                            if wasBypassing {
+                                self.powerMode = .bypass
+                            }
                         }
                         self.lastPluggedState = nowPlugged
                         self.isPluggedIn = nowPlugged
@@ -1172,7 +1209,14 @@ final class BatteryMonitor: ObservableObject {
         }
         
         if #available(macOS 12.0, *) {
-            self.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled || self.isAutoLPMTriggered || self.isManualLowPowerMode
+            let systemLPM = ProcessInfo.processInfo.isLowPowerModeEnabled
+            if !systemLPM && self.isManualLowPowerMode {
+                self.isManualLowPowerMode = false
+            }
+            if !systemLPM && self.isAutoLPMTriggered {
+                self.isAutoLPMTriggered = false
+            }
+            self.isLowPowerMode = systemLPM
         } else {
             // macOS 11 has no public low-power query; manual + auto-LPM flags still drive the UI
             self.isLowPowerMode = self.isAutoLPMTriggered || self.isManualLowPowerMode
@@ -1188,7 +1232,9 @@ final class BatteryMonitor: ObservableObject {
                     powerMode = .bypass
                 }
             } else if self.isCharging {
-                if powerMode != .charging { powerMode = .charging }
+                if powerMode != .charging && !bypassActiveOrPending {
+                    powerMode = .charging
+                }
             }
         }
         
@@ -1232,9 +1278,9 @@ final class BatteryMonitor: ObservableObject {
         if isTransitioning, targetPowerMode == mode { return }
         if pendingEngineApply, powerMode == mode { return }
 
-        counterStart = Date()
-        startCounterTicker()
         if blocksUI {
+            counterStart = Date()
+            startCounterTicker()
             targetPowerMode = mode
             if mode == .charging {
                 // Manual resume while below threshold: suppress threshold re-engage until SoC rises above it
@@ -1246,7 +1292,7 @@ final class BatteryMonitor: ObservableObject {
             startTransitionTicker()
         } else {
             if mode == .charging { thresholdSnoozed = true }
-            powerMode = mode  // UI flips instantly; status icon + counter wait for the apply
+            powerMode = mode  // UI flips instantly; status icon waits for the apply
             pendingEngineApply = true
         }
 
@@ -1259,11 +1305,11 @@ final class BatteryMonitor: ObservableObject {
                     self.powerMode = mode
                     self.appliedPowerMode = mode
                 } else {
-                    // Apply failed (engine printed [FAIL]: the OS debounce can
-                    // swallow a toggle). Committing the requested mode anyway
-                    // made the poller reconcile against stale state and re-arm
-                    // the counter on every retry. Leave the old applied mode
-                    // standing and let refresh() read hardware truth.
+                    // Apply failed after full verify window. Sync powerMode to hardware truth
+                    // so we never strand the UI in .bypass when the engine couldn't land it.
+                    if !self.isHold {
+                        self.powerMode = .charging
+                    }
                     self.refresh()
                 }
                 // Never-both invariant: if a race latched Slow Charge while bypass
@@ -1278,17 +1324,13 @@ final class BatteryMonitor: ObservableObject {
                     self.transitionEndTime = Date()
                     self.targetPowerMode = nil
                     self.transitionMessage = ""
+                    self.counterValue = 0
+                    self.counterCounting = false
+                    self.counterTicker?.invalidate()
+                    self.counterTicker = nil
                 } else {
                     self.pendingEngineApply = false
                 }
-                // Counter ends the instant the apply ends, success or fail. The
-                // counter must never outlive its apply: a [FAIL] round that left
-                // the hardware limbo used to leave it counting into the next
-                // toggle, which read as "the counter loops".
-                self.counterValue = 0
-                self.counterCounting = false
-                self.counterTicker?.invalidate()
-                self.counterTicker = nil
                 self.updateSlowChargeCycle()
                 self.refresh()
             }
@@ -1600,66 +1642,25 @@ final class BatteryMonitor: ObservableObject {
         // Slow Charge owns the charger policy while enabled: no automation
         // (display, plug memory, wake, login, threshold) may engage bypass over
         // it. The cycle's rest holds are the only holds it should ever see.
-        guard !slowChargeEnabled else { return }
-        guard !isTransitioning else { return }
-        isTransitioning = true
-        // Declare the apply: bypassActiveOrPending must cover THIS window too,
-        // or the Slow Charge switch stays unlocked while the hold is in flight
-        // and both end up latched (the race that dimmed both switches).
-        targetPowerMode = .bypass
-        transitionStartTime = Date()
-        transitionMessage = "Holding..."
-        startTransitionTicker()
-        
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            _ = CLIEngineBridge.enableHoldSync()
-            let status = CLIEngineBridge.getStatus()
-            
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                if let status = status {
-                    let ncr = status.notChargingReason ?? 0
-                    let amps = status.amperage_mA ?? 0
-                    let isCharging = status.isCharging ?? false
-                    self.isHold = self.isPluggedIn && ((status.holdActive == true) || ((ncr & 0x01000000) != 0 && abs(amps) < 50 && !isCharging))
-                    self.isCharging = self.isPluggedIn && isCharging
-                    if let pct = status.percentage { self.percentage = pct }
-                } else {
-                    self.isHold = self.isPluggedIn
-                }
-                
-                if self.isPluggedIn {
-                    if self.isHold {
-                        self.powerSourceTitle = "Power Adapter (Hold)"
-                        // The automation just engaged bypass: commit the mode now,
-                        // or the toggle/icon read powerMode == .charging until the
-                        // next IOKit reconcile flickers them off then on again.
-                        self.powerMode = .bypass
-                        self.appliedPowerMode = .bypass
-                    } else if self.isCharging {
-                        self.powerSourceTitle = "Power Adapter (Charging)"
-                    } else {
-                        self.powerSourceTitle = "Power Adapter (Full)"
-                    }
-                } else {
-                    self.powerSourceTitle = "Battery Power"
-                    self.isHold = false
-                    self.isCharging = false
-                }
-                
-                self.isTransitioning = false
-                self.targetPowerMode = nil
-                self.transitionTicker?.invalidate()
-                self.transitionStartTime = nil
-                self.transitionMessage = ""
-                // Bypass won: if a race (enable during the apply window) left the
-                // Slow Charge flag latched, clear it so the never-both invariant
-                // holds in the persisted state, not just in the cycle guards.
-                if self.isHold && self.slowChargeEnabled {
-                    self.slowChargeEnabled = false
-                }
-            }
+        guard !slowChargeEnabled else {
+            return
         }
+        guard !isTransitioning else {
+            return
+        }
+        guard isPluggedIn && !isHold else {
+            return
+        }
+        setPowerMode(.bypass, blocksUI: false)
+    }
+
+    static func hasExternalDisplayConnected() -> Bool {
+        var count: UInt32 = 0
+        CGGetOnlineDisplayList(0, nil, &count)
+        guard count > 0 else { return false }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        CGGetOnlineDisplayList(count, &displays, &count)
+        return displays.contains { CGDisplayIsBuiltin($0) == 0 }
     }
 
     // 30fps elapsed readout for the in-row transition timer (TimelineView needs macOS 14+)
@@ -1717,25 +1718,63 @@ final class BatteryMonitor: ObservableObject {
         counterTicker = ticker
     }
 
-    // MARK: - Auto Caffeine (Prevent Display Sleep) while Bypass is active
+    // MARK: - Auto Caffeine (Prevent Display Sleep & System Sleep)
 
     private func updateCaffeineAssertion(active: Bool) {
         if active {
-            guard caffeineAssertionID == 0 else { return }
-            var assertionID = IOPMAssertionID(0)
-            let result = IOPMAssertionCreateWithName(
-                kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
-                IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                "byper: bypass charging active" as CFString,
-                &assertionID
-            )
-            if result == kIOReturnSuccess {
-                caffeineAssertionID = assertionID
+            // 1. In-process IOPMAssertions (prevent both display and system idle sleep)
+            if caffeineDisplayAssertion == 0 {
+                var dispID = IOPMAssertionID(0)
+                if IOPMAssertionCreateWithName(
+                    kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+                    IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                    "byper: display sleep prevented" as CFString,
+                    &dispID
+                ) == kIOReturnSuccess {
+                    caffeineDisplayAssertion = dispID
+                }
+            }
+            if caffeineSystemAssertion == 0 {
+                var sysID = IOPMAssertionID(0)
+                if IOPMAssertionCreateWithName(
+                    kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
+                    IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                    "byper: system sleep prevented" as CFString,
+                    &sysID
+                ) == kIOReturnSuccess {
+                    caffeineSystemAssertion = sysID
+                }
+            }
+            // 2. Native macOS caffeinate subprocess (-d for display, -i for system idle)
+            // System-wide recognized by macOS powerd and pmset -g assertions
+            if caffeinateProcess == nil || !(caffeinateProcess?.isRunning ?? false) {
+                let proc = Process()
+                proc.launchPath = "/usr/bin/caffeinate"
+                proc.arguments = ["-d", "-i"]
+                do {
+                    try proc.run()
+                    caffeinateProcess = proc
+                } catch {
+                    // In-process assertions above provide fallback
+                }
             }
         } else {
-            guard caffeineAssertionID != 0 else { return }
-            IOPMAssertionRelease(caffeineAssertionID)
-            caffeineAssertionID = 0
+            // Release in-process assertions
+            if caffeineDisplayAssertion != 0 {
+                IOPMAssertionRelease(caffeineDisplayAssertion)
+                caffeineDisplayAssertion = 0
+            }
+            if caffeineSystemAssertion != 0 {
+                IOPMAssertionRelease(caffeineSystemAssertion)
+                caffeineSystemAssertion = 0
+            }
+            // Terminate native caffeinate subprocess
+            if let proc = caffeinateProcess {
+                if proc.isRunning {
+                    proc.terminate()
+                }
+                caffeinateProcess = nil
+            }
         }
     }
 
@@ -1753,7 +1792,11 @@ final class BatteryMonitor: ObservableObject {
                     // bypass memory and the replug never re-engages (the random
                     // "bypass forgotten" flip).
                     if wasPlugged {
-                        self.lastHoldPriorToUnplug = self.isHold && self.slowPhase != .rest
+                        let wasBypassing = (self.isHold || self.appliedPowerMode == .bypass || self.powerMode == .bypass) && self.slowPhase != .rest
+                        self.lastHoldPriorToUnplug = wasBypassing
+                        if wasBypassing {
+                            self.powerMode = .bypass
+                        }
                         self.lastPluggedState = false
                     }
                     self.isHold = false
@@ -1763,7 +1806,9 @@ final class BatteryMonitor: ObservableObject {
                     // edge as the IOKit path. lastPluggedState must be synced
                     // here too or BOTH pollers fire their edge independently.
                     self.lastPluggedState = true
-                    if (self.autoHoldOnPlug || self.lastHoldPriorToUnplug) && !self.isTransitioning {
+                    let shouldBypass = self.autoHoldOnPlug || self.lastHoldPriorToUnplug || self.powerMode == .bypass || self.appliedPowerMode == .bypass
+                    self.lastHoldPriorToUnplug = false
+                    if shouldBypass && !self.isTransitioning {
                         self.engageAutoHoldOnPlug()
                     }
                 }
@@ -1865,12 +1910,16 @@ final class BatteryMonitor: ObservableObject {
         if #available(macOS 13.0, *) {
             do {
                 if enabled {
-                    try SMAppService.mainApp.register()
+                    if SMAppService.mainApp.status != .enabled {
+                        try SMAppService.mainApp.register()
+                    }
                 } else {
-                    try SMAppService.mainApp.unregister()
+                    if SMAppService.mainApp.status == .enabled {
+                        try SMAppService.mainApp.unregister()
+                    }
                 }
             } catch {
-                // Gracefully handled
+                NSLog("byper: SMAppService updateLoginItem failed: \(error)")
             }
         }
     }
@@ -1889,6 +1938,14 @@ final class BatteryMonitor: ObservableObject {
     }
 
     deinit {
+        updateCaffeineAssertion(active: false)
+        if let callback = displayCallback {
+            let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+            CGDisplayRemoveReconfigurationCallback(callback, context)
+        }
+        if let dispObs = displayObserver {
+            NotificationCenter.default.removeObserver(dispObs)
+        }
         if let source = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, CFRunLoopMode.commonModes)
         }

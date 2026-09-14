@@ -93,4 +93,14 @@ uninstall:
 	@sudo rm -rf /Applications/byp.app /Applications/byper.app
 	@echo "[OK] Uninstalled."
 
-.PHONY: all clean install uninstall app
+pkg: app
+	@chmod +x pkg/build_pkg.sh
+	@./pkg/build_pkg.sh
+
+pkg-test: app
+	@chmod +x pkg/build_pkg.sh
+	@./pkg/build_pkg.sh test
+
+test-pkg: pkg-test
+
+.PHONY: all clean install uninstall app pkg pkg-test test-pkg
