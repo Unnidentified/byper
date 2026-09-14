@@ -41,7 +41,7 @@ byper delivers two interfaces around a shared hardware engine:
 | **Settings** | Automations: auto-bypass on charger connect, at login, or on external display attach. Includes session log export. |
 
 > [!NOTE]
-> **Presets (Travel / Docked), Threshold, and Slow Charge are currently omitted from the build.** They proved unreliable under lid-closed sleep or duty cycles, so they are compiled out rather than shipped broken.
+> **Presets (Travel / Docked), Threshold, and Slow Charge are currently omitted from the latest builds.** They proved unreliable under lid-closed sleep or duty cycles, so they are compiled out rather than shipped broken.
 
 ---
 
