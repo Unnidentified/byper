@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build byper installer packages (guided Installer.app package).
 # Supports optional label argument, e.g. `build_pkg.sh test` produces
-# `byper-test.pkg` and `byper-test.dmg` labeled "byper 2.3.0 (test)".
+# `byper-test.pkg` and `byper-test.dmg` labeled "byper 2.3.1 (test)".
 set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 W=$(mktemp -d)
@@ -11,14 +11,14 @@ LABEL="${1:-}"
 if [ -n "$LABEL" ]; then
     PKG_NAME="byper-${LABEL}.pkg"
     DMG_NAME="byper-${LABEL}.dmg"
-    TITLE="byper 2.3.0 (${LABEL})"
-    VERSION="2.3.0-${LABEL}"
+    TITLE="byper 2.3.1 (${LABEL})"
+    VERSION="2.3.1-${LABEL}"
     IDENTIFIER="com.gefaass.byper.${LABEL}"
 else
     PKG_NAME="byper-installer.pkg"
     DMG_NAME="byper-installer.dmg"
-    TITLE="byper 2.3.0"
-    VERSION="2.3.0"
+    TITLE="byper 2.3.1"
+    VERSION="2.3.1"
     IDENTIFIER="com.gefaass.byper"
 fi
 
@@ -44,7 +44,7 @@ pkgbuild --nopayload --scripts uninstall-scripts --identifier "${IDENTIFIER}.uni
          --version "$VERSION" byper-uninstall-component.pkg
 
 DIST_XML="$W/Distribution.xml"
-sed "s|<title>byper 2.3.0</title>|<title>$TITLE</title>|g" "$DIR/pkg/Distribution.xml" > "$DIST_XML"
+sed "s|<title>byper 2.3.1</title>|<title>$TITLE</title>|g" "$DIR/pkg/Distribution.xml" > "$DIST_XML"
 
 productbuild --distribution "$DIST_XML" --package-path . \
              --resources "$DIR/pkg" "$PKG_NAME"

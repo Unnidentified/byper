@@ -1080,6 +1080,30 @@ final class BatteryMonitor: ObservableObject {
         }
     }
 
+    // AC detach makes any in-flight bypass apply moot: the engine needs the
+    // charger, and a still-running CLI round would race the replug re-engage for
+    // the LLDB lock. Kill it and bump the round so its completion is discarded.
+    // Without this, `pendingEngineApply` survives the unplug and the replug
+    // re-engage is silently swallowed by setPowerMode's same-mode early return —
+    // the UI latches bypass while the hardware never engages it.
+    private func cancelInFlightApplyForUnplug() {
+        guard isTransitioning || pendingEngineApply else { return }
+        CLIEngineBridge.cancelActivePowerCommand()
+        transitionTicker?.invalidate()
+        transitionTicker = nil
+        transitionStartTime = nil
+        transitionEndTime = nil
+        transitionMessage = ""
+        counterValue = 0
+        counterCounting = false
+        counterTicker?.invalidate()
+        counterTicker = nil
+        isTransitioning = false
+        pendingEngineApply = false
+        targetPowerMode = nil
+        powerModeRoundId += 1 // discard the killed round's completion
+    }
+
     // Ultra-lightweight in-process IOKit query (0.0% CPU, no subprocess spawning)
     func refreshIOKitOnly() {
         var foundSmartBattery = false
@@ -1124,6 +1148,7 @@ final class BatteryMonitor: ObservableObject {
                     if wasBypassing {
                         self.powerMode = .bypass
                     }
+                    self.cancelInFlightApplyForUnplug()
                 }
                 let wasPlugged = self.isPluggedIn
                 self.lastPluggedState = nowPlugged
@@ -1194,6 +1219,7 @@ final class BatteryMonitor: ObservableObject {
                             if wasBypassing {
                                 self.powerMode = .bypass
                             }
+                            self.cancelInFlightApplyForUnplug()
                         }
                         self.lastPluggedState = nowPlugged
                         self.isPluggedIn = nowPlugged
@@ -1224,18 +1250,23 @@ final class BatteryMonitor: ObservableObject {
         }
         checkAutoBypassThreshold()
         
-        // Reconcile powerMode when plugged in (never during a pending slider-driven apply)
-        if self.isPluggedIn && !pendingEngineApply && !isDraggingMaster {
+        // Reconcile powerMode/appliedPowerMode from hardware truth when plugged in,
+        // in steady state (no apply in flight) and not mid slider drag.
+        // The previous `!bypassActiveOrPending` gate was self-blocking: that flag is
+        // true whenever powerMode == .bypass, so a bypass whose hardware hold had
+        // silently dropped could never be walked back and the icon lied forever.
+        // `!isTransitioning` keeps a legitimate in-flight apply authoritative.
+        if self.isPluggedIn && !pendingEngineApply && !isTransitioning && !isDraggingMaster {
             if self.isHold {
                 // A Slow Charge rest hold is ours, not user bypass — don't let the
                 // reconcile flip the bypass switch on during rest windows.
-                if slowPhase != .rest && powerMode != .bypass {
-                    powerMode = .bypass
+                if slowPhase != .rest {
+                    if powerMode != .bypass { powerMode = .bypass }
+                    if appliedPowerMode != .bypass { appliedPowerMode = .bypass }
                 }
             } else if self.isCharging {
-                if powerMode != .charging && !bypassActiveOrPending {
-                    powerMode = .charging
-                }
+                if powerMode != .charging { powerMode = .charging }
+                if appliedPowerMode != .charging { appliedPowerMode = .charging }
             }
         }
         
@@ -1359,10 +1390,16 @@ final class BatteryMonitor: ObservableObject {
                     self.powerMode = mode
                     self.appliedPowerMode = mode
                 } else {
-                    // Apply failed after full verify window. Sync powerMode to hardware truth
-                    // so we never strand the UI in .bypass when the engine couldn't land it.
-                    if !self.isHold {
+                    // Apply failed after full verify window. Sync BOTH the UI mode and
+                    // the engine-confirmed mode to hardware truth so we never strand the
+                    // icon latched on .bypass when the engine couldn't land the hold
+                    // (or latched on .charging when a stale hold is still live).
+                    if self.isHold {
+                        self.powerMode = .bypass
+                        self.appliedPowerMode = .bypass
+                    } else {
                         self.powerMode = .charging
+                        self.appliedPowerMode = .charging
                     }
                     self.refresh()
                 }
@@ -1852,6 +1889,7 @@ final class BatteryMonitor: ObservableObject {
                             self.powerMode = .bypass
                         }
                         self.lastPluggedState = false
+                        self.cancelInFlightApplyForUnplug()
                     }
                     self.isHold = false
                     self.isCharging = false

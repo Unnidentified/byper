@@ -153,6 +153,11 @@ Contributors must review [`forensic-agent-plan.md`](forensic-agent-plan.md) befo
 ---
 
 ## Changelog
+#### 2.3.1
+- Fixed the unplug-while-bypassing desync: pulling AC during a bypass apply now cancels the in-flight engine command, clears the pending-apply latch, and bumps the apply round so the dead round's completion is discarded. Previously the leaked pending latch made the replug re-engage a silent no-op — the icon and switch latched bypass while the hardware never engaged it, and off/on from then on did nothing.
+- The steady-state reconcile now walks both the UI mode and the engine-confirmed mode back from hardware truth, so a bypass whose hold silently dropped recovers instead of staying latched. The old guard was self-blocking (`!bypassActiveOrPending` is true whenever the UI is on bypass).
+- Apply failures now sync both the UI mode and the engine-confirmed mode to hardware truth, so a failed engage can't strand the icon on bypass (nor a stale hold strand it on charging).
+
 #### 2.3.0
 - Interruptible bypass toggle: flipping the toggle mid-apply cancels the in-flight engine command (SIGTERM→SIGKILL, orphan LLDB worker cleanup, lock file removal) instead of waiting for the full verify window; stale async completions are discarded by round ID, and after an interrupt a delayed IOKit re-poll reconciles UI state with hardware truth in case the killed command had already landed.
 - Interrupt teardown now clears all transition/counter timers and the stale `transitionEndTime` so a post-interrupt toggle never inherits a finished-look animation.
