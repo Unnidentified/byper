@@ -9,7 +9,7 @@ Hold battery charge at any level and power the system entirely from the AC adapt
 
 ## Components
 
-byper delivers two interfaces around a shared hardware engine:
+byper has two interfaces around a shared hardware engine:
 
 - **`byper` CLI** (`/usr/local/bin/byper`, symlinked as `byp` and `chbypass`): A C/Obj-C engine running SUID root. Manages hardware charge bypass, provides an interactive real-time TUI monitor, per-rail power telemetry, and machine-readable JSON streaming.
 - **`byper.app`**: A native SwiftUI menu bar extra replacing the macOS battery menu. Exposes hardware status, toggles, automations, and quick controls directly from the menu bar.
