@@ -1,4 +1,4 @@
-# <img src="https://github.com/Unnidentified/byper/blob/main/assets/icon.png?raw=true" width="38" height="38" align="absmiddle" alt="byper icon" /> byper
+# <img src="https://github.com/Unnidentified/byper/blob/main/assets/icon.png?raw=true" width="85" height="85" align="absmiddle" alt="byper icon" /> byper
 
 macOS true charge bypass and hardware battery utility for Apple Silicon (macOS 11+).
 
