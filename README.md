@@ -4,9 +4,6 @@ True charge bypass and a hardware battery toolkit for Apple Silicon Macs (macOS 
 
 Hold the battery at any level and run the whole system off the AC adapter: 0 mA net battery draw. A SUID-root CLI engine with real-time power-rail telemetry, and a simple SwiftUI menu bar app that has an identical to stock mac battery icon.
 
-> [!IMPORTANT]
-> **SIP must be partly disabled for bypass to work.** Run `csrutil enable --without debug` in Recovery. See [Quick Start](#quick-start) for the full explanation.
-
 ---
 
 ### Table of Contents
