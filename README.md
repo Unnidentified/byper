@@ -31,12 +31,6 @@ You don't need a local toolchain: just run the Build workflow in Actions, you'll
 2. Leave `version` empty unless you want a specific label. It defaults to the tag on a tag push, or `0.0.0-dev.<run>` otherwise.
 3. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
 
-| Artifact | What is it |
-|---|---|
-| `byper-installer-<version>.pkg` | Guided Installer package (recommended). Offers **Install** (keeps settings) and **Uninstall** (removes everything) |
-| `byper-installer-<version>.dmg` | The same package in a disk image. |
-| `SHA256SUMS.txt` | Checksums for both |
-
 Building locally works the same way:
 
 ```bash
@@ -54,7 +48,7 @@ BYPER_VERSION=2.4.0 ./pkg/build_pkg.sh
 
 ## Features
 
-| Stuff | whatsthat | Notes |
+| Stuff | Explained | Notes |
 |---|---|---|
 | **Core** | `byper` CLI | C/Obj-C, SUID root, at `/usr/local/bin/byper`. Also symlinked as `byp` and `chbypass` |
 | **Menu bar** | `byper.app` | SwiftUI app that replaces the stock battery menu extra. Pre-rendered high-DPI icons, so it tracks percentage, charging state and whether bypass is actually engaged |
@@ -84,28 +78,18 @@ byper mon        # Continuous timestamped stream (non-TTY friendly)
 byper help       # Command usage
 ```
 
-A rail readout looks like this:
-
-```text
-[16:20:05] #1     Batt: 98% (AC Plugged) | Source: Power Adapter | State: ⏸ ON HOLD (BYPASS)
-  ├─── Flow:   -858 mA | 10.90 W @ 12707 mV | Net Load: 10.90 W | Code: 0x01000000
-  ├─── Rails:  SoC: 1.67 W | DRAM: 3.43 W | PMIC: 3.28 W | DC-In: 0.26 W
-  ├─── Cells:  C1: 4242 mV | C2: 4242 mV | C3: 4236 mV
-  └─── Top App: agy (PID: 25764, 93.4% CPU, ~0.49 W)
-```
-
 ---
 
 ## How bypass works
 
-macOS has no public API for "stop charging at the current level". Every surfaced knob (Optimized Charging, charge limits via `pmset`) is managed by **PowerUIAgent**, a system daemon whose in-memory charging state is neither persisted nor externally controllable.
+macOS has no public API for "stop charging at the current level". Every surfaced knob (Optimized Charging, charge limits via `pmset`) is managed by PowerUIAgent, a system daemon whose in-memory charging state is neither persisted nor externally controllable.
 
 So byper attaches to it:
 
-1. Locate `PowerUIAgent` by PID via sysctl, no subprocess.
-2. Write a small lldb batch script to `/tmp`, serialized with a lock file.
-3. Fork an orphaned worker that runs `lldb -p <pid> --batch` as root, calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately.
-4. Confirm the result by polling SMC registers, never by trusting the injection.
+1. It locates `PowerUIAgent` by PID via sysctl, no subprocess.
+2. Writes a small lldb batch script to `/tmp`, serialized with a lock file.
+3. Forks an orphaned worker that runs `lldb -p <pid> --batch` as root, calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately.
+4. Confirms the result by polling SMC registers, never by trusting the injection.
 
 The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the truth table back.
 
@@ -140,7 +124,7 @@ This partially disables SIP. Filesystem, kernel-extension and NVRAM protections 
 curl -fsSL https://byper.org/install | bash
 ```
 
-Or grab `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnidentified/byper/releases/latest). Either way your settings survive upgrades, and the installer sets up Command Line Tools if you don't have them and installs the SUID helper.
+Or grab `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnidentified/byper/releases/latest). Either way, your settings survive upgrades, and the installer sets up Command Line Tools if you don't have them and installs the SUID helper.
 
 From a source checkout:
 
@@ -152,7 +136,7 @@ sudo ./install.sh
 `install.sh` builds as the invoking user even when run with sudo, so build artifacts never end up root-owned.
 
 > [!TIP]
-> Seeing "App is damaged and can't be opened"? That's Gatekeeper on an ad-hoc signed app. Clear the quarantine attribute:
+> Seeing "App is damaged and can't be opened"? That's macOS's gatekeeper being gatekeeper. To fix that issue, clear the quarantine attribute:
 > ```bash
 > xattr -cr /Applications/byper.app
 > ```
@@ -166,16 +150,9 @@ sudo ./install.sh
 ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
 ```
 
-If you copy the app by hand, re-apply:
-
-```bash
-sudo chown root:wheel /Applications/byper.app/Contents/Resources/byper
-sudo chmod 4755      /Applications/byper.app/Contents/Resources/byper
-```
-
 ### Uninstalling
 
-Run the PKG and choose **Uninstall** (its postinstall removes every trace, including settings), or remove the paths in [Project layout](#project-layout) by hand and clear `~/Library/{Preferences/com.gefaass.byper.plist, Caches/com.gefaass.byper, Saved Application State/com.gefaass.byper.savedState}`.
+Run the .pkg and choose Uninstall (its postinstall removes every trace, including settings), or remove the paths in [Project layout](#project-layout) by hand and clear `~/Library/{Preferences/com.gefaass.byper.plist, Caches/com.gefaass.byper, Saved Application State/com.gefaass.byper.savedState}`.
 
 ---
 
