@@ -23,7 +23,6 @@ You don't need a local toolchain, you can just run the Build workflow in Actions
 - [Project layout](#project-layout)
 - [Credits](#credits)
 
----
 
 ## Building
 
@@ -40,7 +39,6 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 ./pkg/build_pkg.sh    # byper-installer.pkg + byper-installer.dmg
 ```
 
----
 
 ## Components
 
