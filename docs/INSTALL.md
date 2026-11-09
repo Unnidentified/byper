@@ -10,10 +10,10 @@ curl -fsSL https://byper.org/install | bash
 
 Downloads the latest installer package from Releases, verifies it, and opens the standard macOS Installer. Or download `byper-installer-<version>.pkg` / `byper-installer-<version>.dmg` from [Releases](https://github.com/Unnidentified/byper/releases/latest) directly (build locally with `make app && ./pkg/build_pkg.sh`).
 
-2. Open the pkg. The Installation Type pane offers:
+1. Open the pkg. The Installation Type pane offers:
    - **Install.** Replaces the app, keeps your settings.
    - **Uninstall.** Removes everything including settings (the uninstall choice's postinstall script, `pkg/uninstall-postinstall`, doubles as a complete uninstaller: app, CLI, completions, LaunchDaemons, defaults, caches; the preinstall script is the upgrade path and deliberately keeps settings).
-3. First bypass toggle triggers one admin prompt (attributed to byper) that installs the root helper and fixes SUID ownership.
+2. First bypass toggle triggers one admin prompt (attributed to byper) that installs the root helper and fixes SUID ownership.
 If macOS Gatekeeper shows an "app is damaged and can't be opened" prompt, clear the quarantine attribute:
 ```bash
 xattr -cr /Applications/byper.app

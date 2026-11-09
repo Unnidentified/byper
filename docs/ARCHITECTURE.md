@@ -6,7 +6,7 @@ byper is two deliverables around one engine: a SUID-root C/ObjC CLI (`byper`) an
 ┌────────────────────────┐        ┌──────────────────────────┐
 │  byper.app (SwiftUI)   │ exec   │  byper CLI (C/ObjC)      │
 │  menu bar, popover,    │───────▶│  SUID root, arm64        │
-│  automations, presets  │ stdout │                          │
+│  automations           │ stdout │                          │
 └───────────┬────────────┘        └───────────┬──────────────┘
             │ IOKit.ps (event-driven)         │
             ▼                                 ▼
@@ -30,7 +30,7 @@ byper is two deliverables around one engine: a SUID-root C/ObjC CLI (`byper`) an
 | `src/battery.c/h` | IOKit power-source parsing: SoC, flow, adapter data, cell voltages |
 | `src/power.c/h` | Power-rails telemetry (SoC/DRAM/PMIC/DC-in wattage) via SMC + IOKit |
 | `src/app/AppDelegate.swift` | Status item, popover lifecycle, auto-refit wiring, self-updater |
-| `src/app/BatteryMonitor.swift` | `ObservableObject` telemetry hub, automations, Slow Charge state machine, threshold logic (~1770 lines) |
+| `src/app/BatteryMonitor.swift` | `ObservableObject` telemetry hub, automations, master-slider state (~1770 lines) |
 | `src/app/BatteryDropdownView.swift` | The popover UI (replaces the stock battery menu extra) |
 | `src/app/CLIEngineBridge.swift` | Shells out to the CLI, parses NDJSON; manages `pmset` LPM calls |
 | `src/app/ByperIntents.swift` | App Intents / Shortcuts (macOS 13+) |
@@ -55,25 +55,17 @@ The dev-path fallback (`sudo -S lldb`) for non-root builds reads the sudo passwo
 - Dev path (non-root build): export `BYP_SUDO_PASS` in your shell before running dev builds (or just run them via `sudo`).
 - PKG installs never touch it (they use the admin-dialog helper + SUID).
 
-The repository is therefore safe to publish; the credential-scrub history rewrite (2.2.0) was verified and force-pushed.
+The repository is therefore safe to publish.
 
 ## State machines worth knowing
 
-### Bypass ⇄ Slow Charge exclusivity
+### Master slider
 
-These two features are mutually exclusive at four layers (model, gesture, bridge, engine): engaging one refuses or tears down the other. Both custom `ToggleStyle`s use raw gestures that ignore `.disabled`, which is why enforcement is duplicated at the model level. Auto-engage paths for bypass (plug, login, display, threshold) all yield while Slow Charge is enabled.
-
-### Slow Charge duty cycle
-
-Trickles the battery by holding (MoO 7) for 20 s, releasing for a 40 s charge burst, repeating until the target SoC. Keyed off `appliedPowerMode` (hardware truth), not the UI's requested state. Runs with a `beginActivity` assertion because App Nap suspends `Timer.scheduledTimer` timers when the screen sleeps. That was the original threshold-miss bug.
-
-### Threshold automation
-
-Engages hold when SoC ≤ threshold; a manual resume snoozes it until the battery climbs back above the threshold. Polls and timers run in `.common` run-loop mode so they survive open menus and display sleep.
+The vertical rail on the left is a continuous level, not a binary toggle. Rows fade out chronologically as the knob descends and restore as it climbs back. Full-off snapshots the prior state and disables everything; full-on restores it.
 
 ### Launch reseed
 
-On launch the app clears stale holds when Slow Charge is enabled (a previous session's bypass can otherwise deadlock the duty cycle), and quit disables effects while relaunch restores the prior setup.
+On launch the app re-engages bypass if it was active at quit and the Mac is plugged in; quit disables effects for the session. A stale Slow Charge flag persisted by an older build is cleared on launch.
 
 ## Build targets
 
@@ -83,6 +75,6 @@ On launch the app clears stale holds when Slow Charge is enabled (a previous ses
 - `byper.app`: `swiftc -whole-module-optimization`, bundles the CLI at `Contents/Resources/byper` (SUID), the installer helper, FiraCode fonts, and high-DPI battery icons.
 - `byper-mon.command`: standalone monitor droplet.
 
-`pkg/build_pkg.sh` then wraps the app into `byper-installer.pkg` (productbuild; `pkg/preinstall` is the upgrade path and keeps settings, while the Uninstall choice's `pkg/uninstall-postinstall` is a complete uninstaller; the postinstall enables DevToolsSecurity and `_developer` membership so lldb can attach).
+`pkg/build_pkg.sh` then wraps the app into `byper-installer.pkg`, published as `byper-installer-<version>.pkg` (productbuild; `pkg/preinstall` is the upgrade path and keeps settings, while the Uninstall choice's `pkg/uninstall-postinstall` is a complete uninstaller; the postinstall enables DevToolsSecurity and `_developer` membership so lldb can attach).
 
 `install.sh` builds **as the invoking user** even when sudo'd (root-owned build artifacts are the #1 cause of later `ld: can't write output file` failures), then installs the CLI SUID root: `chown root:wheel`, `chmod 4755`. The SUID bit is load-bearing. A non-SUID CLI prints `enabled [✓]` while the hardware write silently fails.
