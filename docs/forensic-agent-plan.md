@@ -30,7 +30,7 @@ Amendments happen only by editing this file between runs, never by improvising d
 
 ## 3. Project facts
 
-- **Root:** this checkout — the directory containing `Makefile`.
+- **Root:** this checkout, the directory containing `Makefile`.
 - **Source layout:**
   - `src/main.c`, `src/powerui.m` (PowerUI & LLDB bridge), `src/power.c`, `src/battery.c`, `src/smc.c`
   - `src/app/` (`AppDelegate.swift`, `BatteryDropdownView.swift`, `BatteryMonitor.swift`, `BatteryAssetResolver.swift`, `CLIEngineBridge.swift`, `ByperIntents.swift`)
@@ -47,7 +47,7 @@ Amendments happen only by editing this file between runs, never by improvising d
 - `byper on` stops charging instantly at any SoC (verified across full battery range).
 - `byper off` resumes fast charging to 100% without leaving state that blocks the next `on`.
 - Toggling works reliably every time, survives terminal exit, never corrupts System Settings battery sliders.
-- Menu bar companion app (`byper.app`) provides live telemetry, localized temperature, plug/login/display automations, caffeinate (IOPMAssertion display-sleep hold), per-app auto LPM, a continuous master power slider (chronological row fade; full-off snapshots and disables everything), CSV session logging, global hotkey (Cmd+Opt+B) and App Intents (macOS 13+) — with near-zero CPU and RAM overhead.
+- Menu bar companion app (`byper.app`) provides live telemetry, localized temperature, plug/login/display automations, caffeinate (IOPMAssertion display-sleep hold), per-app auto LPM, a continuous master power slider (chronological row fade; full-off snapshots and disables everything), CSV session logging, global hotkey (Cmd+Opt+B) and App Intents (macOS 13+), with near-zero CPU and RAM overhead.
 
 ## 5. Hard constraints (violation = revert, then report violation)
 
@@ -76,7 +76,7 @@ Unknown mechanisms or suspected hardware regressions must be verified with isola
 
 If a change introduces unexpected regressions or crashes, immediately revert to the last verified clean state. Test and confirm hardware telemetry matches truth table before marking tasks complete.
 
-## 9. Companion app pitfalls (verified regressions — do not reintroduce)
+## 9. Companion app pitfalls (verified regressions, do not reintroduce)
 
 1. **SUID is load-bearing:** a non-SUID CLI prints `enabled [✓]` but the SMC write silently fails. After any reinstall/copy of `byper.app` or `/usr/local/bin/byper`, re-apply `chown root:wheel` + `chmod 4755`. Verify engage via `status` → `state: hold` + NCR `0x01000000`, never by exit code alone.
 2. **`scaleEffect` keeps layout size:** switches scaled to 0.70 retain their full ~51pt layout footprint. Any inline row content overflows unless the switch frame is clamped (`.frame(width: 36)` + offset to re-seat the visual edge).

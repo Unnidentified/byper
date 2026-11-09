@@ -109,7 +109,7 @@ So byper attaches to it:
 
 The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the truth table back.
 
-Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware** — `CHBI` writes don't stick — which is why injection is the load-bearing path rather than a shortcut.
+Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware**. `CHBI` writes don't stick, which is why injection is the load-bearing path rather than a shortcut.
 
 Because the attach takes seconds, the UI's verify-poll gates truth and the engine retries on a 1.5s / 3.5s / 6s / 10s curve, capped at 45s. A toggle can therefore lag a tap by up to ~45s. That is expected, not a hang.
 
@@ -119,7 +119,7 @@ Because the attach takes seconds, the UI's verify-poll gates truth and the engin
 
 | Requirement | Why |
 |---|---|
-| **Apple Silicon** (M1–M4) | Builds target `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps |
+| **Apple Silicon** (M1-M4) | Builds target `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps |
 | **macOS 11 Big Sur or newer** | Oldest release running Apple Silicon. App Intents need macOS 13+ |
 | **SIP debug restriction relaxed** | Bypass attaches to `PowerUIAgent` with lldb, which stock SIP refuses |
 | **Command Line Tools** | Provides `lldb`. The installer sets them up if missing |
@@ -211,7 +211,7 @@ Installed paths:
 > [!CAUTION]
 > This utility modifies power management state using SMC keys and process injection into system daemons (`PowerUIAgent`). It is provided as-is, without warranty.
 
-- **Toggling can lag.** PowerUIAgent debounces rapid opposite commands, so off-then-on within seconds can be swallowed or land 15–60s late. That's OS behaviour; byper works around it but cannot eliminate it.
+- **Toggling can lag.** PowerUIAgent debounces rapid opposite commands, so off-then-on within seconds can be swallowed or land 15-60s late. That's OS behaviour; byper works around it but cannot eliminate it.
 - **Register signatures drift.** The mode-of-operation values, `NCR` reasons and rail keys were mapped empirically on specific macOS versions. A major update may shift them, and the verify-poll will surface it as "enabled but not holding".
 - **Single-user assumptions.** A few fallbacks in `src/main.c` and the asset resolver reference `/Users/gefaass`. The PKG path works without them; a source install under a different account may need those literals adjusted.
 - **No credentials in the repo.** The non-root dev path reads `BYP_SUDO_PASS` from the environment instead of embedding anything.

@@ -35,9 +35,9 @@ The bypass needs to attach to `PowerUIAgent` as root, which macOS gates behind d
    ```bash
    BYP_LLDB_DEBUG=1 byper on   # writes /tmp/byp_lldb_debug.log (wiped on reboot)
    ```
-   and check the unified log for PowerUIAgent attach denials. If your build refuses root attach, relax SIP's debug restriction once in Recovery (`csrutil enable --without debug` — full explanation in the README's Requirements section; see also [LIMITATIONS.md](LIMITATIONS.md)).
+   and check the unified log for PowerUIAgent attach denials. If your build refuses root attach, relax SIP's debug restriction once in Recovery (`csrutil enable --without debug`; full explanation in the README's Requirements section, see also [LIMITATIONS.md](LIMITATIONS.md)).
 
-## Toggle seems to hang or does nothing for ~30–60 s
+## Toggle seems to hang or does nothing for ~30-60 s
 
 Two known causes:
 
@@ -50,7 +50,7 @@ An automation (plug-in, login, or display attach) re-engaged it. Turn the releva
 
 ## App won't open after WhatsApp/AirDrop transfer ("app is damaged", hard block)
 
-Quarantine on an ad-hoc–signed app. Either System Settings → *Privacy & Security* → **Open Anyway**, or:
+Quarantine on an ad-hoc signed app. Either System Settings → *Privacy & Security* → **Open Anyway**, or:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/byper.app

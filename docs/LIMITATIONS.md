@@ -8,11 +8,11 @@ The PKG mitigates what it can (DevToolsSecurity + `_developer` group in postinst
 
 ## OS-side toggle debounce
 
-PowerUIAgent debounces rapid opposite commands: toggling off then on within seconds can be swallowed or land 15–60 s late. This is OS behavior; byper works around it with async workers and verify-polls, but cannot eliminate the latency.
+PowerUIAgent debounces rapid opposite commands: toggling off then on within seconds can be swallowed or land 15-60 s late. This is OS behavior; byper works around it with async workers and verify-polls, but cannot eliminate the latency.
 
 ## Hardware / OS support
 
-- **Apple Silicon (M1–M4) only.** Builds target `arm64-apple-macos11.0`. Intel Macs would need a universal2 build and untested SMC register maps.
+- **Apple Silicon (M1-M4) only.** Builds target `arm64-apple-macos11.0`. Intel Macs would need a universal2 build and untested SMC register maps.
 - **macOS 11+** for the CLI; App Intents features need macOS 13+.
 - Register signatures (mode-of-operation values, `NCR` reasons, rails keys) were empirically mapped on specific macOS versions. Major macOS updates may shift them; the verify-poll will surface it as "enabled but not holding."
 
