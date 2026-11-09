@@ -7,7 +7,7 @@ Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
 It holds your battery at whatever level you want and runs the whole machine off the charger, so net battery draw is 0 mA. There's a SUID-root CLI with real-time power telemetry, and a SwiftUI menu bar app that replaces the battery icon macOS gives you.
 
-No local toolchain needed: run the **Build** workflow in Actions and the app, `.pkg` and `.dmg` come out of CI.
+You don't need a local toolchain: just run the **Build** workflow in Actions and the app, `.pkg` and `.dmg` come out of CI.
 
 ---
 
@@ -15,12 +15,11 @@ No local toolchain needed: run the **Build** workflow in Actions and the app, `.
 
 - [Building](#building)
 - [What you get](#what-you-get)
-- [The CLI](#the-cli)
+- [CLI Commands](#cli-commands)
 - [How bypass works](#how-bypass-works)
 - [Requirements](#requirements)
 - [Installing](#installing)
 - [Project layout](#project-layout)
-- [Not implemented yet](#not-implemented-yet)
 - [Notes](#notes)
 - [Credits](#credits)
 
@@ -57,9 +56,9 @@ BYPER_VERSION=2.4.0 ./pkg/build_pkg.sh
 
 ## What you get
 
-| Area | What | Notes |
+| Stuff | whatsthat | Notes |
 |---|---|---|
-| **Engine** | `byper` CLI | C/Obj-C, SUID root, at `/usr/local/bin/byper`. Also symlinked as `byp` and `chbypass` |
+| **Core** | `byper` CLI | C/Obj-C, SUID root, at `/usr/local/bin/byper`. Also symlinked as `byp` and `chbypass` |
 | **Menu bar** | `byper.app` | SwiftUI app that replaces the stock battery menu extra. Pre-rendered high-DPI icons, so it tracks percentage, charging state and whether bypass is actually engaged |
 | **Telemetry** | SMC power rails | Per-rail wattage for SoC, DRAM, PMIC and DC-In, individual pack cell voltages, top CPU consumers with estimated wattage |
 | **Bypass** | Hardware charge bypass | System runs off the adapter at 0 mA net battery draw, battery held at whatever level you picked |
@@ -73,7 +72,7 @@ The main slider on the left is a continuous level, not a binary toggle. It progr
 
 ---
 
-## The CLI
+## CLI Commands
 
 ```bash
 byper            # Interactive real-time TUI monitor
@@ -161,9 +160,9 @@ sudo ./install.sh
 > ```
 > (or for a downloaded package: `xattr -c byper-installer-*.pkg`).
 
-### The SUID bit is load-bearing
+### Good Practices
 
-`byper` must be `-rwsr-xr-x root:wheel`. A non-SUID copy will *print* `enabled [✓]` while the privileged write silently fails: bypass appears to enable but nothing changes on the hardware.
+`byper` must have `SUID` privileges in order to work, you can't just copy the .app to another computer and expect it to work. Spoiler: it won't, unless you reinstall it using the .pkg from the releases page or by running:
 
 ```bash
 ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
@@ -206,23 +205,6 @@ Installed paths:
 | `/usr/local/share/zsh/site-functions/_byper`, `_byp` | Zsh completions |
 | `/usr/local/share/bash-completion/completions/byper`, `byp` | Bash completions |
 | `/Applications/byper.app` | Menu bar app |
-
----
-
-## Not implemented yet
-
-Things a charge-bypass tool would normally have that this one does not. Listed so the gap is visible rather than implied.
-
-| Item | Why it matters | Blocker |
-|---|---|---|
-| **Presets** (Travel / Docked) | One-click state snapshots | Removed. The snapshot pipeline was unreliable and the rows were cut rather than shipped broken |
-| **Threshold automation** | Engage hold automatically as you cross a set percentage | Removed. It only fired while the switch was freshly toggled, so it was cut |
-| **Slow Charge** | Trickle charging via a hold/burst duty cycle | Removed. The cycle could re-engage bypass after some time, so it was cut |
-| **Intel support** | Run on pre-Apple-Silicon Macs | Needs a universal2 build and SMC register maps nobody has mapped |
-| **Developer ID signing** | Open without a Gatekeeper prompt | Ad-hoc signed only. Notarisation needs a paid Apple Developer account |
-| **Precision hold** | "Hold at exactly 80%" | No firmware charge-limit register exists to set. The hold lands at whatever SoC the battery is at when you engage |
-
-The three removed features are gone from the codebase, not hidden behind a flag. `ci.yml` fails the build if the old `VANILLA` guards come back.
 
 ---
 
