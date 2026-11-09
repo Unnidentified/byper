@@ -7,18 +7,19 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
 
+BASE_VERSION="${BYPER_VERSION:-2.3.1}"
 LABEL="${1:-}"
 if [ -n "$LABEL" ]; then
     PKG_NAME="byper-${LABEL}.pkg"
     DMG_NAME="byper-${LABEL}.dmg"
-    TITLE="byper 2.3.1 (${LABEL})"
-    VERSION="2.3.1-${LABEL}"
+    TITLE="byper ${BASE_VERSION} (${LABEL})"
+    VERSION="${BASE_VERSION}-${LABEL}"
     IDENTIFIER="com.gefaass.byper.${LABEL}"
 else
     PKG_NAME="byper-installer.pkg"
     DMG_NAME="byper-installer.dmg"
-    TITLE="byper 2.3.1"
-    VERSION="2.3.1"
+    TITLE="byper ${BASE_VERSION}"
+    VERSION="${BASE_VERSION}"
     IDENTIFIER="com.gefaass.byper"
 fi
 
@@ -44,7 +45,7 @@ pkgbuild --nopayload --scripts uninstall-scripts --identifier "${IDENTIFIER}.uni
          --version "$VERSION" byper-uninstall-component.pkg
 
 DIST_XML="$W/Distribution.xml"
-sed "s|<title>byper 2.3.1</title>|<title>$TITLE</title>|g" "$DIR/pkg/Distribution.xml" > "$DIST_XML"
+sed "s|<title>[^<]*</title>|<title>$TITLE</title>|" "$DIR/pkg/Distribution.xml" > "$DIST_XML"
 
 productbuild --distribution "$DIST_XML" --package-path . \
              --resources "$DIR/pkg" "$PKG_NAME"
