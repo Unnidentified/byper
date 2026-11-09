@@ -5,9 +5,9 @@
 
 Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
-It holds your battery at whatever level you want and runs the whole machine off the charger (not from the battery), so net battery draw is 0 mA. There's a SUID-root CLI with real-time power telemetry, and a SwiftUI menu bar app that replaces the battery icon macOS gives you.
+It holds your battery at whatever level you want and runs the whole computer off the charger (not from the battery), so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
-You don't need a local toolchain: just run the Build workflow in Actions, you'll get a `.pkg` and a `.dmg`
+You don't need a local toolchain, you can just run the Build workflow in Actions, you'll get a `.pkg` and a `.dmg`
 
 ---
 
@@ -21,17 +21,17 @@ You don't need a local toolchain: just run the Build workflow in Actions, you'll
 - [How to Install](#how-to-install)
 - [How to Uninstall](#how-to-uninstall)
 - [Project layout](#project-layout)
-- [Notes](#notes)
 - [Credits](#credits)
 
 ---
 
 ## Building
 
-1. Open the [Actions tab](https://github.com/Unnidentified/byper/actions) and run the **Build** workflow.
-2. Leave `version` empty unless you want a specific label. It defaults to `0.0.0-dev.<run>`.
-3. Tick `release` to publish a GitHub Release tagged `v<version>`. Leave it off to just get artifacts.
-4. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
+1. Fork the repo.
+1. In your forked repo, open the actions tab and run the Build workflow.
+2. Leave `version` empty unless you want a specific label.
+3. Tick `release` to publish a GitHub Release.
+4. When the run finishes, grab the files from the run page or from releases.
 
 On the other hand, to build it locally (which is much faster btw), run:
 
@@ -175,21 +175,8 @@ Installed paths:
 
 ---
 
-## Notes
-
-> [!CAUTION]
-> This utility modifies power management state using SMC keys and process injection into system daemons (`PowerUIAgent`). It is provided as-is, without warranty.
-
-- **Toggling can lag.** PowerUIAgent debounces rapid opposite commands, so off-then-on within seconds can be swallowed or land 15-60s late. That's OS behaviour; byper works around it but cannot eliminate it.
-- **Register signatures drift.** The mode-of-operation values, `NCR` reasons and rail keys were mapped empirically on specific macOS versions. A major update may shift them, and the verify-poll will surface it as "enabled but not holding".
-- **Single-user assumptions.** A few fallbacks in `src/main.c` and the asset resolver reference `/Users/gefaass`. The PKG path works without them; a source install under a different account may need those literals adjusted.
-- **No credentials in the repo.** The non-root dev path reads `BYP_SUDO_PASS` from the environment instead of embedding anything.
-
----
-
 ## Credits
 
 | Project | Author | Link |
 |---|---|---|
-| byper | Unnidentified | [github.com/Unnidentified/byper](https://github.com/Unnidentified/byper) |
 | FiraCode | Nikita Prokopov | [github.com/tonsky/FiraCode](https://github.com/tonsky/FiraCode) |
