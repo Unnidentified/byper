@@ -124,17 +124,6 @@ struct BatteryDropdownView: View {
             (monitor.caffeineAlwaysOn || (monitor.isPluggedIn && monitor.caffeineEngaged) || monitor.caffeineActive)
     }
 
-    #if !VANILLA
-    private var isSlowChargeActive: Bool {
-        return monitor.masterRowEnabled("slowcharge") && monitor.isPluggedIn &&
-            monitor.slowChargeEnabled && !monitor.bypassActiveOrPending
-    }
-
-    private var isThresholdActive: Bool {
-        return monitor.masterRowEnabled("threshold") && monitor.isPluggedIn &&
-            monitor.autoBypassThresholdEnabled
-    }
-    #endif
 
     private var themeColor: Color {
         if monitor.isLowPowerMode {
@@ -269,29 +258,6 @@ struct BatteryDropdownView: View {
 
             // 2. AC Power Bypass Control Section (3-Way Switch: Charging, Disable, Bypass)
 
-                #if !VANILLA
-                // Presets: Travel / Docked — click to activate, click again to restore; long-press a name to rename
-                HStack(spacing: 4) {
-                    Image(systemName: "switch.2")
-                        .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(Color(white: 0.55))
-                        .frame(width: 18, alignment: .center)
-
-                    Text("Presets")
-                        .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(.white)
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        presetModeButton(.travel)
-                        presetModeButton(.docked)
-                    }
-                    .padding(.trailing, 5)
-                }
-                .frame(height: 16)
-                .masterRowProbe("presets")
-                #endif
 
                 // Rounded enclosure: encompasses all the settings below the presets
                 VStack(alignment: .leading, spacing: 4) {
@@ -330,11 +296,6 @@ struct BatteryDropdownView: View {
                       Toggle("", isOn: Binding(
                         get: { isBypass },
                         set: { val in
-                            #if !VANILLA
-                            // Only one or another: Bypass cannot engage while Slow
-                            // Charge is enabled (the switch is also visually locked)
-                            guard !(val && monitor.slowChargeEnabled) else { return }
-                            #endif
                             onSelectPowerMode?(val ? .bypass : .charging)
                         }
                     ))
@@ -445,74 +406,6 @@ struct BatteryDropdownView: View {
                     .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
                 }
 
-                #if !VANILLA
-                // Threshold Menu: Auto Bypass at Battery Threshold
-                HStack(spacing: 4) {
-                    let isThresh = isThresholdActive
-                    Image(systemName: "gauge.with.needle")
-                        .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(isThresh ? Self.coolBrownOrange : Color(white: 0.38))
-                        .frame(width: 18, alignment: .center)
-
-                    Text("Threshold")
-                        .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(isThresh ? .white : Color(white: 0.38))
-                        .lineLimit(1)
-                          .fixedSize()
-
-                      Text("- \(monitor.autoBypassThreshold)%")
-                          .font(.custom("FiraCode-Bold", size: 9.5))
-                          .foregroundColor(isThresh ? Self.coolBrownOrange : Color(white: 0.38))
-                          .lineLimit(1)
-                          .fixedSize()
-
-                    Spacer()
-
-                    Button(action: {
-                        monitor.isThresholdMenuExpanded.toggle()
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(Color(white: 0.38))
-                            .rotationEffect(.degrees(monitor.isThresholdMenuExpanded ? 90 : 0))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Threshold Slider")
-                    .padding(.trailing, 2)
-
-                    Toggle("", isOn: Binding(
-                        get: { isThresh },
-                        set: { val in monitor.autoBypassThresholdEnabled = val }
-                    ))
-                        .labelsHidden()
-                        .scaleEffect(0.70, anchor: .trailing)
-                        // same Docked-right alignment as the bypass row (see comment there)
-                        .frame(width: 26.6, alignment: .trailing)
-                        .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
-                        .grayscale(monitor.isPluggedIn ? 0 : 1)
-                        .opacity(monitor.isPluggedIn ? 1 : 0.4)
-                        .padding(.trailing, 5)
-                        .disabled(!monitor.isPluggedIn)
-                }
-                .frame(height: 16)
-                .allowsHitTesting(monitor.masterRowEnabled("threshold"))
-                .masterRowProbe("threshold")
-
-                if monitor.isThresholdMenuExpanded {
-                    Slider(value: Binding(
-                        get: { Double(monitor.autoBypassThreshold) },
-                        set: { monitor.autoBypassThreshold = Int($0.rounded()) }
-                    ), in: 10...90)
-                        .modifier(BackDeployedTint(color: Self.coolBrownOrange))
-                        .modifier(BackDeployedMiniControl())
-                        .scaleEffect(y: 0.55)
-                        .padding(.leading, 22)
-                        .padding(.trailing, 33)
-                        .frame(height: 12)
-                        .allowsHitTesting(monitor.masterRowEnabled("threshold"))
-                }
-                #endif
 
                 // Caffeinate Menu: Keep screen on (auto with bypass, or always)
                 HStack(spacing: 4) {
@@ -581,90 +474,6 @@ struct BatteryDropdownView: View {
                     .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 }
 
-                #if !VANILLA
-                // Slow Charge: duty-cycled burst charging (hold/burst alternation)
-                HStack(spacing: 4) {
-                    let isSlowActive = isSlowChargeActive
-                    Image(systemName: "battery.25percent")
-                        .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(isSlowActive ? Self.coolBrownOrange : Color(white: 0.38))
-                        .frame(width: 18, alignment: .center)
-
-                    Text("Slow Charge")
-                        .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(isSlowActive ? .white : Color(white: 0.38))
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Button(action: {
-                        monitor.isSlowChargeMenuExpanded.toggle()
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(Color(white: 0.38))
-                            .rotationEffect(.degrees(monitor.isSlowChargeMenuExpanded ? 90 : 0))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Slow Charge Options")
-                    .padding(.trailing, 2)
-
-                    Toggle("", isOn: Binding(
-                        get: { isSlowActive },
-                        set: { val in monitor.slowChargeEnabled = val }
-                    ))
-                        .labelsHidden()
-                        .scaleEffect(0.70, anchor: .trailing)
-                        // same Docked-right alignment as the bypass row (see comment there)
-                        .frame(width: 26.6, alignment: .trailing)
-                        .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
-                        .padding(.trailing, 5)
-                        // Only one or another: locks the instant Bypass is tapped
-                        // (bypassActiveOrPending covers the LLDB apply window,
-                        // during which powerMode has not flipped yet)
-                        .disabled(!monitor.isPluggedIn || monitor.bypassActiveOrPending)
-                        .grayscale(!monitor.isPluggedIn || monitor.bypassActiveOrPending ? 1 : 0)
-                        .opacity(!monitor.isPluggedIn ? 0.4 : 1)
-                        .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
-                }
-                .frame(height: 16)
-                .masterRowProbe("slowcharge")
-
-                if monitor.isSlowChargeMenuExpanded {
-                    HStack {
-                        Text("Always On")
-                            .font(.custom("FiraCode-Medium", size: 10.5))
-                            .foregroundColor(.white)
-                        Spacer()
-                        Toggle("", isOn: $monitor.slowChargeAlwaysOn)
-                            .labelsHidden()
-                            .toggleStyle(CheckmarkToggleStyle())
-                            .disabled(monitor.slowChargeOffOnExit)
-                            .opacity(monitor.slowChargeOffOnExit ? 0.4 : 1)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.leading, 22)
-                    .frame(height: 16)
-                    .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
-
-                    HStack {
-                        Text("Off on exit")
-                            .font(.custom("FiraCode-Medium", size: 10.5))
-                            .foregroundColor(.white)
-                        Spacer()
-                        Toggle("", isOn: $monitor.slowChargeOffOnExit)
-                            .labelsHidden()
-                            .toggleStyle(CheckmarkToggleStyle())
-                            .disabled(monitor.slowChargeAlwaysOn)
-                            .opacity(monitor.slowChargeAlwaysOn ? 0.4 : 1)
-                            .padding(.trailing, 8)
-                    }
-                    .padding(.leading, 22)
-                    .frame(height: 16)
-                    .allowsHitTesting(monitor.masterRowEnabled("slowcharge"))
-                }
-                #endif
 
                 HStack {
                     Button(action: {

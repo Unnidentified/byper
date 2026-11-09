@@ -180,29 +180,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .store(in: &cancellables)
 
         installGlobalHotkey()
-        checkForProjectUpdate()
-    }
-
-    // MARK: - Self-update from project build (admin prompt attributed to byper, Touch ID when offered)
-
-    private func checkForProjectUpdate() {
-        guard Bundle.main.bundlePath.hasPrefix("/Applications/") else { return }
-        #if VANILLA
-        // Vanilla build: never self-update from the project folder. The project
-        // checkout may hold a full build (other branch), and silently replacing
-        // a vanilla install with it reintroduces the excluded features.
-        return
-        #else
-        let projectExec = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/byper.app/Contents/MacOS/byper"
-        let installedExec = "/Applications/byper.app/Contents/MacOS/byper"
-        guard FileManager.default.fileExists(atPath: projectExec) else { return }
-        let projectDate = (try? FileManager.default.attributesOfItem(atPath: projectExec))?[.modificationDate] as? Date
-        let installedDate = (try? FileManager.default.attributesOfItem(atPath: installedExec))?[.modificationDate] as? Date
-        guard let newDate = projectDate else { return }
-        if installedDate == nil || newDate > installedDate! {
-            runPrivilegedInstall()
-        }
-        #endif
     }
 
     // AuthorizationExecuteWithPrivileges is deprecated-out of the Swift overlay but the

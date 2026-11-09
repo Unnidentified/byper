@@ -36,7 +36,7 @@ Amendments happen only by editing this file between runs, never by improvising d
   - `src/app/` (`AppDelegate.swift`, `BatteryDropdownView.swift`, `BatteryMonitor.swift`, `BatteryAssetResolver.swift`, `CLIEngineBridge.swift`, `ByperIntents.swift`)
   - `bin/byper` (native CLI binary), `byper.app` (menu bar companion app bundle)
   - `Makefile`, `install.sh`, `uninstall.sh`, completions (`_byper`, `_byp`, `byp.bash`)
-- **Build variant:** `VANILLA` is the only supported variant (`-D VANILLA` in both `CFLAGS` and `SWIFT_FLAGS`). It ships bypass, powersave (LPM), caffeinate and settings. Presets, Threshold and Slow Charge are compiled out behind `#if !VANILLA`; do not document them as live features or re-enable them without a deliberate decision to restore the full build.
+- **Feature set:** bypass, powersave (LPM), caffeinate and settings. Presets, Threshold and Slow Charge were removed from the codebase; do not reintroduce them or document them as live features.
 - **Machine target:** MacBook Pro (Apple Silicon M-series). Build floor is **macOS 11.0 Big Sur** (oldest release running Apple Silicon): Makefile compiles with `-target arm64-apple-macos11.0`, `Info.plist` carries `LSMinimumSystemVersion: 11.0`. Newer-API calls must be gated (`#available` / back-deploy shims for `tint`, `controlSize`, `kIOMainPortDefault`, `isLowPowerModeEnabled`, `NSHostingSizingOptions`).
 - **Privilege escalation:** SUID root on `/usr/local/bin/byper`, Touch ID / AppleScript helper on companion app install. SUID permissions must be preserved on any reinstall.
 - **Installed binaries:** `/usr/local/bin/byper` (symlinked as `byp` and `chbypass`), `/Applications/byper.app`.

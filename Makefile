@@ -1,18 +1,15 @@
 # ============================================================
-#  macos-ch.bypass — Makefile
+#  byper — Makefile
 #  Compiles CLI binary 'byper' & Native GUI 'byper.app'
-#  VANILLA build: bypass charge, powersave, caffeinate, settings.
-#  Presets / Threshold / Slow Charge are compiled out.
+#  Feature set: bypass charge, powersave, caffeinate, settings.
 # ============================================================
 
 CC = clang
-CFLAGS = -O3 -Wall -Wextra -std=c11 -fobjc-arc -target arm64-apple-macos11.0 -D VANILLA
+CFLAGS = -O3 -Wall -Wextra -std=c11 -fobjc-arc -target arm64-apple-macos11.0
 FRAMEWORKS = -framework IOKit -framework CoreFoundation -framework Foundation
 
 SWIFTC = swiftc
-# VANILLA is the default (and only) variant on this branch: the compile-time
-# flag removes the Presets, Threshold, and Slow Charge rows and machinery.
-SWIFT_FLAGS = -O -whole-module-optimization -target arm64-apple-macos11.0 -D VANILLA
+SWIFT_FLAGS = -O -whole-module-optimization -target arm64-apple-macos11.0
 SWIFT_FRAMEWORKS = -framework AppKit -framework SwiftUI -framework Foundation -framework IOKit -framework Carbon -framework AppIntents
 
 SRC = src/main.c src/smc.c src/battery.c src/power.c src/powerui.m
