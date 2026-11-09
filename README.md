@@ -14,7 +14,7 @@ You don't need a local toolchain, you can just run the Build workflow in Actions
 ### Table of Contents
 
 - [Building](#building)
-- [Features](#features)
+- [Components](#components)
 - [CLI Commands](#cli-commands)
 - [How bypass works](#how-bypass-works)
 - [Requirements](#requirements)
@@ -42,7 +42,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 
 ---
 
-## Features
+## Components
 
 | Name | Explained | Notes |
 |---|---|---|
