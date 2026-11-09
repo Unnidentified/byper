@@ -7,7 +7,7 @@ Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
 It holds your battery at whatever level you want and runs the whole machine off the charger, so net battery draw is 0 mA. There's a SUID-root CLI with real-time power telemetry, and a SwiftUI menu bar app that replaces the battery icon macOS gives you.
 
-You don't need a local toolchain: just run the **Build** workflow in Actions and the app, `.pkg` and `.dmg` come out of CI.
+You don't need a local toolchain: just run the Build workflow in Actions, you'll get a `.pkg` and a `.dmg`
 
 ---
 
