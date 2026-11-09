@@ -14,7 +14,7 @@ You don't need a local toolchain: just run the **Build** workflow in Actions and
 ### Table of Contents
 
 - [Building](#building)
-- [What do you get?](#what-do-you-get?)
+- [Features](#features)
 - [CLI Commands](#cli-commands)
 - [How bypass works](#how-bypass-works)
 - [Requirements](#requirements)
@@ -52,7 +52,7 @@ BYPER_VERSION=2.4.0 ./pkg/build_pkg.sh
 
 ---
 
-## What do you get?
+## Features
 
 | Stuff | whatsthat | Notes |
 |---|---|---|
