@@ -28,8 +28,9 @@ You don't need a local toolchain: just run the Build workflow in Actions, you'll
 ## Building
 
 1. Open the [Actions tab](https://github.com/Unnidentified/byper/actions) and run the **Build** workflow.
-2. Leave `version` empty unless you want a specific label. It defaults to the tag on a tag push, or `0.0.0-dev.<run>` otherwise.
-3. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
+2. Leave `version` empty unless you want a specific label. It defaults to `0.0.0-dev.<run>`.
+3. Tick `release` to publish a GitHub Release tagged `v<version>`. Leave it off to just get artifacts.
+4. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
 
 | Artifact | What is it |
 |---|---|
@@ -44,7 +45,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 ./pkg/build_pkg.sh    # byper-installer.pkg + byper-installer.dmg
 ```
 
-`BYPER_VERSION` overrides the version baked into the package, which is what CI uses:
+`BYPER_VERSION` overrides the version baked into the package, which is what the Build workflow uses:
 
 ```bash
 BYPER_VERSION=2.4.0 ./pkg/build_pkg.sh
@@ -160,7 +161,7 @@ sudo ./install.sh
 
 ### Good Practices
 
-`byper` must have `SUID` privileges in order to work, you can't just copy the .app to another computer and expect it to work. Spoiler: it won't, unless you reinstall it using the .pkg from the releases page or by running:
+`byper` must have `SUID` privileges in order to work, you can't just copy the .app to another computer and expect it to work. Spoiler: it won't, unless you reinstall it using the .pkg from the releases page. Check the permissions with:
 
 ```bash
 ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
@@ -190,7 +191,7 @@ pkg/                    package builder scripts (preinstall keeps settings;
 completions/            Zsh and Bash shell completion
 battery_icons_combined/ menu bar icon assets
 docs/                   ARCHITECTURE, INSTALL, TROUBLESHOOTING, LIMITATIONS
-.github/workflows/      build.yml (build + package + release), ci.yml (PR checks)
+.github/workflows/      build.yml (manual build, package, release), ci.yml (PR checks)
 ```
 
 Installed paths:
