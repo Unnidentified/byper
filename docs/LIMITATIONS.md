@@ -2,7 +2,7 @@
 
 ## SIP is the hard boundary
 
-byper's bypass path injects into `PowerUIAgent` with lldb. On a stock SIP configuration this works only where the system's developer-tool policy allows root attach to system daemons. Every non-debugger alternative has been probed and ruled out: there is no supported surface for "stop charging at current level," and direct SMC writes to the charge-limit keys are rejected by the firmware (tested: `CHBI` writes don't stick). If a Mac's build refuses the attach ("Not allowed to attach"), byper cannot bypass on it until SIP's debug restriction is relaxed: run `csrutil enable --without debug` in Recovery (keeps filesystem, kernel-extension, and NVRAM protections; only the debugger-attach policy changes). See [Quick Start](../README.md#quick-start) in the README for the full explanation.
+byper's bypass path injects into `PowerUIAgent` with lldb. On a stock SIP configuration this works only where the system's developer-tool policy allows root attach to system daemons. Every non-debugger alternative has been probed and ruled out: there is no supported surface for "stop charging at current level," and direct SMC writes to the charge-limit keys are rejected by the firmware (tested: `CHBI` writes don't stick). If a Mac's build refuses the attach ("Not allowed to attach"), byper cannot bypass on it until SIP's debug restriction is relaxed: run `csrutil enable --without debug` in Recovery (keeps filesystem, kernel-extension, and NVRAM protections; only the debugger-attach policy changes). See [Requirements](../README.md#requirements) in the README for the full explanation.
 
 The PKG mitigates what it can (DevToolsSecurity + `_developer` group in postinstall), but that does not guarantee attach on every macOS build.
 
