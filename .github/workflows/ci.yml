@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: make all
+
+      - name: Verify artifacts
+        run: |
+          set -euo pipefail
+          test -x bin/byper
+          test -x bin/byper-mon.command
+          test -x byper.app/Contents/MacOS/byper
+          file bin/byper | grep -q 'Mach-O 64-bit executable arm64'
+          codesign --verify --deep --strict byper.app
+
+      - name: CLI smoke test
+        run: |
+          set -euo pipefail
+          out="$(./bin/byper --help)"
+          echo "$out"
+          echo "$out" | grep -q 'Usage:'
+
+  checks:
+    name: Repo checks
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r f; do
+            if ! bash -n "$f"; then
+              echo "::error file=$f::bash syntax error"
+              fail=1
+            fi
+          done < <(git ls-files '*.sh')
+          exit $fail
+
+      - name: Plist lint
+        run: plutil -lint src/app/Info.plist
+
+      - name: No installer artifacts committed
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Ei '\.(pkg|dmg)$'; then
+            echo "::error::Installer artifacts ship via Releases, not git."
+            exit 1
+          fi
+
+      - name: No build-variant guards
+        run: |
+          set -euo pipefail
+          if grep -rn 'VANILLA' src/ Makefile; then
+            echo "::error::The VANILLA guards were removed; do not reintroduce them."
+            exit 1
+          fi
+
+      - name: Docs links resolve
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+
+          files = ['README.md']
+          if os.path.isdir('docs'):
+              files += [os.path.join('docs', f) for f in sorted(os.listdir('docs')) if f.endswith('.md')]
+
+          bad = []
+          for f in files:
+              text = open(f, encoding='utf-8').read()
+              for m in re.finditer(r'\]\(([^)\s]+)\)', text):
+                  target = m.group(1)
+                  if target.startswith(('http://', 'https://', 'mailto:', '#')):
+                      continue
+                  path = target.split('#')[0]
+                  if not path:
+                      continue
+                  if not os.path.exists(os.path.join(os.path.dirname(f), path)):
+                      bad.append(f'{f}: {target}')
+
+          if bad:
+              for b in bad:
+                  print(f'::error::{b}')
+              sys.exit(1)
+          print(f'All internal doc links resolve ({len(files)} files).')
+          PY
