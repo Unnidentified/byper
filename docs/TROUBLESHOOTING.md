@@ -35,7 +35,7 @@ The bypass needs to attach to `PowerUIAgent` as root, which macOS gates behind d
    ```bash
    BYP_LLDB_DEBUG=1 byper on   # writes /tmp/byp_lldb_debug.log (wiped on reboot)
    ```
-   and check the unified log for PowerUIAgent attach denials. If your build refuses root attach, relax SIP's debug restriction once in Recovery (`csrutil enable --without debug` — full explanation in the README prerequisites; see also [LIMITATIONS.md](LIMITATIONS.md)).
+   and check the unified log for PowerUIAgent attach denials. If your build refuses root attach, relax SIP's debug restriction once in Recovery (`csrutil enable --without debug` — full explanation in the README's Quick Start; see also [LIMITATIONS.md](LIMITATIONS.md)).
 
 ## Toggle seems to hang or does nothing for ~30–60 s
 
@@ -44,13 +44,13 @@ Two known causes:
 - **The apply is asynchronous.** The lldb worker runs detached; UI/engine fields can lag up to ~45 s behind a tap. The verify-poll gates truth, so wait for the state to flip rather than re-tapping.
 - **OS-side debounce.** PowerUIAgent swallows rapid opposite toggles (off → on within seconds) and lands the second one late. This is an OS behavior, not a bug in byper.
 
-## Bypass re-engages by itself / Slow Charge fights Bypass
+## Bypass re-engages by itself
 
-They're mutually exclusive at four layers. If an automation (plug-in, login, display, threshold) re-engages bypass while Slow Charge is enabled, update to a build with `engageAutoHoldOnPlug` gating (all auto-engage paths yield to Slow Charge). Launch also reseeds stale holds so a previous session's bypass can't deadlock the duty cycle.
+An automation (plug-in, login, or display attach) re-engaged it. Turn the relevant automation off in Settings, or use `byper off` after the trigger fires. Launch also reseeds a hold that was active at quit, so a previous session's bypass can come back on its own.
 
-## App won't open after WhatsApp/AirDrop transfer ("no se puede abrir", hard block)
+## App won't open after WhatsApp/AirDrop transfer ("app is damaged", hard block)
 
-Quarantine on an ad-hoc–signed app. Either System Settings → *Privacidad y seguridad* → **Abrir igualmente**, or:
+Quarantine on an ad-hoc–signed app. Either System Settings → *Privacy & Security* → **Open Anyway**, or:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/byper.app
@@ -60,7 +60,7 @@ xattr -dr com.apple.quarantine /Applications/byper.app
 
 - **Rows overflow their row.** Inline numbers next to the row switches need the switch's `frame` clamped; `scaleEffect(0.70)` does not shrink layout footprint.
 - **Popover doesn't resize when a section expands.** Every expandable flag must be in the `Publishers.Merge` in `AppDelegate.applicationDidFinishLaunching`.
-- **Timers stall with menus open / screen asleep.** Add timers to `RunLoop.main` with `.common` mode; a long-lived `beginActivity` assertion covers threshold polling while the display sleeps.
+- **Timers stall with menus open / screen asleep.** Add timers to `RunLoop.main` with `.common` mode; a long-lived `beginActivity` assertion covers background polling while the display sleeps.
 - **Contrast on light wallpapers.** The popover has a near-opaque dark base. If text looks washed out, check you're on the bundled fonts (corrupt TTFs fall back to `.custom()` silently; the shipped FiraCode files are verified).
 
 ## Diagnostics cheat sheet
