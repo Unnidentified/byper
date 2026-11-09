@@ -8,10 +8,157 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.diff.outputs.source }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Diff against base
+        id: diff
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="origin/${{ github.base_ref }}...HEAD"
+          elif git rev-parse --verify --quiet HEAD~1 >/dev/null; then
+            range="HEAD~1...HEAD"
+          else
+            range=""
+          fi
+
+          if [ -z "$range" ]; then
+            files="$(git ls-files)"
+          else
+            files="$(git diff --name-only "$range")"
+          fi
+
+          echo "Changed files:"
+          echo "$files"
+
+          if echo "$files" | grep -qE '^(src/|Makefile$|pkg/|install\.sh$|uninstall\.sh$|completions/)'; then
+            echo "source=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  checks:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r f; do
+            if ! bash -n "$f"; then
+              echo "::error file=$f::bash syntax error"
+              fail=1
+            fi
+          done < <(git ls-files '*.sh')
+          exit $fail
+
+      - name: Info.plist parses
+        run: |
+          python3 - <<'PY'
+          import plistlib
+
+          with open('src/app/Info.plist', 'rb') as f:
+              d = plistlib.load(f)
+
+          for key in ('CFBundleIdentifier', 'CFBundleName', 'LSMinimumSystemVersion'):
+              assert d.get(key), f'{key} missing from Info.plist'
+
+          print('Info.plist ok:', d['CFBundleIdentifier'], d['LSMinimumSystemVersion'])
+          PY
+
+      - name: No installer artifacts committed
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -Ei '\.(pkg|dmg)$'; then
+            echo "::error::Installer artifacts ship via Releases, not git."
+            exit 1
+          fi
+
+      - name: No build-variant guards
+        run: |
+          set -euo pipefail
+          if grep -rn 'VANILLA' src/ Makefile; then
+            echo "::error::The VANILLA guards were removed; do not reintroduce them."
+            exit 1
+          fi
+
+      - name: Workflow YAML parses
+        run: |
+          set -euo pipefail
+          for f in .github/workflows/*.yml; do
+            ruby -ryaml -e 'YAML.load_file(ARGV[0])' "$f"
+            echo "ok: $f"
+          done
+
+      - name: Docs links and anchors
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+
+          files = ['README.md']
+          if os.path.isdir('docs'):
+              files += [os.path.join('docs', f) for f in sorted(os.listdir('docs')) if f.endswith('.md')]
+
+          def slug(heading):
+              s = heading.strip().lower()
+              s = re.sub(r'[^\w\s-]', '', s)
+              return re.sub(r'\s+', '-', s)
+
+          headings = {}
+          for f in files:
+              text = open(f, encoding='utf-8').read()
+              headings[f] = {slug(m.group(1)) for m in re.finditer(r'^#{1,6}\s+(.+)$', text, re.M)}
+
+          bad = []
+          for f in files:
+              text = open(f, encoding='utf-8').read()
+              for m in re.finditer(r'\]\(([^)\s]+)\)', text):
+                  target = m.group(1)
+                  if target.startswith(('http://', 'https://', 'mailto:')):
+                      continue
+
+                  path, _, frag = target.partition('#')
+                  if path:
+                      resolved = os.path.normpath(os.path.join(os.path.dirname(f), path))
+                      if not os.path.exists(resolved):
+                          bad.append(f'{f}: missing file for {target}')
+                          continue
+                  else:
+                      resolved = f
+
+                  if frag and resolved in headings and frag not in headings[resolved]:
+                      bad.append(f'{f}: no heading #{frag} in {resolved}')
+
+          if bad:
+              for b in bad:
+                  print(f'::error::{b}')
+              sys.exit(1)
+
+          print(f'All links and anchors resolve across {len(files)} files.')
+          PY
+
+  compile:
+    name: Compile check
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -32,73 +179,4 @@ jobs:
       - name: CLI smoke test
         run: |
           set -euo pipefail
-          out="$(./bin/byper --help)"
-          echo "$out"
-          echo "$out" | grep -q 'Usage:'
-
-  checks:
-    name: Repo checks
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Shell syntax
-        run: |
-          set -euo pipefail
-          fail=0
-          while IFS= read -r f; do
-            if ! bash -n "$f"; then
-              echo "::error file=$f::bash syntax error"
-              fail=1
-            fi
-          done < <(git ls-files '*.sh')
-          exit $fail
-
-      - name: Plist lint
-        run: plutil -lint src/app/Info.plist
-
-      - name: No installer artifacts committed
-        run: |
-          set -euo pipefail
-          if git ls-files | grep -Ei '\.(pkg|dmg)$'; then
-            echo "::error::Installer artifacts ship via Releases, not git."
-            exit 1
-          fi
-
-      - name: No build-variant guards
-        run: |
-          set -euo pipefail
-          if grep -rn 'VANILLA' src/ Makefile; then
-            echo "::error::The VANILLA guards were removed; do not reintroduce them."
-            exit 1
-          fi
-
-      - name: Docs links resolve
-        run: |
-          python3 - <<'PY'
-          import os, re, sys
-
-          files = ['README.md']
-          if os.path.isdir('docs'):
-              files += [os.path.join('docs', f) for f in sorted(os.listdir('docs')) if f.endswith('.md')]
-
-          bad = []
-          for f in files:
-              text = open(f, encoding='utf-8').read()
-              for m in re.finditer(r'\]\(([^)\s]+)\)', text):
-                  target = m.group(1)
-                  if target.startswith(('http://', 'https://', 'mailto:', '#')):
-                      continue
-                  path = target.split('#')[0]
-                  if not path:
-                      continue
-                  if not os.path.exists(os.path.join(os.path.dirname(f), path)):
-                      bad.append(f'{f}: {target}')
-
-          if bad:
-              for b in bad:
-                  print(f'::error::{b}')
-              sys.exit(1)
-          print(f'All internal doc links resolve ({len(files)} files).')
-          PY
+          ./bin/byper --help | grep -q 'Usage:'

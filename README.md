@@ -28,8 +28,9 @@ You don't need a local toolchain: just run the Build workflow in Actions, you'll
 ## Building
 
 1. Open the [Actions tab](https://github.com/Unnidentified/byper/actions) and run the **Build** workflow.
-2. Leave `version` empty unless you want a specific label. It defaults to the tag on a tag push, or `0.0.0-dev.<run>` otherwise.
-3. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
+2. Leave `version` empty unless you want a specific label. It defaults to `0.0.0-dev.<run>`.
+3. Tick `release` to publish a GitHub Release tagged `v<version>`. Leave it off to just get artifacts.
+4. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
 
 Building locally works the same way:
 
@@ -38,7 +39,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 ./pkg/build_pkg.sh    # byper-installer.pkg + byper-installer.dmg
 ```
 
-`BYPER_VERSION` overrides the version baked into the package, which is what CI uses:
+`BYPER_VERSION` overrides the version baked into the package, which is what the Build workflow uses:
 
 ```bash
 BYPER_VERSION=2.4.0 ./pkg/build_pkg.sh
@@ -93,7 +94,7 @@ So byper attaches to it:
 
 The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the truth table back.
 
-Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware** — `CHBI` writes don't stick — which is why injection is the load-bearing path rather than a shortcut.
+Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware**. `CHBI` writes don't stick, which is why injection is the load-bearing path rather than a shortcut.
 
 Because the attach takes seconds, the UI's verify-poll gates truth and the engine retries on a 1.5s / 3.5s / 6s / 10s curve, capped at 45s. A toggle can therefore lag a tap by up to ~45s. That is expected, not a hang.
 
@@ -103,7 +104,7 @@ Because the attach takes seconds, the UI's verify-poll gates truth and the engin
 
 | Requirement | Why |
 |---|---|
-| **Apple Silicon** (M1–M4) | Builds target `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps |
+| **Apple Silicon** (M1-M4) | Builds target `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps |
 | **macOS 11 Big Sur or newer** | Oldest release running Apple Silicon. App Intents need macOS 13+ |
 | **SIP debug restriction relaxed** | Bypass attaches to `PowerUIAgent` with lldb, which stock SIP refuses |
 | **Command Line Tools** | Provides `lldb`. The installer sets them up if missing |
@@ -144,7 +145,7 @@ sudo ./install.sh
 
 ### Good Practices
 
-`byper` must have `SUID` privileges in order to work, you can't just copy the .app to another computer and expect it to work. Spoiler: it won't, unless you reinstall it using the .pkg from the releases page or by running:
+`byper` must have `SUID` privileges in order to work, you can't just copy the .app to another computer and expect it to work. Spoiler: it won't, unless you reinstall it using the .pkg from the releases page. Check the permissions with:
 
 ```bash
 ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
@@ -167,7 +168,7 @@ pkg/                    package builder scripts (preinstall keeps settings;
 completions/            Zsh and Bash shell completion
 battery_icons_combined/ menu bar icon assets
 docs/                   ARCHITECTURE, INSTALL, TROUBLESHOOTING, LIMITATIONS
-.github/workflows/      build.yml (build + package + release), ci.yml (PR checks)
+.github/workflows/      build.yml (manual build, package, release), ci.yml (PR checks)
 ```
 
 Installed paths:
@@ -188,7 +189,7 @@ Installed paths:
 > [!CAUTION]
 > This utility modifies power management state using SMC keys and process injection into system daemons (`PowerUIAgent`). It is provided as-is, without warranty.
 
-- **Toggling can lag.** PowerUIAgent debounces rapid opposite commands, so off-then-on within seconds can be swallowed or land 15–60s late. That's OS behaviour; byper works around it but cannot eliminate it.
+- **Toggling can lag.** PowerUIAgent debounces rapid opposite commands, so off-then-on within seconds can be swallowed or land 15-60s late. That's OS behaviour; byper works around it but cannot eliminate it.
 - **Register signatures drift.** The mode-of-operation values, `NCR` reasons and rail keys were mapped empirically on specific macOS versions. A major update may shift them, and the verify-poll will surface it as "enabled but not holding".
 - **Single-user assumptions.** A few fallbacks in `src/main.c` and the asset resolver reference `/Users/gefaass`. The PKG path works without them; a source install under a different account may need those literals adjusted.
 - **No credentials in the repo.** The non-root dev path reads `BYP_SUDO_PASS` from the environment instead of embedding anything.
