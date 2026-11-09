@@ -1,0 +1,93 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label for the artifacts. Defaults to the tag, or 0.0.0-dev.<run>.
+        required: false
+        type: string
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+
+jobs:
+  build:
+    name: Build and package
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          clang --version | head -1
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            v="$INPUT_VERSION"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $v"
+
+      - name: Build
+        run: make all
+
+      - name: Package
+        env:
+          BYPER_VERSION: ${{ steps.version.outputs.version }}
+        run: ./pkg/build_pkg.sh
+
+      - name: Rename artifacts
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mv byper-installer.pkg "byper-installer-${V}.pkg"
+          mv byper-installer.dmg "byper-installer-${V}.dmg"
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          shasum -a 256 byper-installer-*.pkg byper-installer-*.dmg > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: byper-${{ steps.version.outputs.version }}
+          path: |
+            byper-installer-*.pkg
+            byper-installer-*.dmg
+            SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            byper-installer-*.pkg \
+            byper-installer-*.dmg \
+            SHA256SUMS.txt \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

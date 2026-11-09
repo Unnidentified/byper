@@ -59,32 +59,3 @@ struct ToggleBypassIntent: AppIntent {
     }
 }
 
-#if !VANILLA
-@available(macOS 13.0, *)
-struct ApplyTravelPresetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Apply Travel Preset"
-    static var description = IntentDescription("Powersave on and Caffeinate always-on.")
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let monitor = byperMonitor() else {
-            return .result(dialog: "byper is not running")
-        }
-        monitor.activatePreset(.travel)
-        return .result(dialog: "Travel preset activated")
-    }
-}
-
-@available(macOS 13.0, *)
-struct ApplyDeskPresetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Apply Docked Preset"
-    static var description = IntentDescription("Bypass when the charger is connected, and auto-caffeinate on bypass.")
-
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let monitor = byperMonitor() else {
-            return .result(dialog: "byper is not running")
-        }
-        monitor.activatePreset(.docked)
-        return .result(dialog: "Docked preset activated")
-    }
-}
-#endif
