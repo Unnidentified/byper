@@ -1,5 +1,5 @@
 # ============================================================
-#  byper — Makefile
+#  byper Makefile
 #  Compiles CLI binary 'byper' & Native GUI 'byper.app'
 #  Feature set: bypass charge, powersave, caffeinate, settings.
 # ============================================================
@@ -21,13 +21,9 @@ APP_NAME = byper.app
 APP_DIR = $(APP_NAME)/Contents
 APP_BIN = $(APP_DIR)/MacOS/byper
 APP_RES = $(APP_DIR)/Resources
-APP_ICONS = $(APP_RES)/icons
 HELPER_SRC = src/app/install_helper.c
 HELPER_BIN = $(APP_RES)/byper-installer
-SWIFT_SRC = src/app/BatteryAssetResolver.swift src/app/BatteryMonitor.swift src/app/BatteryDropdownView.swift src/app/CLIEngineBridge.swift src/app/AppDelegate.swift src/app/ByperIntents.swift
-
-HIGHRES_ICONS_DIR = src/app/icons_highres
-FALLBACK_ICONS_DIR = battery_icons_combined/standard/dark/2x
+SWIFT_SRC = src/app/BatteryPillIcon.swift src/app/BatteryMonitor.swift src/app/BatteryDropdownView.swift src/app/CLIEngineBridge.swift src/app/AppDelegate.swift src/app/ByperIntents.swift
 
 all: $(TARGET) $(MON_CMD) app
 
@@ -45,14 +41,13 @@ $(MON_CMD): src/byp-mon.command
 app: $(TARGET) $(APP_BIN)
 
 $(APP_BIN): $(SWIFT_SRC) src/app/Info.plist $(TARGET)
-	@mkdir -p $(APP_DIR)/MacOS $(APP_RES) $(APP_ICONS)
+	@mkdir -p $(APP_DIR)/MacOS $(APP_RES)
 	@cp -f src/app/Info.plist $(APP_DIR)/Info.plist
 	@cp -f src/app/AppIcon.icns $(APP_RES)/AppIcon.icns
 	@cp -f $(TARGET) $(APP_RES)/byper
 	$(CC) $(CFLAGS) $(HELPER_SRC) -o $(HELPER_BIN)
 	@mkdir -p $(APP_RES)/fonts
 	@cp -f src/app/fonts/*.ttf $(APP_RES)/fonts/
-	@if [ -d "$(HIGHRES_ICONS_DIR)" ]; then cp -f $(HIGHRES_ICONS_DIR)/*.png $(APP_ICONS)/; elif [ -d "$(FALLBACK_ICONS_DIR)" ]; then cp -f $(FALLBACK_ICONS_DIR)/*.png $(APP_ICONS)/; fi
 	$(SWIFTC) $(SWIFT_FLAGS) $(SWIFT_FRAMEWORKS) $(SWIFT_SRC) -o $(APP_BIN)
 	@codesign -s - -f $(APP_NAME) >/dev/null 2>&1 || true
 	@echo "App bundle assembled: $(APP_NAME)"

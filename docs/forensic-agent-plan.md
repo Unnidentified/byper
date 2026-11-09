@@ -33,7 +33,7 @@ Amendments happen only by editing this file between runs, never by improvising d
 - **Root:** this checkout, the directory containing `Makefile`.
 - **Source layout:**
   - `src/main.c`, `src/powerui.m` (PowerUI & LLDB bridge), `src/power.c`, `src/battery.c`, `src/smc.c`
-  - `src/app/` (`AppDelegate.swift`, `BatteryDropdownView.swift`, `BatteryMonitor.swift`, `BatteryAssetResolver.swift`, `CLIEngineBridge.swift`, `ByperIntents.swift`)
+  - `src/app/` (`AppDelegate.swift`, `BatteryDropdownView.swift`, `BatteryMonitor.swift`, `BatteryPillIcon.swift`, `CLIEngineBridge.swift`, `ByperIntents.swift`)
   - `bin/byper` (native CLI binary), `byper.app` (menu bar companion app bundle)
   - `Makefile`, `install.sh`, `uninstall.sh`, completions (`_byper`, `_byp`, `byp.bash`)
 - **Feature set:** bypass, powersave (LPM), caffeinate and settings. Presets, Threshold and Slow Charge were removed from the codebase; do not reintroduce them or document them as live features.
