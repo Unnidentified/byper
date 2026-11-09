@@ -14,7 +14,7 @@ You don't need a local toolchain: just run the **Build** workflow in Actions and
 ### Table of Contents
 
 - [Building](#building)
-- [What you get](#what-you-get)
+- [What do you get?](#what-do-you-get?)
 - [CLI Commands](#cli-commands)
 - [How bypass works](#how-bypass-works)
 - [Requirements](#requirements)
@@ -31,13 +31,11 @@ You don't need a local toolchain: just run the **Build** workflow in Actions and
 2. Leave `version` empty unless you want a specific label. It defaults to the tag on a tag push, or `0.0.0-dev.<run>` otherwise.
 3. When the run finishes, grab the artifacts from the run page or from [Releases](https://github.com/Unnidentified/byper/releases).
 
-| Artifact | What it is |
+| Artifact | What is it |
 |---|---|
-| `byper-installer-<version>.pkg` | Guided Installer package. Offers **Install** (keeps settings) and **Uninstall** (removes everything) |
-| `byper-installer-<version>.dmg` | The same package in a disk image, so the custom Finder icon survives the download |
+| `byper-installer-<version>.pkg` | Guided Installer package (recommended). Offers **Install** (keeps settings) and **Uninstall** (removes everything) |
+| `byper-installer-<version>.dmg` | The same package in a disk image. |
 | `SHA256SUMS.txt` | Checksums for both |
-
-Pushing a `v*` tag builds and publishes a GitHub Release with those files attached. Every other run just uploads artifacts.
 
 Building locally works the same way:
 
@@ -54,7 +52,7 @@ BYPER_VERSION=2.4.0 ./pkg/build_pkg.sh
 
 ---
 
-## What you get
+## What do you get?
 
 | Stuff | whatsthat | Notes |
 |---|---|---|
