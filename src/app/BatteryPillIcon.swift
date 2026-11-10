@@ -48,17 +48,25 @@ enum BatteryPillIcon {
 
     /// Height 12 matches the system battery pill in the menu bar. The design
     /// space is 30 x 14, so the default scale is 12/14.
-    static func image(level: Int, state: State, darkMenuBar: Bool, height: CGFloat = 12) -> NSImage {
+    ///
+    /// The menu bar brightness is read from the appearance the drawing handler
+    /// runs under, not from a parameter: the bar follows the wallpaper, and
+    /// that appearance is the only place the value is exposed. AppKit calls
+    /// the handler once per candidate appearance and the last pass is the one
+    /// on screen, so the icon always lands on the current bar.
+    static func image(level: Int, state: State, height: CGFloat = 12) -> NSImage {
         let clamped = min(100, max(0, level))
         let scale = height / designHeight
         let size = NSSize(width: designWidth * scale, height: height)
 
         let image = NSImage(size: size, flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            let isDarkMenuBar = NSAppearance.currentDrawing()
+                .bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ctx.saveGState()
             ctx.scaleBy(x: rect.width / designWidth, y: rect.height / designHeight)
             ctx.setShouldAntialias(true)
-            draw(clamped, state: state, darkMenuBar: darkMenuBar, in: ctx)
+            draw(clamped, state: state, darkMenuBar: isDarkMenuBar, in: ctx)
             ctx.restoreGState()
             return true
         }
@@ -70,11 +78,25 @@ enum BatteryPillIcon {
         let base = darkMenuBar ? paper : ink
 
         let fill: NSColor
+        let isColoured: Bool
         switch state {
-        case .charging: fill = chargingGreen
-        case .bypass: fill = bypassCopper
-        case .lowPower: fill = lowPowerGold
-        case .idle: fill = level <= 20 ? lowBatteryRed : base
+        case .charging:
+            fill = chargingGreen
+            isColoured = true
+        case .bypass:
+            fill = bypassCopper
+            isColoured = true
+        case .lowPower:
+            fill = lowPowerGold
+            isColoured = true
+        case .idle:
+            if level <= 20 {
+                fill = lowBatteryRed
+                isColoured = true
+            } else {
+                fill = base
+                isColoured = false
+            }
         }
 
         let body = CGRect(x: 0, y: 0, width: bodyWidth, height: designHeight)
@@ -103,7 +125,15 @@ enum BatteryPillIcon {
         ctx.fillPath()
         ctx.restoreGState()
 
-        punchNumber(level, in: ctx, body: bodyPath)
+        // A coloured pill is bright, so on a light menu bar the punched-out
+        // number would show the light bar through the fill and wash out. Draw
+        // it in the icon's own ink there instead, which keeps the number
+        // monochrome with the rest of the pill and still reads on the fill.
+        // On a dark menu bar the knockout already reads as dark digits, and
+        // the idle pill is always the opposite of the bar, so both keep the
+        // hole.
+        let digitColor: NSColor? = (isColoured && !darkMenuBar) ? ink : nil
+        drawNumber(level, in: ctx, body: bodyPath, color: digitColor)
     }
 
     /// Terminal nub: a D shape 1.6 wide and 4.7 tall, flat on the left, right
@@ -128,15 +158,14 @@ enum BatteryPillIcon {
         return path
     }
 
-    /// Clears the level out of the pill so the menu bar shows through. Drawing
-    /// a colour instead would break the monochrome read and would have to pick
-    /// a side at the fill boundary, where neither white nor ink works.
-    private static func punchNumber(_ level: Int, in ctx: CGContext, body: CGPath) {
+    /// Draws the level. A nil colour punches it out of the pill so the menu
+    /// bar shows through; a colour draws it on top of the fill.
+    private static func drawNumber(_ level: Int, in ctx: CGContext, body: CGPath, color: NSColor?) {
         let text = "\(level)"
         let font = numberFont(for: text)
         let attributed = NSAttributedString(string: text, attributes: [
             .font: font,
-            .foregroundColor: NSColor.black
+            .foregroundColor: color ?? NSColor.black
         ])
         let line = CTLineCreateWithAttributedString(attributed)
 
@@ -149,7 +178,7 @@ enum BatteryPillIcon {
         ctx.saveGState()
         ctx.addPath(body)
         ctx.clip()
-        ctx.setBlendMode(.destinationOut)
+        ctx.setBlendMode(color == nil ? .destinationOut : .normal)
         ctx.textPosition = CGPoint(
             x: bodyWidth / 2 - inkBounds.midX,
             y: designHeight / 2 - inkBounds.midY

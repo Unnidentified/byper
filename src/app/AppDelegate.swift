@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var lastRenderKey: String = ""
     private var cachedImage: NSImage? = nil
+    private var appearanceObservation: NSKeyValueObservation?
+    private var lastMenuBarAppearance: NSAppearance.Name?
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     // App Nap opt-out: an LSUIElement app with no visible windows gets its timers
@@ -140,18 +142,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             updateButton(button)
             button.action = #selector(togglePopover(_:))
             button.target = self
-        }
 
-        // Re-render the icon when the system appearance flips, so the pill
-        // inverts with the menu bar instead of waiting for the next poll.
-        DistributedNotificationCenter.default.addObserver(
-            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self = self, let button = self.statusItem.button else { return }
-            self.lastRenderKey = ""
-            self.updateButton(button)
+            // The button's effective appearance is the menu bar's own: it
+            // flips between VibrantLight and VibrantDark the moment the
+            // wallpaper changes, which is the signal the app's appearance
+            // never carries. The same property also passes through the plain
+            // Aqua/DarkAqua values while the bar redraws, so only the vibrant
+            // pair counts, and only when it actually changes.
+            lastMenuBarAppearance = button.effectiveAppearance.name
+            appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, change in
+                guard let self = self, let name = change.newValue?.name else { return }
+                guard name == .vibrantDark || name == .vibrantLight else { return }
+                guard name != self.lastMenuBarAppearance else { return }
+                self.lastMenuBarAppearance = name
+                self.refreshIcon()
+            }
         }
 
         // Subscribe to monitor changes (only updates button image when percentage/state changes)
@@ -280,6 +285,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    /// Drops the cached render and rebuilds the icon. The drawing handler
+    /// reads the menu bar appearance when it runs, so a bar change needs a
+    /// fresh image to force that handler to run again.
+    private func refreshIcon() {
+        guard let button = statusItem.button else { return }
+        lastRenderKey = ""
+        updateButton(button)
+    }
+
     func updateButton(_ button: NSStatusBarButton) {
         let isPluggedIn = monitor.isPluggedIn
         // Hardware-first icon state. Bypass = engine hold OR the pending/intent
@@ -299,11 +313,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // Safe now that automations commit appliedPowerMode on success.
         let isCharging = isPluggedIn && !isBypass && (monitor.isCharging || monitor.appliedPowerMode == .charging)
         
-        // The pill inverts with the menu bar, which follows the system
-        // appearance rather than the popover's locked dark look.
-        let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-
-        let key = "\(monitor.percentage)_\(isPluggedIn)_\(isCharging)_\(isBypass)_\(monitor.isLowPowerMode)_\(monitor.isTransitioning)_\(monitor.transitionMessage)_\(isDarkMenuBar ? "dark" : "light")"
+        // The pill inverts with the menu bar, which follows the wallpaper
+        // rather than the popover's locked dark look. That value is read
+        // inside the drawing handler, so it stays out of the render key.
+        let key = "\(monitor.percentage)_\(isPluggedIn)_\(isCharging)_\(isBypass)_\(monitor.isLowPowerMode)_\(monitor.isTransitioning)_\(monitor.transitionMessage)"
         
         if key == lastRenderKey, let cached = cachedImage {
             if button.image !== cached {
@@ -318,8 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             : .idle
         let img = BatteryPillIcon.image(
             level: monitor.percentage,
-            state: state,
-            darkMenuBar: isDarkMenuBar
+            state: state
         )
         lastRenderKey = key
         cachedImage = img
