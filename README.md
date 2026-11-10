@@ -9,6 +9,8 @@ It holds your battery at whatever level you want and runs the whole computer off
 
 You don't need a local toolchain, you can just click on Actions > Build and you'll get a `.pkg` and a `.dmg` (see [building](https://github.com/Unnidentified/byper/edit/main/README.md#building))
 
+<img src="docs/images/popover.png" alt="The byper popover on a light, a mixed and a dark wallpaper" width="100%" />
+
 ---
 
 ### Table of Contents
@@ -154,6 +156,7 @@ pkg/                    package builder scripts (preinstall keeps settings;
                         uninstall-postinstall is a complete uninstaller)
 completions/            Zsh and Bash shell completion
 docs/                   architecture, install, troubleshooting, limitations, releasing, handoff
+docs/images/            screenshots used by this README
 .github/workflows/      build.yml (manual build, package, release), ci.yml (PR checks)
 ```
 
