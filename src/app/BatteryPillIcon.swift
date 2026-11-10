@@ -127,13 +127,24 @@ enum BatteryPillIcon {
 
         // A coloured pill is bright, so on a light menu bar the punched-out
         // number would show the light bar through the fill and wash out. Draw
-        // it in the icon's own ink there instead, which keeps the number
-        // monochrome with the rest of the pill and still reads on the fill.
+        // it in a darker shade of the mode colour there: the hue stays with
+        // the pill, so the number reads as part of the mode instead of a
+        // separate black overlay, and the reduced brightness keeps it legible.
         // On a dark menu bar the knockout already reads as dark digits, and
         // the idle pill is always the opposite of the bar, so both keep the
         // hole.
-        let digitColor: NSColor? = (isColoured && !darkMenuBar) ? ink : nil
+        let digitColor: NSColor? = (isColoured && !darkMenuBar) ? digitInk(for: fill) : nil
         drawNumber(level, in: ctx, body: bodyPath, color: digitColor)
+    }
+
+    /// A darker shade of the mode colour for the number on a bright fill.
+    /// Same hue and saturation, brightness pulled down far enough to read
+    /// against the solid fill.
+    private static func digitInk(for fill: NSColor) -> NSColor {
+        guard let srgb = fill.usingColorSpace(.sRGB) else { return .black }
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        srgb.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return NSColor(hue: h, saturation: min(1, s * 1.05), brightness: b * 0.30, alpha: 1)
     }
 
     /// Terminal nub: a D shape 1.6 wide and 4.7 tall, flat on the left, right
