@@ -12,8 +12,8 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 ## Current state
 
 - `main` is at the merge of PR #12, the Liquid Glass popover.
-- The latest release is `v2.5.0`. Its tag points to `6707958`, the PR #12 commit, not the merge commit. Assets: `byper-installer-2.5.0.pkg`, `.dmg`, `SHA256SUMS.txt`.
-- `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are both `2.5.0`. They used to drift apart; bump them together.
+- The latest release is `v3.0.0`, the Liquid Glass redesign. Assets: `byper-installer-3.0.0.pkg`, `.dmg`, `SHA256SUMS.txt`.
+- `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are both `3.0.0`. They used to drift apart; bump them together. The scheme is in [releasing.md](releasing.md).
 - CI: `.github/workflows/ci.yml` runs on every PR and push to `main`. Jobs: `changes` (diff filter), `checks` (shell syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links), `compile` (`make all`, artifact checks, CLI smoke test).
 - Build: `.github/workflows/build.yml` is manual (`workflow_dispatch`). It builds, packages, and optionally creates a release. It is not triggered by pushes.
 
@@ -43,7 +43,7 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 ```bash
 make all                  # bin/byper, bin/byper-mon.command, byper.app
 ./pkg/build_pkg.sh        # byper-installer.pkg + .dmg
-BYPER_VERSION=2.5.0 ./pkg/build_pkg.sh
+BYPER_VERSION=3.0.0 ./pkg/build_pkg.sh
 ```
 
 There is no unit test suite. The CI compile job is the test gate: it builds, checks the artifacts, verifies the signature, and runs `./bin/byper --help`. Run the same locally before pushing.
