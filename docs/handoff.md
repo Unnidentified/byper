@@ -11,8 +11,8 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 
 ## Current state
 
-- `main` is at `7a90d5f`, the merge of PR #7.
-- The latest release is `v2.4.1`, tagged on `c518a86`. Assets: `byper-installer-2.4.1.pkg`, `.dmg`, `SHA256SUMS.txt`.
+- `main` is at `e362f42`, the merge of PR #10.
+- The latest release is `v2.4.1`. Its assets were rebuilt from the stock colour and digit height changes; the tag still points to `c518a86`. Assets: `byper-installer-2.4.1.pkg`, `.dmg`, `SHA256SUMS.txt`.
 - `src/app/Info.plist` still says `2.3.1`. The package version comes from `BYPER_VERSION` in `pkg/build_pkg.sh` (default `2.4.0`), so the release is 2.4.1 while the app's About version is 2.3.1. Fix this if you touch the version.
 - CI: `.github/workflows/ci.yml` runs on every PR and push to `main`. Jobs: `changes` (diff filter), `checks` (shell syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links), `compile` (`make all`, artifact checks, CLI smoke test).
 - Build: `.github/workflows/build.yml` is manual (`workflow_dispatch`). It builds, packages, and optionally creates a release. It is not triggered by pushes.
@@ -105,13 +105,13 @@ The global hotkey is Cmd+Opt+B. App Intents expose bypass on, off and toggle on 
 - Design space 30 x 14, default height 12pt.
 - Body 27 x 14, corner radius 4.2.
 - Nub: x 28.3 to 29.9, y 4.65 to 9.35, right corners r0.8, flat left.
-- Digit ink height 8.8, font size 12.49, centred on the ink bounding box.
+- Digit ink height 8.4, font size about 11.92, centred on the ink bounding box.
 - Fill width `round(27 * level / 100)`.
-- Track opacity 0.44, nub opacity 0.55.
+- Track opacity 0.44 for the idle pill, 0.20 for the coloured pills. Nub opacity 0.55.
 - Base ink black at 0.93 alpha, paper white at 0.93 alpha.
 - Mode colours: charging `#30D158`, bypass `#DC8038`, low power `#FFD60A`, low battery `#FF453A`.
-- On a light menu bar, a coloured pill draws the number in `digitInk(for:)`, a darker shade of the mode colour (brightness x 0.30). Contrast is 4.78 to 8.38.
-- On a dark menu bar, the number is a knockout.
+- The track and nub use the menu bar ink, not the mode colour.
+- The number uses the menu bar text colour: black on a light bar, white on a dark one. The idle pill is the exception, where the number is a knockout.
 - The drawing handler reads `NSAppearance.currentDrawing()` to decide light or dark.
 - `AppDelegate` observes `button.effectiveAppearance`, filters to `.vibrantDark` and `.vibrantLight`, and calls `refreshIcon()` when the value changes. That is the wallpaper signal. `NSApp.effectiveAppearance` follows the system mode, not the menu bar, so do not use it.
 

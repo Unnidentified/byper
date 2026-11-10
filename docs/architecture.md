@@ -46,7 +46,7 @@ Direct SMC writes to the charge-limit keys do not work on Apple Silicon. `CHBI` 
 
 The app polls the CLI every 2s while the popover is open and every 4s in the background. The first poll is delayed by 300ms so the status item does not blink when the popover opens. Timers are added to `RunLoop.main` in `.common` mode so they keep firing while menus track the cursor or the screen sleeps.
 
-The menu bar icon is drawn natively in `BatteryPillIcon.swift`. It is a 30 x 14 design space scaled to 12pt, with a 27 x 14 body, a D-shaped nub, and the level punched out of the pill. The drawing handler reads `NSAppearance.currentDrawing()` to decide whether the menu bar is light or dark. The status item button's `effectiveAppearance` drives the refresh when the wallpaper changes.
+The menu bar icon is drawn natively in `BatteryPillIcon.swift`. It is a 30 x 14 design space scaled to 12pt, with a 27 x 14 body and a D-shaped nub. The idle pill punches the level out; the coloured pills draw it in the menu bar text colour. The drawing handler reads `NSAppearance.currentDrawing()` to decide whether the menu bar is light or dark. The status item button's `effectiveAppearance` drives the refresh when the wallpaper changes.
 
 ## Build and package
 
