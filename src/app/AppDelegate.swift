@@ -17,9 +17,9 @@ struct ByperApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
-    var popover: NSPopover!
+    var popoverPanel: PopoverPanelController!
     var monitor = BatteryMonitor()
     private var cancellables = Set<AnyCancellable>()
     private var lastRenderKey: String = ""
@@ -59,12 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
-        popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = false
-        popover.appearance = NSAppearance(named: .darkAqua)
-        popover.delegate = self
-        
         let view = BatteryDropdownView(
             monitor: monitor,
             onSelectPowerMode: { [weak self] mode in
@@ -93,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             },
             onOpenSettings: { [weak self] in
                 guard let self = self else { return }
-                self.popover.performClose(nil)
+                self.popoverPanel.close()
                 DispatchQueue.global(qos: .userInitiated).async {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension") {
                         NSWorkspace.shared.open(url)
@@ -121,22 +115,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         )
         
-        let hostingController = NSHostingController(rootView: view)
-        // macOS 13+: let the hosting controller drive the popover size from SwiftUI's own
-        // layout: the window resizes in one smooth step, moving only the changed section
-        // (no multi-timer refit jerk). Older systems keep the manual fitting-size refits.
-        if #available(macOS 13.0, *) {
-            hostingController.sizingOptions = .preferredContentSize
+        // The shell is a borderless panel, not an NSPopover: the popover draws its
+        // own background and arrow, which would sit behind the glass and add a
+        // second notch. The panel is transparent and the SwiftUI shell owns the
+        // whole outline, notch included.
+        popoverPanel = PopoverPanelController { view }
+        popoverPanel.onShow = { [weak self] in
+            // The system draws its own highlight pill while the button is pressed;
+            // forcing isHighlighted here fought that rendering and made the pill
+            // background flicker on every click. Leave it to AppKit.
+            self?.monitor.startActivePolling()
         }
-        hostingController.view.layoutSubtreeIfNeeded()
-        let initialFitting = hostingController.view.fittingSize
-        popover.contentSize = NSSize(width: 244, height: max(initialFitting.height, 250))
-        popover.contentViewController = hostingController
-        // Lock the popover to the dark look: vibrancy/popover materials otherwise follow the
-        // desktop appearance and wash out on light backgrounds
-        let dark = NSAppearance(named: .darkAqua)
-        popover.appearance = dark
-        hostingController.view.appearance = dark
+        popoverPanel.onClose = { [weak self] in
+            guard let self = self else { return }
+            self.monitor.stopActivePolling()
+            // Drop any in-progress preset rename so reopening starts clean
+            self.monitor.renamingPreset = nil
+            self.monitor.renameText = ""
+        }
 
         if let button = statusItem.button {
             updateButton(button)
@@ -150,11 +146,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             // Aqua/DarkAqua values while the bar redraws, so only the vibrant
             // pair counts, and only when it actually changes.
             lastMenuBarAppearance = button.effectiveAppearance.name
+            if let name = lastMenuBarAppearance {
+                popoverPanel.menuBarIsDark = (name == .vibrantDark || name == .darkAqua)
+            }
             appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, change in
                 guard let self = self, let name = change.newValue?.name else { return }
                 guard name == .vibrantDark || name == .vibrantLight else { return }
                 guard name != self.lastMenuBarAppearance else { return }
                 self.lastMenuBarAppearance = name
+                self.popoverPanel.menuBarIsDark = (name == .vibrantDark)
                 self.refreshIcon()
             }
         }
@@ -171,9 +171,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
-        // Instant popover frame snap when dropdown menus expand/collapse (locked to width: 244).
+        // Instant panel frame snap when dropdown menus expand/collapse (locked to the shell width).
         // showLoggerInfo (Logger "i" description) and isCaffeineMenuExpanded also change the
-        // content height. Without them the popover keeps its expanded height on collapse.
+        // content height. Without them the panel keeps its expanded height on collapse.
         Publishers.Merge4(
             monitor.$isBypassMenuExpanded,
             monitor.$isAppPickerExpanded,
@@ -185,13 +185,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                self.fitPopoverContentSize()
+                self.popoverPanel.refit()
                 // Re-fit once SwiftUI commits the layout change so the expanded picker is never clipped
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    self?.fitPopoverContentSize()
+                    self?.popoverPanel.refit()
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) { [weak self] in
-                    self?.fitPopoverContentSize()
+                    self?.popoverPanel.refit()
                 }
             }
             .store(in: &cancellables)
@@ -273,18 +273,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func fitPopoverContentSize() {
-        // macOS 13+: NSHostingSizingOptions.preferredContentSize drives the popover size
-        // smoothly from SwiftUI; the manual multi-timer refit would only fight it
-        if #available(macOS 13.0, *) { return }
-        guard popover.isShown, let view = popover.contentViewController?.view else { return }
-        view.layoutSubtreeIfNeeded()
-        let fitting = view.fittingSize
-        if fitting.height > 0 {
-            popover.contentSize = NSSize(width: 244, height: fitting.height)
-        }
-    }
-
     /// Drops the cached render and rebuilds the icon. The drawing handler
     /// reads the menu bar appearance when it runs, so a bar change needs a
     /// fresh image to force that handler to run again.
@@ -341,33 +329,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     @objc func togglePopover(_ sender: AnyObject?) {
         guard let button = statusItem.button else { return }
-        if popover.isShown {
-            popover.performClose(sender)
-        } else {
-            if let view = popover.contentViewController?.view {
-                view.layoutSubtreeIfNeeded()
-                let fitting = view.fittingSize
-                if fitting.height > 0 {
-                    popover.contentSize = NSSize(width: 244, height: fitting.height)
-                }
-            }
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-        }
-    }
-
-    // MARK: - NSPopoverDelegate (Starts/Stops on-demand polling & animation only while open)
-    func popoverWillShow(_ notification: Notification) {
-        // The system draws its own highlight pill while the button is pressed;
-        // forcing isHighlighted here fought that rendering and made the pill
-        // background flicker on every click. Leave it to AppKit.
-        monitor.startActivePolling()
-    }
-
-    func popoverDidClose(_ notification: Notification) {
-        monitor.stopActivePolling()
-        // Drop any in-progress preset rename so reopening the popover starts clean
-        monitor.renamingPreset = nil
-        monitor.renameText = ""
+        popoverPanel.toggle(relativeTo: button)
     }
 }

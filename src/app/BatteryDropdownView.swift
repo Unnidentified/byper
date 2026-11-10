@@ -46,7 +46,7 @@ import AppKit
 // Per-App Auto LPM picker, isolated from the parent's 60fps wave re-renders.
 // Plain-value inputs + manual Equatable (closures excluded) let SwiftUI skip the
 // whole subtree while the app list and selection are unchanged, and LazyVStack
-// keeps only on-screen rows alive — scrolling stays native-smooth even with a
+// keeps only on-screen rows alive, so scrolling stays native-smooth even with a
 // hundred apps in the list.
 private struct AppPickerList: View, Equatable {
     let apps: [InstalledAppInfo]
@@ -164,7 +164,7 @@ struct BatteryDropdownView: View {
                         ZStack(alignment: .leading) {
                             // Empty part (Masked so it doesn't bleed under the clear gradient edges)
                             Capsule()
-                                .fill(Color.white.opacity(0.10))
+                                .fill(Color.white.opacity(PopoverTuning.trackOpacity))
                                 .frame(width: geo.size.width)
                                 .mask(
                                     HStack(spacing: 0) {
@@ -186,10 +186,20 @@ struct BatteryDropdownView: View {
                         }
                     }
                     .frame(height: 4)
+                    // Hairline: on a bright wallpaper the glass under the track
+                    // is nearly white, and the track alone disappears into it.
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.black.opacity(PopoverTuning.trackHairlineOpacity),
+                                    lineWidth: PopoverTuning.trackHairlineWidth)
+                    )
 
                     Text("\(monitor.percentage)%")
                         .font(.custom("FiraCode-Bold", size: 10.5))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
+                        // Sits on glass, so it needs its own contrast floor: the
+                        // shell picks up the wallpaper behind it.
+                        .shadow(color: Color.black.opacity(0.35), radius: 1.5, x: 0, y: 0.5)
                         
                     Spacer(minLength: 4)
                     
@@ -201,7 +211,10 @@ struct BatteryDropdownView: View {
                     }) {
                         Image(systemName: "power")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(Color(white: 0.45))
+                            // Sits on glass, so it takes the same contrast floor
+                            // as the percentage instead of the dimmer secondary.
+                            .foregroundColor(Color.white.opacity(0.8))
+                            .shadow(color: Color.black.opacity(0.35), radius: 1.5, x: 0, y: 0.5)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -210,7 +223,7 @@ struct BatteryDropdownView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 MasterPowerSwitch(monitor: monitor)
-                    .frame(width: 28)
+                    .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 4) {
                 // 24-Hour 3D Glowing Thermal Dissipation Curve (Zero Background CPU)
@@ -644,8 +657,6 @@ struct BatteryDropdownView: View {
                 .padding(.horizontal, 8)
                 // bottom inset matches the divider→Presets gap (6 padding + 4 VStack spacing)
                 .padding(.bottom, 10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.30, green: 0.10, blue: 0.00).opacity(0.14)))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.10), lineWidth: 1))
                 // Report the enclosure's vertical bounds in masterZone space so the
                 // master rail can clamp itself to exactly this height (it used to
                 // overhang the enclosure top and bottom).
@@ -655,15 +666,44 @@ struct BatteryDropdownView: View {
                         "::encbottom": g.frame(in: .named("masterZone")).maxY,
                     ])
                 })
-                .padding(.top, 6)
-                }
-                  // Master fade covers the whole menu column (graph labels → presets → enclosure)
+                .padding(.top, PopoverTuning.cardTopPadding)
+                // Master fade covers the whole menu column (graph labels → presets → enclosure)
                 // so the grey line reaches every element in top-down order, presets included.
+                //
+                // It sits INSIDE the card, before .sunkenCard(), so the mask only ever
+                // touches the content. Wrapping the card instead masked its own fill too:
+                // the 0.45 top stop made the panel 45% opaque, so the glass and the
+                // wallpaper behind it showed through and the brown turned grey.
+                //
+                // The gradient is relative to the bounds of the view it is applied to.
+                // Here that is the padded menu column, which is exactly the card's
+                // bounds (the 6pt top padding is already applied and .sunkenCard() adds
+                // no layout), so the grey line still lands on the knob.
+                .modifier(MasterFadeModifier(level: monitor.masterLevel))
+                // The warm wash and its hairline are card chrome, not content, so
+                // they sit outside the fade: inside it they were masked down to 45%
+                // above the knob and the panel's brown drifted with the level. The
+                // top inset keeps their bounds exactly where they were when they
+                // lived before the card's top padding.
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(red: 0.30, green: 0.10, blue: 0.00).opacity(0.14))
+                        .padding(.top, PopoverTuning.cardTopPadding)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        .padding(.top, PopoverTuning.cardTopPadding)
+                )
+                // Inner card: opaque, sits on the glass like an inset panel. No
+                // inset padding, so the content keeps the width it had before
+                // the card existed and nothing truncates.
+                .sunkenCard()
+                }
                 .background(GeometryReader { g in
                       Color.clear.preference(key: MasterRowYKey.self, value: ["::height": g.size.height])
                 })
                 .coordinateSpace(name: "masterZone")
-                  .modifier(MasterFadeModifier(level: monitor.masterLevel))
                 .onPreferenceChange(MasterRowYKey.self) { monitor.updateMasterRowGeometry($0) }
             }
 
@@ -671,22 +711,9 @@ struct BatteryDropdownView: View {
             // Clicking any non-interactive area cancels an open rename editor
             monitor.renamingPreset = nil
         }
-        .padding(11)
-        .frame(width: 244)
+        .padding(PopoverTuning.contentPadding)
+        .frame(width: PopoverTuning.shellWidth)
         .fixedSize(horizontal: true, vertical: false)
-          .background(
-            // Near-opaque dark base: the popover appearance is locked dark, but on
-            // light wallpapers the vibrancy bleed made white text invisible. 0.86
-            // keeps a hint of translucency while guaranteeing contrast everywhere.
-            Color(red: 0.11, green: 0.10, blue: 0.10)
-                .opacity(0.86)
-                .ignoresSafeArea()
-          )
-          .background(
-            Color(red: 0.47, green: 0.16, blue: 0.00) // #782800 — low-level wash over the whole popover
-                .opacity(0.10)
-                .ignoresSafeArea()
-        )
     }
 
     // Auto-focus the inline rename field once SwiftUI commits it (no @FocusState needed)
@@ -782,11 +809,12 @@ struct MasterPowerSwitch: View {
     var body: some View {
         GeometryReader { geo in
         let knob: CGFloat = 20
-        // Clamp the rail to the rounded enclosure's vertical bounds (probed live);
-        // fall back to full column height until the first probe lands.
-        let hasEnc = monitor.masterEnclosureBottom > monitor.masterEnclosureTop + 1
-        let topInset: CGFloat = hasEnc ? monitor.masterEnclosureTop : 0
-        let bottomInset: CGFloat = hasEnc ? max(0, geo.size.height - monitor.masterEnclosureBottom) : 0
+        // The rail lives entirely inside this column. The column's top is the
+        // card's top edge, so the rail is already flush with the card without
+        // any negative inset. Pushing it above the column put the capsule cap
+        // and the knob outside the container, where the fade mask cut them flat.
+        let topInset: CGFloat = 0
+        let bottomInset: CGFloat = 0
         let railHeight = max(0, geo.size.height - topInset - bottomInset)
         let travel = max(0, railHeight - knob - 8)
         let level = monitor.masterLevel
@@ -796,16 +824,25 @@ struct MasterPowerSwitch: View {
         let brownFill = Color(red: 114/255.0, green: 48/255.0, blue: 21/255.0) // #723015
 
         ZStack(alignment: .top) {
-            // Track background (dark charcoal)
-            Capsule()
-                .fill(Color(white: 0.16))
+            // Track and fill carry the master fade. The knob does not: the fade's
+            // top stop is 45% opaque, so once the rail was tall enough for that
+            // band to reach the knob, the knob's top edge was masked down and read
+            // as a shade on its tip. The band is 2% of the rail, so it only showed
+            // up when the column grew (Settings expanded) or the level was low.
+            ZStack(alignment: .top) {
+                // Track background (dark charcoal)
+                Capsule()
+                    .fill(Color(white: 0.16))
 
-            // Active brown fill-in (#723015), rounded at top and bottom, moving in lockstep with the ball
-            Capsule()
-                .fill(brownFill)
-                .frame(width: geo.size.width, height: fillHeight)
-                .offset(y: fillTop)
-                .opacity(level > 0.001 ? 1 : 0)
+                // Active brown fill-in (#723015), rounded at top and bottom, moving in lockstep with the ball
+                Capsule()
+                    .fill(brownFill)
+                    .frame(width: geo.size.width, height: fillHeight)
+                    .offset(y: fillTop)
+                    .opacity(level > 0.001 ? 1 : 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .modifier(MasterFadeModifier(level: level))
 
             // Slider ball (knob)
             Circle()
@@ -863,10 +900,10 @@ extension View {
 }
 
 // SwiftUI-native switch: the macOS NSSwitch thumb snaps between positions with no
-// interpolation, so the enclosure rows use this drawn style instead — same look, spring glide.
+// interpolation, so the enclosure rows use this drawn style instead: same look, spring glide.
 struct SmoothSwitchToggleStyle: ToggleStyle {
     var tint: Color
-    // onTapGesture does NOT honor the .disabled() environment — without this
+    // onTapGesture does NOT honor the .disabled() environment. Without this
     // guard, .disabled() on a Toggle using this style is purely cosmetic.
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
@@ -1049,7 +1086,7 @@ struct ThermalDissipationCurveView: View {
             // easing into each frame so it glides after the dot instead of stepping
               if let lastPoint = points.last {
                   let dotY = lastPoint.y + CGFloat(sin(wavePhase * 1.1) * 0.8)
-                  // number bobs at just 40% of the dot's travel — steadier than the dot
+                  // number bobs at just 40% of the dot's travel, steadier than the dot
                   let numY = lastPoint.y + CGFloat(sin(wavePhase * 1.1) * 0.3)
                   Text(String(format: "%.1f", temperature))
                     .font(.custom("FiraCode-Bold", size: 9))
