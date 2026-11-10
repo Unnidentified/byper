@@ -5,9 +5,9 @@
 
 Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
-It holds your battery at whatever level you want and runs the whole computer off the charger (not from the battery), so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
+It holds your battery at whatever level you want and runs the whole computer off the charger (not from the battery, that's the whole point), so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
-You don't need a local toolchain, you can just run the Build workflow in Actions, you'll get a `.pkg` and a `.dmg`
+You don't need a local toolchain, you can just click on Actions > Build and you'll get a `.pkg` and a `.dmg` (see [building](https://github.com/Unnidentified/byper/edit/main/README.md#building))
 
 ---
 
@@ -32,7 +32,7 @@ You don't need a local toolchain, you can just run the Build workflow in Actions
 3. Tick `release` to publish a GitHub Release.
 4. When the run finishes, grab the files from the run page or from releases.
 
-On the other hand, to build it locally (which is much faster btw), run:
+On the other hand, to build it locally (which is faster btw), run:
 
 ```bash
 make all              # bin/byper, bin/byper-mon.command, byper.app
