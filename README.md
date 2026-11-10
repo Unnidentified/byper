@@ -155,7 +155,6 @@ src/app/                the SwiftUI menu bar application and helper
 pkg/                    package builder scripts (preinstall keeps settings;
                         uninstall-postinstall is a complete uninstaller)
 completions/            Zsh and Bash shell completion
-battery_icons_combined/ menu bar icon assets
 docs/                   ARCHITECTURE, INSTALL, TROUBLESHOOTING, LIMITATIONS
 .github/workflows/      build.yml (manual build, package, release), ci.yml (PR checks)
 ```

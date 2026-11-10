@@ -84,5 +84,6 @@ jobs:
             byper-installer-*.pkg \
             byper-installer-*.dmg \
             SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
             --title "v${V}" \
             --generate-notes

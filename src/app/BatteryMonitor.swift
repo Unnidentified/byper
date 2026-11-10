@@ -794,8 +794,16 @@ final class BatteryMonitor: ObservableObject {
 
     func startActivePolling() {
         isPopoverVisible = true
-        refresh()
-        refreshEnergyApps()
+        // The first poll shells out to the CLI engine and blocks the main
+        // thread for about 150ms. Run it while the status item highlight is
+        // still fading in and the button cannot redraw, and the highlight
+        // drops out and snaps back: a visible blink on every click. Let the
+        // popover settle first, then poll.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, self.isPopoverVisible else { return }
+            self.refresh()
+            self.refreshEnergyApps()
+        }
         
         activePollTimer?.invalidate()
         // .common mode: keep polling while other menus track the cursor or the screen sleeps

@@ -45,7 +45,7 @@ jobs:
           echo "Changed files:"
           echo "$files"
 
-          if echo "$files" | grep -qE '^(src/|Makefile$|pkg/|install\.sh$|uninstall\.sh$|completions/)'; then
+          if grep -qE '^(src/|Makefile$|pkg/|install\.sh$|uninstall\.sh$|completions/)' <<< "$files"; then
             echo "source=true" >> "$GITHUB_OUTPUT"
           else
             echo "source=false" >> "$GITHUB_OUTPUT"

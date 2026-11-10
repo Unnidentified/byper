@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     // App Nap opt-out: an LSUIElement app with no visible windows gets its timers
     // throttled when the display sleeps, which silently killed the threshold
     // automation (4s poll missed the SoC window). This assertion keeps OUR process
-    // schedulable — it never touches display sleep or powerd.
+    // schedulable, and it never touches display sleep or powerd.
     private var napActivity: NSObjectProtocol?
 
     private func registerFonts() {
@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         
         let hostingController = NSHostingController(rootView: view)
         // macOS 13+: let the hosting controller drive the popover size from SwiftUI's own
-        // layout — the window resizes in one smooth step, moving only the changed section
+        // layout: the window resizes in one smooth step, moving only the changed section
         // (no multi-timer refit jerk). Older systems keep the manual fitting-size refits.
         if #available(macOS 13.0, *) {
             hostingController.sizingOptions = .preferredContentSize
@@ -142,6 +142,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             button.target = self
         }
 
+        // Re-render the icon when the system appearance flips, so the pill
+        // inverts with the menu bar instead of waiting for the next poll.
+        DistributedNotificationCenter.default.addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self, let button = self.statusItem.button else { return }
+            self.lastRenderKey = ""
+            self.updateButton(button)
+        }
+
         // Subscribe to monitor changes (only updates button image when percentage/state changes)
         monitor.objectWillChange
             .receive(on: DispatchQueue.main)
@@ -156,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         // Instant popover frame snap when dropdown menus expand/collapse (locked to width: 244).
         // showLoggerInfo (Logger "i" description) and isCaffeineMenuExpanded also change the
-        // content height — without them the popover keeps its expanded height on collapse.
+        // content height. Without them the popover keeps its expanded height on collapse.
         Publishers.Merge4(
             monitor.$isBypassMenuExpanded,
             monitor.$isAppPickerExpanded,
@@ -244,7 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_B), UInt32(cmdKey | optionKey), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
     }
 
-    // Resume charging on quit if the user opted in — never leave the machine bypassing
+    // Resume charging on quit if the user opted in, so the machine never stays bypassing
     // or resting on a Slow Charge hold with no UI running to undo it.
     func applicationWillTerminate(_ notification: Notification) {
         if monitor.disableBypassOnQuit, monitor.isPluggedIn,
@@ -272,13 +284,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let isPluggedIn = monitor.isPluggedIn
         // Hardware-first icon state. Bypass = engine hold OR the pending/intent
         // union (bypassActiveOrPending covers powerMode, in-flight applies and
-        // slider passes), so the plug icon is up the instant the toggle flips
-        // and survives any poller race. Bolt = the battery is REALLY charging
-        // (hardware flag), never a mode label — a stale appliedPowerMode must
-        // not draw a bolt over an active hold.
-        // Plug only when the apply is DONE: engine-confirmed hold or the
+        // slider passes), so the copper pill is up the instant the toggle flips
+        // and survives any poller race. Charging = the battery is REALLY
+        // charging (hardware flag), never a mode label, so a stale
+        // appliedPowerMode must not paint green over an active hold.
+        // Bypass only when the apply is DONE: engine-confirmed hold or the
         // engine-confirmed applied mode. Intent/transitioning states are
-        // excluded on purpose — the plug lands when the counter snaps back
+        // excluded on purpose, so the copper lands when the counter snaps back
         // to 0.00s, not while the toggle is still in flight.
         let isBypass = isPluggedIn && (monitor.isHold || monitor.appliedPowerMode == .bypass)
         // Bolt the moment charging is requested (applied mode) and while the
@@ -287,7 +299,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // Safe now that automations commit appliedPowerMode on success.
         let isCharging = isPluggedIn && !isBypass && (monitor.isCharging || monitor.appliedPowerMode == .charging)
         
-        let key = "\(monitor.percentage)_\(isPluggedIn)_\(isCharging)_\(isBypass)_\(monitor.isLowPowerMode)_\(monitor.isTransitioning)_\(monitor.transitionMessage)"
+        // The pill inverts with the menu bar, which follows the system
+        // appearance rather than the popover's locked dark look.
+        let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+
+        let key = "\(monitor.percentage)_\(isPluggedIn)_\(isCharging)_\(isBypass)_\(monitor.isLowPowerMode)_\(monitor.isTransitioning)_\(monitor.transitionMessage)_\(isDarkMenuBar ? "dark" : "light")"
         
         if key == lastRenderKey, let cached = cachedImage {
             if button.image !== cached {
@@ -296,11 +312,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             return
         }
         
-        let img = BatteryAssetResolver.resolveIcon(
-            percentage: monitor.percentage,
-            isCharging: isCharging,
-            isBypass: isBypass,
-            isLowPowerMode: monitor.isLowPowerMode
+        let state: BatteryPillIcon.State = isCharging ? .charging
+            : isBypass ? .bypass
+            : monitor.isLowPowerMode ? .lowPower
+            : .idle
+        let img = BatteryPillIcon.image(
+            level: monitor.percentage,
+            state: state,
+            darkMenuBar: isDarkMenuBar
         )
         lastRenderKey = key
         cachedImage = img
