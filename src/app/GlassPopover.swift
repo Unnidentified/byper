@@ -24,18 +24,8 @@ enum PopoverTuning {
     static let cornerRadius: CGFloat = 26
     static let contentPadding: CGFloat = 11
 
-    // Notch (the tab that points at the menu bar icon). notchWidth is the flat
-    // part of the base; the shoulder fillets add notchFillet on each side, so
-    // the visual base is notchWidth + 2 * notchFillet.
-    static let notchWidth: CGFloat = 33
-    static let notchHeight: CGFloat = 7.5
-    static let notchFillet: CGFloat = 2.5
-    static let notchTipRatio: CGFloat = 0.65
-    // Tip softness. This is the quad control offset as a fraction of the tip
-    // half-width, so a smaller number gives a flatter, rounder tip: the radius
-    // at the apex is halfTip squared over twice this offset. 0.25 puts that
-    // radius at about 21 pt, against 3.5 pt before.
-    static let notchTipRadiusRatio: CGFloat = 0.25
+    // Notch (the tab that points at the menu bar icon). Its proportions live in
+    // PopoverTuning+Outline.swift, next to the path that draws them.
 
     // Shell finish. One switch, two presets.
     //   .clear  brown tint 0.20. A touch darker and warmer than bare glass,
@@ -151,8 +141,9 @@ enum PopoverTuning {
 
 struct NotchedRoundedRect: Shape, Animatable {
     var cornerRadius: CGFloat = PopoverTuning.cornerRadius
-    var notchWidth: CGFloat = PopoverTuning.notchWidth
-    var notchHeight: CGFloat = PopoverTuning.notchHeight
+    // Almost square, so the top-right corner does not read as a second body
+    // corner. Continuous rather than circular: see the corner code below.
+    var topRightRadius: CGFloat = PopoverTuning.topRightCornerRadius
     var notchCenterX: CGFloat = PopoverTuning.shellWidth / 2
 
     var animatableData: CGFloat {
@@ -163,18 +154,20 @@ struct NotchedRoundedRect: Shape, Animatable {
     func path(in rect: CGRect) -> Path {
         var p = Path()
 
-        let nh = min(notchHeight, rect.height / 2)
+        let nh = min(PopoverTuning.notchCaretHeight, rect.height / 2)
         let top = rect.minY + nh
         let bottom = rect.maxY
         let left = rect.minX
         let right = rect.maxX
         let r = max(0, min(cornerRadius, min(rect.width, bottom - top) / 2))
+        let tr = max(0, min(topRightRadius, min(rect.width, bottom - top) / 2))
 
-        // Notch proportions: a wide, shallow tab with a soft rounded tip.
-        let halfBase = max(1, min(notchWidth / 2, rect.width / 2 - r - 2))
-        let halfTip = halfBase * PopoverTuning.notchTipRatio
-        let tipRadius = max(1, halfTip * PopoverTuning.notchTipRadiusRatio)
-        let fillet = PopoverTuning.notchFillet
+        // Notch proportions. The base is where the flank lines meet the top
+        // edge; the shoulder fillets start a little further out, so the flat
+        // part of the top edge is a touch wider than the base.
+        let halfBase = max(1, min(PopoverTuning.notchBaseWidth / 2, rect.width / 2 - r - 2))
+        let tipRadius = max(0.5, PopoverTuning.notchTipRadius)
+        let fillet = max(0.5, PopoverTuning.notchShoulderFillet)
 
         // Keep the tab clear of the body's corner arcs: the shoulder starts at
         // the point where the top edge stops being an arc.
@@ -182,50 +175,88 @@ struct NotchedRoundedRect: Shape, Animatable {
         let maxCX = right - r - halfBase - fillet
         let cx = maxCX > minCX ? min(max(notchCenterX, minCX), maxCX) : rect.midX
 
+        // Flank direction. The flank leaves the base corner and runs tangent to
+        // the tip circle, whose centre sits one tip radius below the top of the
+        // rect so the arc's crown lands exactly on rect.minY. Solving for the
+        // tangent gives the direction, so the apex angle falls out of the base,
+        // the height and the tip radius instead of being set directly.
+        let rise = max(0.001, nh - tipRadius)
+        let d2 = halfBase * halfBase + rise * rise
+        let tangent = max(0, d2 - tipRadius * tipRadius).squareRoot()
+        let ux = max(0.001, min(1, (-tipRadius * rise + halfBase * tangent) / d2))
+        let uy = max(0.001, min(1, (tipRadius + rise * ux) / halfBase))
+        let len = (ux * ux + uy * uy).squareRoot()
+        let fx = ux / len
+        let fy = uy / len
+
+        // Both arcs sweep the angle between the top edge and the flank, so one
+        // control offset serves the tip and the shoulders.
+        let sweep = atan2(fy, fx)
+        let arcK = 4.0 / 3.0 * tan(sweep / 4)
+
+        // Tip arc: centre one tip radius below the crown, tangent points where
+        // the flanks touch it.
+        let tipY = rect.minY + tipRadius
+        let tipLeft = CGPoint(x: cx - tipRadius * fy, y: tipY - tipRadius * fx)
+        let tipRight = CGPoint(x: cx + tipRadius * fy, y: tipY - tipRadius * fx)
+        let crown = CGPoint(x: cx, y: rect.minY)
+
+        // Shoulder fillets: circles of radius fillet tangent to the top edge and
+        // to the flank, so the shoulder leaves the top edge horizontally and
+        // joins the flank along its own direction.
+        let shoulderRun = fillet * (1 - fx) / fy
+        let leftShoulder = CGPoint(x: cx - halfBase - shoulderRun, y: top)
+        let leftJoin = CGPoint(x: leftShoulder.x + fillet * fy,
+                               y: top - fillet + fillet * fx)
+        let rightShoulder = CGPoint(x: cx + halfBase + shoulderRun, y: top)
+        let rightJoin = CGPoint(x: rightShoulder.x - fillet * fy,
+                                y: top - fillet + fillet * fx)
+
+        // Top-right corner: continuous, so it starts 1.5 radii before the corner
+        // and leaves the top edge with zero curvature instead of a circular
+        // arc's sudden bend. Two cubics meet on the diagonal, where the
+        // curvature is highest.
+        let lead = tr * 1.5
+        let diag = tr * 0.25
+        let ctrl = (lead - 2 * diag) / 2
+
         // Circle-to-Bezier constant, so the corners stay circular without
         // depending on arc winding in a flipped coordinate space.
         let k: CGFloat = 0.5522847498
 
-        // The flank runs from the base corner to where the tip curve starts.
-        // Its direction is the shoulder's end tangent, so the shoulder and the
-        // flank meet without a kink.
-        let run = max(0.001, halfBase - halfTip)
-        let rise = max(0.001, nh - tipRadius)
-        let len = (run * run + rise * rise).squareRoot()
-        let ux = run / len
-        let uy = rise / len
-        let c = fillet * 0.55
-
         p.move(to: CGPoint(x: left + r, y: top))
 
-        // Top edge, up to the notch's left shoulder. The shoulder is a cubic
-        // that leaves the top edge horizontally and joins the flank along the
-        // flank's own direction, so neither end has a kink.
-        let shoulderStart = CGPoint(x: cx - halfBase - fillet, y: top)
-        let shoulderEnd = CGPoint(x: cx - halfBase + fillet * ux,
-                                  y: top - fillet * uy)
-        p.addLine(to: shoulderStart)
-        p.addCurve(to: shoulderEnd,
-                   control1: CGPoint(x: shoulderStart.x + c, y: top),
-                   control2: CGPoint(x: shoulderEnd.x - c * ux,
-                                     y: shoulderEnd.y + c * uy))
+        // Top edge, up to the notch's left shoulder.
+        p.addLine(to: leftShoulder)
+        p.addCurve(to: leftJoin,
+                   control1: CGPoint(x: leftShoulder.x + arcK * fillet, y: top),
+                   control2: CGPoint(x: leftJoin.x - arcK * fillet * fx,
+                                     y: leftJoin.y + arcK * fillet * fy))
 
         // Left flank, rounded tip, right flank.
-        p.addLine(to: CGPoint(x: cx - halfTip, y: rect.minY + tipRadius))
-        p.addQuadCurve(to: CGPoint(x: cx + halfTip, y: rect.minY + tipRadius),
-                       control: CGPoint(x: cx, y: rect.minY - tipRadius))
-        p.addLine(to: CGPoint(x: cx + halfBase - fillet * ux,
-                              y: top - fillet * uy))
-        p.addCurve(to: CGPoint(x: cx + halfBase + fillet, y: top),
-                   control1: CGPoint(x: cx + halfBase - fillet * ux + c * ux,
-                                     y: top - fillet * uy - c * uy),
-                   control2: CGPoint(x: cx + halfBase + fillet - c, y: top))
+        p.addLine(to: tipLeft)
+        p.addCurve(to: crown,
+                   control1: CGPoint(x: tipLeft.x + arcK * tipRadius * fx,
+                                     y: tipLeft.y - arcK * tipRadius * fy),
+                   control2: CGPoint(x: crown.x - arcK * tipRadius, y: crown.y))
+        p.addCurve(to: tipRight,
+                   control1: CGPoint(x: crown.x + arcK * tipRadius, y: crown.y),
+                   control2: CGPoint(x: tipRight.x - arcK * tipRadius * fx,
+                                     y: tipRight.y - arcK * tipRadius * fy))
+        p.addLine(to: rightJoin)
+        p.addCurve(to: rightShoulder,
+                   control1: CGPoint(x: rightJoin.x + arcK * fillet * fx,
+                                     y: rightJoin.y + arcK * fillet * fy),
+                   control2: CGPoint(x: rightShoulder.x - arcK * fillet, y: top))
 
         // Top edge, on to the top-right corner.
-        p.addLine(to: CGPoint(x: right - r, y: top))
-        p.addCurve(to: CGPoint(x: right, y: top + r),
-                   control1: CGPoint(x: right - r + k * r, y: top),
-                   control2: CGPoint(x: right, y: top + r - k * r))
+        p.addLine(to: CGPoint(x: right - lead, y: top))
+        p.addCurve(to: CGPoint(x: right - diag, y: top + diag),
+                   control1: CGPoint(x: right - lead + ctrl, y: top),
+                   control2: CGPoint(x: right - 2 * diag, y: top))
+        p.addCurve(to: CGPoint(x: right, y: top + lead),
+                   control1: CGPoint(x: right, y: top + 2 * diag),
+                   control2: CGPoint(x: right, y: top + lead - ctrl))
 
         // Right side, bottom-right corner.
         p.addLine(to: CGPoint(x: right, y: bottom - r))
@@ -264,8 +295,6 @@ struct GlassShell<Content: View>: View {
     private var shape: NotchedRoundedRect {
         NotchedRoundedRect(
             cornerRadius: PopoverTuning.cornerRadius,
-            notchWidth: PopoverTuning.notchWidth,
-            notchHeight: PopoverTuning.notchHeight,
             notchCenterX: notchCenterX
         )
     }
@@ -274,7 +303,10 @@ struct GlassShell<Content: View>: View {
         ZStack(alignment: .top) {
             shell
             content
-                .padding(.top, PopoverTuning.notchHeight)
+                // The body's top edge sits the caret's height below the panel
+                // top, so the content starts there. It used to read notchHeight,
+                // which stopped matching the path once the caret grew.
+                .padding(.top, PopoverTuning.notchCaretHeight)
         }
         // The panel is non-opaque, so the whole notched outline has to be a hit
         // target. Without this, clicks on the glass between controls fall
@@ -353,7 +385,8 @@ struct SunkenCard: ViewModifier {
     /// radius, blurred in place. The old version stroked a shape expanded past
     /// the edge and pushed it down, which moved the arc's centre and left a
     /// second rounded rectangle visible at the top corners. This one uses the
-    /// card's arc, so the shadow and the rim line up exactly.
+    /// card's arc, so the shadow and the rim line up exactly. The blur is at
+    /// least the ring's width, so the ring's inner boundary has no hard edge.
     private var innerShadow: some View {
         GeometryReader { g in
             let rect = CGRect(origin: .zero, size: g.size)
@@ -369,7 +402,7 @@ struct SunkenCard: ViewModifier {
             ring.addPath(inner)
             return ring
                 .fill(shadowGradient, style: FillStyle(eoFill: true))
-                .blur(radius: r * 0.5)
+                .blur(radius: r * PopoverTuning.innerShadowBlurScale)
                 .mask(shape.fill(Color.black))
         }
     }
@@ -389,9 +422,12 @@ struct SunkenCard: ViewModifier {
         )
     }
 
+    /// The wash is a fill of the card's own shape, so it has no edge. It sits
+    /// under the shadow rather than over it, which keeps the shadow's strength.
     private var background: some View {
         ZStack {
             shape.fill(PopoverTuning.cardFill)
+            shape.fill(PopoverTuning.cardWash)
             innerShadow
         }
     }

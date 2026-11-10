@@ -181,7 +181,6 @@ struct BatteryDropdownView: View {
                                     endPoint: .trailing
                                 ))
                                 .frame(width: max(5.0, geo.size.width * p))
-                                .shadow(color: themeColor.opacity(0.35), radius: 2.5, x: 0, y: 0)
 
                         }
                     }
@@ -193,6 +192,10 @@ struct BatteryDropdownView: View {
                             .stroke(Color.black.opacity(PopoverTuning.trackHairlineOpacity),
                                     lineWidth: PopoverTuning.trackHairlineWidth)
                     )
+                    // The left end eases out toward the rail's shoulder instead
+                    // of stopping as a blunt capsule cap. The mask covers the
+                    // hairline too, so the outline tapers with the fill.
+                    .mask(ProgressTailMask())
 
                     Text("\(monitor.percentage)%")
                         .font(.custom("FiraCode-Bold", size: 10.5))
@@ -220,6 +223,13 @@ struct BatteryDropdownView: View {
                     .buttonStyle(.plain)
                 }
             }
+            // The line's top sits topBarTopInset below the shell body's top
+            // edge. The shell already pads by contentPadding and the row is
+            // taller than the line, so the row is pulled up by the difference;
+            // the column shrinks by the same amount, which keeps the gap down
+            // to the card and the rail.
+            .padding(.top, -PopoverTuning.topBarPullUp)
+            .padding(.trailing, PopoverTuning.topBarTrailingInset)
 
             HStack(alignment: .top, spacing: 12) {
                 MasterPowerSwitch(monitor: monitor)
@@ -680,19 +690,19 @@ struct BatteryDropdownView: View {
                 // bounds (the 6pt top padding is already applied and .sunkenCard() adds
                 // no layout), so the grey line still lands on the knob.
                 .modifier(MasterFadeModifier(level: monitor.masterLevel))
-                // The warm wash and its hairline are card chrome, not content, so
-                // they sit outside the fade: inside it they were masked down to 45%
-                // above the knob and the panel's brown drifted with the level. The
-                // top inset keeps their bounds exactly where they were when they
-                // lived before the card's top padding.
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(red: 0.30, green: 0.10, blue: 0.00).opacity(0.14))
-                        .padding(.top, PopoverTuning.cardTopPadding)
-                )
+                // The hairline is card chrome, not content, so it sits outside the
+                // fade: inside it, it was masked down to 45% above the knob. Its
+                // colour now fades to nothing at the top, so it no longer draws a
+                // second edge 6 pt below the card's top. The warm wash that used to
+                // sit here is a fill of the card's own shape in SunkenCard, so it
+                // has no edge of its own either.
+                //
+                // The radius and the top inset stay: they are what lands the
+                // hairline's bottom on the card's bottom edge, where it pairs with
+                // the rim light. The fade is what takes it off the top.
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        .stroke(PopoverTuning.cardHairline, lineWidth: 1)
                         .padding(.top, PopoverTuning.cardTopPadding)
                 )
                 // Inner card: opaque, sits on the glass like an inset panel. No
@@ -812,7 +822,7 @@ struct MasterPowerSwitch: View {
         // The rail lives entirely inside this column. The column's top is the
         // card's top edge, so the rail is already flush with the card without
         // any negative inset. Pushing it above the column put the capsule cap
-        // and the knob outside the container, where the fade mask cut them flat.
+        // and the knob outside the container, where the clip cut them flat.
         let topInset: CGFloat = 0
         let bottomInset: CGFloat = 0
         let railHeight = max(0, geo.size.height - topInset - bottomInset)
@@ -824,11 +834,10 @@ struct MasterPowerSwitch: View {
         let brownFill = Color(red: 114/255.0, green: 48/255.0, blue: 21/255.0) // #723015
 
         ZStack(alignment: .top) {
-            // Track and fill carry the master fade. The knob does not: the fade's
-            // top stop is 45% opaque, so once the rail was tall enough for that
-            // band to reach the knob, the knob's top edge was masked down and read
-            // as a shade on its tip. The band is 2% of the rail, so it only showed
-            // up when the column grew (Settings expanded) or the level was low.
+            // The rail carries no master fade. It is a control, not content, and
+            // its knob already shows the level. The fade's top stop is 45%
+            // opaque, so the rail's rounded cap was composited at 45% and the
+            // glass showed through it as a soft dark cap above the slider.
             ZStack(alignment: .top) {
                 // Track background (dark charcoal)
                 Capsule()
@@ -842,7 +851,6 @@ struct MasterPowerSwitch: View {
                     .opacity(level > 0.001 ? 1 : 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .modifier(MasterFadeModifier(level: level))
 
             // Slider ball (knob)
             Circle()
