@@ -32,7 +32,7 @@ enum BatteryPillIcon {
     private static let nubOpacity: CGFloat = 0.55
 
     /// Digit ink height, measured off the system battery at 2x.
-    private static let digitHeight: CGFloat = 8.8
+    private static let digitHeight: CGFloat = 8.4
     /// The number never takes more than this share of the body, so three
     /// digits shrink instead of running into the rounded ends.
     private static let maxDigitWidthRatio: CGFloat = 0.8
