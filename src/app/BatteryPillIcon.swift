@@ -27,7 +27,8 @@ enum BatteryPillIcon {
     private static let designHeight: CGFloat = 14
     private static let bodyWidth: CGFloat = 27
     private static let cornerRadius: CGFloat = 4.2
-    private static let trackOpacity: CGFloat = 0.20
+    private static let trackOpacity: CGFloat = 0.44
+    private static let colouredTrackOpacity: CGFloat = 0.20
     private static let nubOpacity: CGFloat = 0.55
 
     /// Digit ink height, measured off the system battery at 2x.
@@ -109,11 +110,14 @@ enum BatteryPillIcon {
         // Track and charge share one clip so the fill keeps the rounded left
         // edge at low levels instead of squaring off. The track is the menu
         // bar ink, not a tint of the mode colour: the system battery keeps a
-        // neutral grey track behind a green or yellow charge.
+        // neutral grey track behind a green or yellow charge. The coloured
+        // states use a lighter track than the idle pill, which is what the
+        // system battery does.
+        let trackAlpha = isColoured ? colouredTrackOpacity : trackOpacity
         ctx.saveGState()
         ctx.addPath(bodyPath)
         ctx.clip()
-        ctx.setFillColor(base.withAlphaComponent(trackOpacity).cgColor)
+        ctx.setFillColor(base.withAlphaComponent(trackAlpha).cgColor)
         ctx.fill(body)
         if chargeWidth > 0 {
             ctx.setFillColor(fill.cgColor)
