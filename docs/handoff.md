@@ -11,8 +11,7 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 
 ## Current state
 
-- `main` is at `1cfede4`, the merge of PR #9.
-- PR #10 is open with the digit height change.
+- `main` is at `e362f42`, the merge of PR #10.
 - The latest release is `v2.4.1`. Its assets were rebuilt from the stock colour and digit height changes; the tag still points to `c518a86`. Assets: `byper-installer-2.4.1.pkg`, `.dmg`, `SHA256SUMS.txt`.
 - `src/app/Info.plist` still says `2.3.1`. The package version comes from `BYPER_VERSION` in `pkg/build_pkg.sh` (default `2.4.0`), so the release is 2.4.1 while the app's About version is 2.3.1. Fix this if you touch the version.
 - CI: `.github/workflows/ci.yml` runs on every PR and push to `main`. Jobs: `changes` (diff filter), `checks` (shell syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links), `compile` (`make all`, artifact checks, CLI smoke test).
