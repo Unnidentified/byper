@@ -153,7 +153,7 @@ src/app/                the SwiftUI menu bar application and helper
 pkg/                    package builder scripts (preinstall keeps settings;
                         uninstall-postinstall is a complete uninstaller)
 completions/            Zsh and Bash shell completion
-docs/                   architecture, install, troubleshooting, limitations, handoff
+docs/                   architecture, install, troubleshooting, limitations, releasing, handoff
 .github/workflows/      build.yml (manual build, package, release), ci.yml (PR checks)
 ```
 
