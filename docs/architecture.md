@@ -46,6 +46,8 @@ Direct SMC writes to the charge-limit keys do not work on Apple Silicon. `CHBI` 
 
 The app polls the CLI every 2s while the popover is open and every 4s in the background. The first poll is delayed by 300ms so the status item does not blink when the popover opens. Timers are added to `RunLoop.main` in `.common` mode so they keep firing while menus track the cursor or the screen sleeps.
 
+`GlassPopover.swift` holds the popover chrome. On macOS 26 and later the shell and its notch are one continuous Liquid Glass shape, drawn by `NotchedRoundedRect` and hosted in a borderless non-activating `NSPanel` anchored under the status item. The notch is part of the same path as the body, which is what keeps the two reading as one piece. The inner card is opaque and sits on the glass as a sunken panel. Reduce Transparency, or an older system, falls back to the previous dark solid shell. Every tunable lives in `PopoverTuning` at the top of the file.
+
 The menu bar icon is drawn natively in `BatteryPillIcon.swift`. It is a 30 x 14 design space scaled to 12pt, with a 27 x 14 body and a D-shaped nub. The idle pill punches the level out; the coloured pills draw it in the menu bar text colour. The drawing handler reads `NSAppearance.currentDrawing()` to decide whether the menu bar is light or dark. The status item button's `effectiveAppearance` drives the refresh when the wallpaper changes.
 
 ## Build and package

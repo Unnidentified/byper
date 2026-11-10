@@ -23,7 +23,7 @@ APP_BIN = $(APP_DIR)/MacOS/byper
 APP_RES = $(APP_DIR)/Resources
 HELPER_SRC = src/app/install_helper.c
 HELPER_BIN = $(APP_RES)/byper-installer
-SWIFT_SRC = src/app/BatteryPillIcon.swift src/app/BatteryMonitor.swift src/app/BatteryDropdownView.swift src/app/CLIEngineBridge.swift src/app/AppDelegate.swift src/app/ByperIntents.swift
+SWIFT_SRC = src/app/BatteryPillIcon.swift src/app/GlassPopover.swift src/app/BatteryMonitor.swift src/app/BatteryDropdownView.swift src/app/CLIEngineBridge.swift src/app/AppDelegate.swift src/app/ByperIntents.swift
 
 all: $(TARGET) $(MON_CMD) app
 

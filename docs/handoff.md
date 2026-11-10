@@ -11,9 +11,9 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 
 ## Current state
 
-- `main` is at `e362f42`, the merge of PR #10.
-- The latest release is `v2.4.1`. Its assets were rebuilt from the stock colour and digit height changes; the tag still points to `c518a86`. Assets: `byper-installer-2.4.1.pkg`, `.dmg`, `SHA256SUMS.txt`.
-- `src/app/Info.plist` still says `2.3.1`. The package version comes from `BYPER_VERSION` in `pkg/build_pkg.sh` (default `2.4.0`), so the release is 2.4.1 while the app's About version is 2.3.1. Fix this if you touch the version.
+- `main` is at the merge of PR #12, the Liquid Glass popover.
+- The latest release is `v2.5.0`. Its tag points to `6707958`, the PR #12 commit, not the merge commit. Assets: `byper-installer-2.5.0.pkg`, `.dmg`, `SHA256SUMS.txt`.
+- `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are both `2.5.0`. They used to drift apart; bump them together.
 - CI: `.github/workflows/ci.yml` runs on every PR and push to `main`. Jobs: `changes` (diff filter), `checks` (shell syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links), `compile` (`make all`, artifact checks, CLI smoke test).
 - Build: `.github/workflows/build.yml` is manual (`workflow_dispatch`). It builds, packages, and optionally creates a release. It is not triggered by pushes.
 
@@ -29,6 +29,7 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 | `src/app/AppDelegate.swift` | Status item, popover, hotkey, appearance KVO, privileged install |
 | `src/app/BatteryMonitor.swift` | Observable state, polling, automations, presets, logger |
 | `src/app/BatteryDropdownView.swift` | Popover UI |
+| `src/app/GlassPopover.swift` | Liquid Glass shell, notch shape, sunken card, status pill, panel controller |
 | `src/app/BatteryPillIcon.swift` | Native menu bar icon |
 | `src/app/CLIEngineBridge.swift` | Runs the CLI, decodes JSON, LPM calls |
 | `src/app/ByperIntents.swift` | App Intents (macOS 13+) |
@@ -42,7 +43,7 @@ A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current
 ```bash
 make all                  # bin/byper, bin/byper-mon.command, byper.app
 ./pkg/build_pkg.sh        # byper-installer.pkg + .dmg
-BYPER_VERSION=2.4.1 ./pkg/build_pkg.sh
+BYPER_VERSION=2.5.0 ./pkg/build_pkg.sh
 ```
 
 There is no unit test suite. The CI compile job is the test gate: it builds, checks the artifacts, verifies the signature, and runs `./bin/byper --help`. Run the same locally before pushing.
@@ -148,7 +149,6 @@ Do not document these as live:
 
 ## Known issues
 
-- `src/app/Info.plist` says `2.3.1` while the package is `2.4.1`.
 - `pkg/postinstall` still mentions "vanilla branch" and `byper-vanilla.app`. It is legacy cleanup. Do not reintroduce the vanilla variant.
 - `install.sh` prints `byper stream` and `byper json --watch`. Neither command exists. The real ones are `byper mon` and `byper json`.
 - `pkg/Distribution.xml` has a hardcoded `2.3.1` title. `build_pkg.sh` replaces it with `TITLE`. Do not edit the title by hand.
