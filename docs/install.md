@@ -1,0 +1,70 @@
+# Install
+
+## Requirements
+
+- Apple Silicon Mac (M1 or newer). The build target is `arm64-apple-macos11.0`.
+- macOS 11 Big Sur or newer.
+- Command Line Tools, for `lldb`. The package installs them if they are missing.
+- SIP's debug restriction relaxed. See [limitations.md](limitations.md#sip).
+
+## From the package
+
+Download `byper-installer-<version>.pkg` or `.dmg` from [Releases](https://github.com/Unnidentified/byper/releases/latest).
+
+The package offers two choices:
+
+- **Install** replaces the app and the CLI, keeps your settings.
+- **Uninstall** removes the app, the CLI, the completions and the settings.
+
+The postinstall copies the CLI to `/usr/local/bin/byper`, sets `root:wheel` and `4755`, installs the completions, enables `DevToolsSecurity`, adds the console user to `_developer`, and opens the app.
+
+If Gatekeeper blocks the app:
+
+```bash
+xattr -cr /Applications/byper.app
+```
+
+## From source
+
+```bash
+git clone https://github.com/Unnidentified/byper.git
+cd byper
+make all
+sudo ./install.sh
+```
+
+`install.sh` builds as the invoking user even when run with sudo, so the build artifacts do not end up root-owned. It installs the same paths as the package.
+
+## The SUID bit
+
+`byper` must be `-rwsr-xr-x root:wheel`. A non-SUID copy prints `enabled [✓]` and does nothing on the hardware. Check both copies:
+
+```bash
+ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
+```
+
+If the bit is missing:
+
+```bash
+sudo chown root:wheel /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
+sudo chmod 4755 /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
+```
+
+## First run
+
+Bypass is off after install. The app takes over the status bar battery icon. The first bypass toggle may ask for an admin password to repair the helper.
+
+Verify the install:
+
+```bash
+byper s          # real battery data
+byper on         # state: hold, flow near 0 mA
+byper p          # rails populate
+byper off        # charging resumes
+```
+
+## Uninstall
+
+Run the package and choose **Uninstall**. It releases any active hold, clears Low Power Mode, removes the binaries, the app, the completions and the settings.
+
+The source `uninstall.sh` only removes the files. It does not release a hold or clear Low Power Mode, so run `byper off` and `byper lpm off` first if you use it.

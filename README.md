@@ -45,7 +45,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 | Name | Explained | Notes |
 |---|---|---|
 | core | `byper` CLI | Lives at `/usr/local/bin/byper`. You can launch it through the terminal by running `byp` |
-| menu bar | `byper.app` | SwiftUI app that can be used as a replacement to the stock battery menu. high-res icons, colour change at different levels of percentages. Basically, it shows percentage, charging state and whether bypass is actually engaged |
+| menu bar | `byper.app` | SwiftUI app that can be used as a replacement to the stock battery menu. Native battery pill, colour change at different levels of percentages. Basically, it shows percentage, charging state and whether bypass is actually engaged |
 | telemetry | SMC power rails | Per-rail wattage for SoC, DRAM, PMIC and DC-In, individual pack cell voltages, top CPU consumers with estimated wattage |
 | bypass | Hardware charge bypass | System runs off the adapter at 0 mA net battery draw, battery held at whatever level you picked |
 | powersave | Low Power Mode | Manual toggle, plus per-app auto-LPM while a designated app is frontmost. The manual switch wins over automation |
@@ -155,7 +155,7 @@ src/app/                the SwiftUI menu bar application and helper
 pkg/                    package builder scripts (preinstall keeps settings;
                         uninstall-postinstall is a complete uninstaller)
 completions/            Zsh and Bash shell completion
-docs/                   ARCHITECTURE, INSTALL, TROUBLESHOOTING, LIMITATIONS
+docs/                   architecture, install, troubleshooting, limitations, handoff
 .github/workflows/      build.yml (manual build, package, release), ci.yml (PR checks)
 ```
 
