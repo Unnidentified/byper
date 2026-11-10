@@ -27,7 +27,7 @@ enum BatteryPillIcon {
     private static let designHeight: CGFloat = 14
     private static let bodyWidth: CGFloat = 27
     private static let cornerRadius: CGFloat = 4.2
-    private static let trackOpacity: CGFloat = 0.44
+    private static let trackOpacity: CGFloat = 0.20
     private static let nubOpacity: CGFloat = 0.55
 
     /// Digit ink height, measured off the system battery at 2x.
@@ -107,11 +107,13 @@ enum BatteryPillIcon {
         let chargeWidth = (bodyWidth * CGFloat(level) / 100).rounded()
 
         // Track and charge share one clip so the fill keeps the rounded left
-        // edge at low levels instead of squaring off.
+        // edge at low levels instead of squaring off. The track is the menu
+        // bar ink, not a tint of the mode colour: the system battery keeps a
+        // neutral grey track behind a green or yellow charge.
         ctx.saveGState()
         ctx.addPath(bodyPath)
         ctx.clip()
-        ctx.setFillColor(fill.withAlphaComponent(trackOpacity).cgColor)
+        ctx.setFillColor(base.withAlphaComponent(trackOpacity).cgColor)
         ctx.fill(body)
         if chargeWidth > 0 {
             ctx.setFillColor(fill.cgColor)
@@ -120,31 +122,17 @@ enum BatteryPillIcon {
         ctx.restoreGState()
 
         ctx.saveGState()
-        ctx.setFillColor(fill.withAlphaComponent(nubOpacity).cgColor)
+        ctx.setFillColor(base.withAlphaComponent(nubOpacity).cgColor)
         ctx.addPath(nubPath())
         ctx.fillPath()
         ctx.restoreGState()
 
-        // A coloured pill is bright, so on a light menu bar the punched-out
-        // number would show the light bar through the fill and wash out. Draw
-        // it in a darker shade of the mode colour there: the hue stays with
-        // the pill, so the number reads as part of the mode instead of a
-        // separate black overlay, and the reduced brightness keeps it legible.
-        // On a dark menu bar the knockout already reads as dark digits, and
-        // the idle pill is always the opposite of the bar, so both keep the
-        // hole.
-        let digitColor: NSColor? = (isColoured && !darkMenuBar) ? digitInk(for: fill) : nil
+        // The system battery draws the number in the menu bar text colour, not
+        // in the charge colour: black on a light bar, white on a dark one. The
+        // idle pill is the exception, because there the pill itself is the ink
+        // and the number is a hole.
+        let digitColor: NSColor? = isColoured ? base : nil
         drawNumber(level, in: ctx, body: bodyPath, color: digitColor)
-    }
-
-    /// A darker shade of the mode colour for the number on a bright fill.
-    /// Same hue and saturation, brightness pulled down far enough to read
-    /// against the solid fill.
-    private static func digitInk(for fill: NSColor) -> NSColor {
-        guard let srgb = fill.usingColorSpace(.sRGB) else { return .black }
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        srgb.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-        return NSColor(hue: h, saturation: min(1, s * 1.05), brightness: b * 0.30, alpha: 1)
     }
 
     /// Terminal nub: a D shape 1.6 wide and 4.7 tall, flat on the left, right
