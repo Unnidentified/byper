@@ -136,8 +136,6 @@ Run the .pkg and choose `Uninstall` (its postinstall removes every trace, includ
 
 ---
 
-### Good Practices
-
 `byper` must have `SUID` privileges in order to work, you can't just copy the .app to another computer and expect it to work. Spoiler: it won't, unless you reinstall it using the .pkg from the releases page. Check the permissions with:
 
 ```bash
