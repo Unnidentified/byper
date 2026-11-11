@@ -10,11 +10,6 @@ When you enable bypass, your battery is held at whatever level you want. Your co
 You don't need local tools, you can just click on Actions > [Build](#building) and you'll get a `.pkg` and a `.dmg` inside a `.zip`
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
-
-<img src="docs/images/menu-bar-comparison.png" alt="The byper menu bar icon before and after the 3.0.1 pass, on a light and a dark menu bar" width="100%" />
-
-<img src="docs/images/menu-bar-detail.png" alt="The corner, the nub and the digits before and after the 3.0.1 pass" width="100%" />
-
 <img src="docs/images/popover.png" alt="The byper popover on a light, a mixed and a dark wallpaper" width="100%" />
 
 ---
