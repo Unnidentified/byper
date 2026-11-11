@@ -1,32 +1,56 @@
 # Bash completion for byp and chbypass
 
 _byp_complete() {
-    local cur prev opts
+    local cur
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="on off t mon s lpm json help"
 
-    case "${prev}" in
-        byp|chbypass)
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "on off t mon s lpm caffeinate logger auto json help" -- "${cur}") )
+        return 0
+    fi
+
+    case "${COMP_WORDS[1]}" in
         lpm)
             COMPREPLY=( $(compgen -W "1 0 on off" -- "${cur}") )
-            return 0
+            ;;
+        caffeinate)
+            if [[ ${COMP_CWORD} -eq 2 ]]; then
+                COMPREPLY=( $(compgen -W "on off auto status" -- "${cur}") )
+            elif [[ ${COMP_WORDS[2]} == auto ]]; then
+                COMPREPLY=( $(compgen -W "on off" -- "${cur}") )
+            fi
+            ;;
+        logger)
+            COMPREPLY=( $(compgen -W "--quiet" -- "${cur}") )
+            ;;
+        auto)
+            if [[ ${COMP_CWORD} -eq 2 ]]; then
+                COMPREPLY=( $(compgen -W "run plug login display off-on-exit lpm" -- "${cur}") )
+            else
+                case "${COMP_WORDS[2]}" in
+                    run)
+                        COMPREPLY=( $(compgen -W "--quiet --force" -- "${cur}") )
+                        ;;
+                    plug|login|display|off-on-exit)
+                        COMPREPLY=( $(compgen -W "on off" -- "${cur}") )
+                        ;;
+                    lpm)
+                        if [[ ${COMP_CWORD} -eq 3 ]]; then
+                            COMPREPLY=( $(compgen -W "add remove list clear" -- "${cur}") )
+                        fi
+                        ;;
+                esac
+            fi
             ;;
         json)
             COMPREPLY=( $(compgen -W "--watch -w" -- "${cur}") )
-            return 0
             ;;
         mon)
             COMPREPLY=( $(compgen -W "--export -e" -- "${cur}") )
-            return 0
-            ;;
-        *)
             ;;
     esac
+    return 0
 }
 
 complete -F _byp_complete byp
