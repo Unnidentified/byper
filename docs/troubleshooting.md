@@ -70,13 +70,44 @@ sudo chown -R "$USER" bin byper.app
 make clean && make all
 ```
 
-## Popover does not resize
+## Popover does not resize when a row expands
 
-Every expandable flag must be in the `Publishers.Merge` in `AppDelegate.applicationDidFinishLaunching`. On macOS 13+ the hosting controller's `preferredContentSize` handles it, but the merge still drives the older path.
+The panel is a fixed-width `NSPanel` that refits its height on demand. Every
+expandable flag must be in the `Publishers.Merge4` chain in
+`AppDelegate.applicationDidFinishLaunching`, which calls `popoverPanel.refit()`.
+A new expandable row that is not in that chain will open and stay clipped.
+
+`refit()` is called three times per change, at 0, 50ms and 300ms, because
+SwiftUI commits the layout after the publisher fires. Do not remove the delayed
+calls to "clean it up".
 
 ## Timers stall with a menu open or the screen asleep
 
-Timers must be added to `RunLoop.main` in `.common` mode. `Timer.scheduledTimer` uses `.default` and stalls while a menu tracks the cursor.
+Timers must be added to `RunLoop.main` in `.common` mode. `Timer.scheduledTimer`
+uses `.default` and stalls while a menu tracks the cursor.
+
+## A hard rectangle surrounds the popover
+
+The window shadow. AppKit derives it from the window's alpha channel, and a
+partly transparent glass shell makes it fall back to a rectangular mask, which
+paints a square behind the rounded corners. `invalidateShadow()` does not fix
+it. `PopoverPanel` sets `hasShadow = false` for this reason. If the rectangle
+comes back, something re-enabled the shadow or added a background to the hosting
+view.
+
+## The glass looks like flat grey plastic
+
+`PopoverTuning.shellStyle` is `.clear`, which is a brown tint at 0.20. On a very
+light wallpaper that can read as grey. Switch to `.dark` for a 0.45 tint, which
+keeps the old dark look. Both presets have to hold up under System Settings,
+Appearance, Liquid Glass, in both Clear and Tinted.
+
+## The menu bar icon does not follow the wallpaper
+
+The signal is the status item button's `effectiveAppearance`, filtered to
+`.vibrantDark` and `.vibrantLight`. `NSApp.effectiveAppearance` follows the
+system light and dark mode, not the menu bar, so it is the wrong signal.
+`NSWorkspace.desktopImageDidChangeNotification` does not exist in this SDK.
 
 ## Diagnostics
 
