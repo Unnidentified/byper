@@ -12,9 +12,19 @@ on:
         required: false
         type: boolean
         default: false
+      prerelease:
+        description: Mark the published Release as a pre-release. Needs release.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+
+# Manual runs only. Serialize them so two runs cannot race on the same tag.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -39,7 +49,38 @@ jobs:
           set -euo pipefail
           v="${INPUT_VERSION:-0.0.0-dev.${GITHUB_RUN_NUMBER}}"
           echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "base=${v%%-*}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $v"
+
+      - name: Guard the version against Info.plist
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          V: ${{ steps.version.outputs.version }}
+          BASE: ${{ steps.version.outputs.base }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          app="$(plutil -extract CFBundleShortVersionString raw -o - src/app/Info.plist)"
+          echo "Info.plist: $app"
+          echo "Resolved:   $V"
+
+          if [ -z "$INPUT_VERSION" ]; then
+            echo "::warning::No version input. The artifacts are stamped $V while the CLI inside reports $app."
+            if [ "$RELEASE" = "true" ]; then
+              echo "::error::Refusing to publish a release from the dev default. Pass a version."
+              exit 1
+            fi
+            exit 0
+          fi
+
+          # The CLI reads CFBundleShortVersionString at build time, so the package
+          # version and the app version must share a base. The pre-release suffix
+          # is free: 3.1.0-beta.1 is built from an Info.plist of 3.1.0.
+          if [ "$BASE" != "$app" ]; then
+            echo "::error::The version input $V disagrees with Info.plist $app. Bump Info.plist in its own commit first."
+            exit 1
+          fi
+          echo "Version input $V shares the Info.plist base $app."
 
       - name: Build
         run: make all
@@ -57,11 +98,54 @@ jobs:
           mv byper-installer.pkg "byper-installer-${V}.pkg"
           mv byper-installer.dmg "byper-installer-${V}.dmg"
 
+      - name: Verify the package
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          pkg="byper-installer-${V}.pkg"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          pkgutil --expand-full "$pkg" "$work/expanded"
+
+          title="$(xmllint --xpath 'string(//title)' "$work/expanded/Distribution")"
+          component="$(xmllint --xpath 'string(/pkg-info/@version)' "$work/expanded/byper-pkg-component.pkg/PackageInfo")"
+          uninstaller="$(xmllint --xpath 'string(/pkg-info/@version)' "$work/expanded/byper-uninstall-component.pkg/PackageInfo")"
+          cli="$("$work/expanded/byper-pkg-component.pkg/Payload/byper.app/Contents/Resources/byper" --help | awk 'NR == 1 { sub(/^v/, "", $NF); print $NF }')"
+          app="$(plutil -extract CFBundleShortVersionString raw -o - src/app/Info.plist)"
+
+          echo "title:       $title"
+          echo "component:   $component"
+          echo "uninstaller: $uninstaller"
+          echo "payload CLI: $cli"
+          echo "Info.plist:  $app"
+
+          if [ "$title" != "byper ${V}" ]; then
+            echo "::error::The package title is '$title', expected 'byper ${V}'."
+            exit 1
+          fi
+          if [ "$component" != "$V" ] || [ "$uninstaller" != "$V" ]; then
+            echo "::error::The pkg-ref versions are $component and $uninstaller, expected $V."
+            exit 1
+          fi
+          # The CLI has no version of its own: it reports the Info.plist value it
+          # was compiled with, which is the base of the package version.
+          if [ "$cli" != "$app" ]; then
+            echo "::error::The payload CLI reports $cli but Info.plist is $app."
+            exit 1
+          fi
+          echo "The package matches $V and the payload CLI reports $cli."
+
       - name: Checksums
         run: |
           set -euo pipefail
           shasum -a 256 byper-installer-*.pkg byper-installer-*.dmg > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      - name: Verify the checksums
+        run: |
+          set -euo pipefail
+          shasum -a 256 -c SHA256SUMS.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -72,18 +156,47 @@ jobs:
             byper-installer-*.dmg
             SHA256SUMS.txt
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Summary
+        if: always()
+        env:
+          V: ${{ steps.version.outputs.version }}
+          RELEASE: ${{ inputs.release }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## byper ${V:-unknown}"
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Version | ${V:-unknown} |"
+            echo "| Publish a release | ${RELEASE:-false} |"
+            echo "| Pre-release | ${PRERELEASE:-false} |"
+            echo "| Commit | ${GITHUB_SHA} |"
+            echo
+            echo "### Checksums"
+            echo
+            echo '```'
+            cat SHA256SUMS.txt 2>/dev/null || echo "no checksums were written"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Release
         if: inputs.release
         env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
+          args=(--target "$GITHUB_SHA" --title "v${V}" --generate-notes)
+          if [ "$PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
+          fi
           gh release create "v${V}" \
             byper-installer-*.pkg \
             byper-installer-*.dmg \
             SHA256SUMS.txt \
-            --target "$GITHUB_SHA" \
-            --title "v${V}" \
-            --generate-notes
+            "${args[@]}"

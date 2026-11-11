@@ -4,7 +4,7 @@
 //
 // Executed as root via AuthorizationExecuteWithPrivileges (the admin dialog is
 // attributed to byper and offers Touch ID). A dedicated helper keeps /bin/sh
-// out of the authorization request — `do shell script ... with administrator
+// out of the authorization request, `do shell script ... with administrator
 // privileges` routes through /bin/sh, so macOS shows "a script started by
 // bash" instead of naming byper.
 //

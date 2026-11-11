@@ -71,6 +71,9 @@ cut, not before.
    git push
    ```
 
+   The commit and the PR title carry the PR number, `chore: bump the cask to
+   X.Y.Z (#123)`. See [handoff.md](handoff.md#commits) for the amend step.
+
    Merge it once the release is published, so the download URL in the cask
    resolves. CI fails the PR if the cask version is ahead of
    `CFBundleShortVersionString`. A cask that is behind is allowed, because it

@@ -18,7 +18,7 @@
 
 extern char **environ;
 
-// Find PowerUIAgent PID via sysctl — no subprocess spawn needed
+// Find PowerUIAgent PID via sysctl, no subprocess spawn needed
 static pid_t find_powerui_pid(void) {
     int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
     size_t size = 0;
@@ -53,7 +53,7 @@ static int open_lldb_script(char *path_buf, size_t bufsz) {
     return -1;
 }
 
-// Run LLDB script — fire-and-forget with a detached worker: the CLI no longer
+// Run LLDB script, fire-and-forget with a detached worker: the CLI no longer
 // blocks on the full lldb lifecycle (attach + symbol load + detach), whose
 // occasional latency spikes were the rare toggle hang. The expr commits as
 // soon as lldb evaluates it, so the caller's hardware verify poll
@@ -62,24 +62,24 @@ static int open_lldb_script(char *path_buf, size_t bufsz) {
 //
 // Serialization: two debuggers cannot hold PowerUIAgent's debug port at once,
 // so sessions serialize on an flock'ed lock file shared across processes (each
-// byper invocation is a fresh process). Acquisition is bounded at 3 s — on
+// byper invocation is a fresh process). Acquisition is bounded at 3 s, on
 // contention timeout this round skips (unlink script, return) instead of
 // stacking a doomed attach.
 //
 // The worker is a forked child that spawns lldb as ITS child, reaps it, unlinks
 // the script, and releases the lock. This process returns immediately and
-// exits seconds later, so the worker is orphaned to launchd — no zombies, and
+// exits seconds later, so the worker is orphaned to launchd, no zombies, and
 // cleanup survives the CLI's early exit.
 #define BYP_LLDB_LOCK_PATH "/tmp/byp_lldb.lock"
 
 // Ensure a working lldb exists. On a fresh Mac the Command Line Tools are absent
 // and /usr/bin/lldb is either missing or a stub that pops a GUI dialog. As root
-// (SUID install) we can install the tools silently via softwareupdate — the
+// (SUID install) we can install the tools silently via softwareupdate, the
 // first toggle just takes a few minutes while they download.
 static bool ensure_lldb_available(void) {
     // Accept ANY working toolchain: the CLT path, or whatever xcode-select
     // points at (full Xcode installs have no /Library/Developer/CommandLineTools
-    // but a perfectly good lldb — the old CLT-only check locked those out).
+    // but a perfectly good lldb, the old CLT-only check locked those out).
     char cand[640];
     snprintf(cand, sizeof(cand), "/Library/Developer/CommandLineTools/usr/bin/lldb");
     if (access(cand, X_OK) == 0) return true;
@@ -119,7 +119,7 @@ static bool ensure_lldb_available(void) {
 }
 
 // Blocking inline fallback (used only when fork fails): spawn lldb as our own
-// child and wait for it — the pre-fix behavior, kept for robustness.
+// child and wait for it, the pre-fix behavior, kept for robustness.
 static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *script_path) {
     char pid_str[16];
     snprintf(pid_str, sizeof(pid_str), "%d", agent_pid);
@@ -164,7 +164,7 @@ static void run_lldb_script(const char *script_path) {
     bool locked = false;
     if (lock_fd >= 0) {
         fchmod(lock_fd, 0666); // let non-root dev builds contend a root-made lock
-        for (int i = 0; i < 1600; i++) { // ≤ 32 s — must cover the worker's 30 s
+        for (int i = 0; i < 1600; i++) { // ≤ 32 s: must cover the worker's 30 s
             // wedged-session kill: a slow-but-legit lldb detach is normal under
             // load, and skipping the round would silently drop the toggle.
             if (flock(lock_fd, LOCK_EX | LOCK_NB) == 0) { locked = true; break; }
@@ -224,7 +224,7 @@ static void run_lldb_script(const char *script_path) {
     // ── Worker (orphaned to launchd when the parent exits) ──
     // Detach from the CLI's stdio: the app reads the CLI's stdout pipe until
     // EOF, so the worker must not hold those descriptors open or the app would
-    // block until this worker exits — silently undoing the fire-and-forget.
+    // block until this worker exits, silently undoing the fire-and-forget.
     int dn = open("/dev/null", O_RDWR);
     if (dn >= 0) {
         dup2(dn, STDIN_FILENO);
@@ -235,7 +235,7 @@ static void run_lldb_script(const char *script_path) {
 
     char pid_str[16];
     snprintf(pid_str, sizeof(pid_str), "%d", agent_pid);
-    // Root (SUID install) attaches directly — no sudo, no password. The sudo -S
+    // Root (SUID install) attaches directly, no sudo, no password. The sudo -S
     // path is only for non-root dev builds.
     bool as_root = (geteuid() == 0);
     const char *argv_root[] = {
@@ -256,7 +256,7 @@ static void run_lldb_script(const char *script_path) {
     posix_spawn_file_actions_init(&actions);
     posix_spawn_file_actions_adddup2(&actions, pipefd[0], STDIN_FILENO);
     // Remote diagnostics: BYP_LLDB_DEBUG=1 sends the session transcript to a log
-    // instead of the void — run `BYP_LLDB_DEBUG=1 byper on` on a failing machine
+    // instead of the void, run `BYP_LLDB_DEBUG=1 byper on` on a failing machine
     // and read /tmp/byp_lldb_debug.log.
     int devnull = getenv("BYP_LLDB_DEBUG")
         ? open("/tmp/byp_lldb_debug.log", O_WRONLY | O_CREAT | O_APPEND, 0644)
@@ -338,7 +338,7 @@ bool powerui_get_status(NativeHoldStatus *status) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  LLDB SCRIPT HELPERS — one session per spawn; re-spawned on verify failure
+//  LLDB SCRIPT HELPERS: one session per spawn; re-spawned on verify failure
 // ─────────────────────────────────────────────────────────────────────────────
 static void spawn_hold_enable_script(int soc) {
     char lldb_path[64];
@@ -386,7 +386,7 @@ static void spawn_hold_disable_script(int soc) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ENABLE HOLD — Charging On Hold at current SoC (Runtime In-Memory Hold)
+//  ENABLE HOLD: Charging On Hold at current SoC (Runtime In-Memory Hold)
 // ─────────────────────────────────────────────────────────────────────────────
 bool powerui_enable_hold(void) {
     @try {
@@ -412,7 +412,7 @@ bool powerui_enable_hold(void) {
             // 4. Live hardware verification poll (≤45s, 100ms intervals). If the
             // target state hasn't arrived after ~10s (observed: PowerUIAgent's
             // state machine transiently swallows an engage right after a clear),
-            // re-spawn a fresh LLDB session — a later session provably lands it.
+            // re-spawn a fresh LLDB session, a later session provably lands it.
             for (int i = 0; i < 450; i++) {
                 if (i > 0 && (i == 15 || i == 35 || i == 60 || i == 100 || (i % 150) == 0)) {
                     battery_get_info(&bInfo);
@@ -439,7 +439,7 @@ bool powerui_enable_hold(void) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  DISABLE HOLD — Resume full fast charging to 100%
+//  DISABLE HOLD: Resume full fast charging to 100%
 // ─────────────────────────────────────────────────────────────────────────────
 bool powerui_disable_hold(void) {
     @try {
@@ -454,7 +454,7 @@ bool powerui_disable_hold(void) {
 
             // 2. Trigger immediate resume kick via LLDB (handled above)
 
-            // 3. Clean up saved defaults overrides — single PlistBuddy call instead of 5 serial forks
+            // 3. Clean up saved defaults overrides, single PlistBuddy call instead of 5 serial forks
             system("/usr/libexec/PlistBuddy -c 'Delete :overrideDesktopMode' -c 'Delete :isDesktopModeDevice' -c 'Delete :chargeTokenMCL' -c 'Delete :chargeTokenDEoC' -c 'Delete :reachedTargetSoC' /Library/Preferences/com.apple.PowerUI.plist > /dev/null 2>&1 || true");
 
             // 4. Notify subsystems & kick kernel driver
@@ -463,7 +463,7 @@ bool powerui_disable_hold(void) {
             kick_kernel_battery_manager();
 
             // If not connected to AC power, battery is discharging and cannot
-            // charge or hold — reset is already complete; return immediately.
+            // charge or hold, reset is already complete; return immediately.
             if (!bInfo.acAttached) {
                 return true;
             }
@@ -471,7 +471,7 @@ bool powerui_disable_hold(void) {
             // 5. Live hardware verification poll (≤45s, 100ms intervals). If the
             // target state hasn't arrived after ~10s (observed: PowerUIAgent's
             // state machine transiently swallows the resume right after an
-            // engage), re-spawn a fresh LLDB session — a later session lands it.
+            // engage), re-spawn a fresh LLDB session, a later session lands it.
             for (int i = 0; i < 450; i++) {
                 if (i > 0 && (i == 15 || i == 35 || i == 60 || i == 100 || (i % 150) == 0)) {
                     battery_get_info(&bInfo);

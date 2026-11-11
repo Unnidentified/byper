@@ -1,0 +1,26 @@
+# The byper json contract, one field per line.
+# print_status in src/main.c must emit exactly these keys, and BypassStatus in
+# src/app/CLIEngineBridge.swift must decode only these. Adding a field means
+# adding it here in the same commit.
+acAttached
+adapterCurrent_mA
+adapterDesc
+adapterPdoCount
+adapterSelectedPdo
+adapterVoltage_mV
+adapterWatts
+amperage_mA
+chargeLimit
+cycleCount
+deviceName
+holdActive
+inMemoryHoldActive
+isCharging
+notChargingReason
+notChargingReasonDesc
+percentage
+pmuConfigured
+serial
+temperature_C
+voltage_mV
+wattage_W
