@@ -1,11 +1,10 @@
 #!/bin/bash
-# byper postinstall (vanilla branch): SUID CLI + symlinks + completions.
-# Works no matter which bundle name the payload used (byper.app or
-# byper-vanilla.app from older installers) so an upgrade over either
-# variant never fails.
+# byper postinstall: SUID CLI + symlinks + completions.
+# The bundle lookup also accepts byper-vanilla.app, the name older installers
+# used, so an upgrade over an old install still finds the app.
 set -e
 
-# Locate the freshly-installed app bundle (payload order: vanilla first).
+# Locate the freshly-installed app bundle (byper.app first, then the legacy name).
 APP_PATH=""
 for CAND in /Applications/byper.app /Applications/byper-vanilla.app; do
     if [ -f "$CAND/Contents/Resources/byper" ]; then
