@@ -14,12 +14,12 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 <table>
 <tr>
 <td width="480" align="center" valign="middle">
-<img src="docs/images/popover.png" width="480" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
+<img src="docs/images/popover.png" width="480" alt="The byper popover: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
 </td>
 <td valign="middle">
 <h3>The panel</h3>
 <p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns.</p>
-<p>The graph is live draw, the readout is voltage and amperage, and the rows below are the ones you reach for most.</p>
+<p>The graph is a 24 hour battery temperature curve. The readout beside it is the adapter voltage, current and wattage while plugged in, and the pack draw and voltage on battery. The rows below are the ones you reach for most.</p>
 <p>Byper engages charge bypass. The switch stays grey while the machine is unplugged, since there is nothing to bypass. Its chevron holds one option, off on exit.</p>
 <p>Powersave turns on Low Power Mode. Its chevron opens a picker, so Low Power Mode can come on by itself while a chosen app is frontmost.</p>
 <p>Caffeinate holds the display and idle sleep. Its chevron adds on bypass, so the hold can follow the bypass state.</p>
@@ -65,7 +65,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 |---|---|---|
 | core | `byper` CLI | Lives at `/usr/local/bin/byper`. You can launch it through the terminal by running `byp` |
 | menu bar | `byper.app` | SwiftUI app that can be used as a replacement to the stock battery menu. Native battery pill, colour change at different levels of percentages. Basically, it shows percentage, charging state and whether bypass is actually engaged |
-| telemetry | SMC power rails | Per-rail wattage for SoC, DRAM, PMIC and DC-In, individual pack cell voltages, top CPU consumers with estimated wattage |
+| telemetry | SMC power rails | Per-rail wattage for SoC, DRAM, PMIC and DC-In, and individual pack cell voltages |
 | bypass | Hardware charge bypass | System runs off the adapter at 0 mA net battery draw, battery held at whatever level you picked |
 | powersave | Low Power Mode | Manual toggle, plus per-app auto-LPM while a designated app is frontmost. The manual switch wins over automation |
 | caffeinate | Display and idle sleep hold | Manual toggle, or "On Bypass". Again, the manual switch wins |
@@ -106,7 +106,7 @@ So byper attaches to it:
 3. Forks an orphaned worker that runs `lldb -p <pid> --batch` as root, calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately.
 4. Confirms the result by polling SMC registers, never by trusting the injection.
 
-The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the resulting state back from the not-charging reason and the amperage.
+The CLI never reads the SMC mode-of-operation value. It confirms a hold from four things at once: the adapter is attached, charging has stopped, the amperage is near zero, and either the not-charging reason carries the `0x01000000` flag or the pack is at 95 percent or above.
 
 Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware**. `CHBI` writes don't stick, so injection is the only path that works.
 

@@ -4,8 +4,9 @@ byper is two programs that share one engine.
 
 - `byper` is a C and Objective-C CLI. It owns the power logic, the SMC reads and
   the bypass injection. It is installed SUID root.
-- `byper.app` is a SwiftUI menu bar app. It never talks to the hardware
-  directly. It shells out to the CLI, parses the JSON, and draws the UI.
+- `byper.app` is a SwiftUI menu bar app. It shells out to the CLI and parses
+  the JSON for the power logic, and reads `AppleSmartBattery` from IOKit in
+  process for the fast path that keeps the menu bar pill current.
 
 The split keeps the privileged code small and testable from a terminal. The app
 can be replaced without touching the engine.
@@ -64,10 +65,11 @@ power sources. `src/power.c` reads the rail telemetry.
 is the popover content. `CLIEngineBridge.swift` runs the CLI and decodes its
 JSON.
 
-The app polls the CLI every 2s while the popover is open and every 4s in the
-background. The first poll is delayed by 300ms so the status item does not blink
-when the popover opens. Timers are added to `RunLoop.main` in `.common` mode so
-they keep firing while menus track the cursor or the screen sleeps.
+The app polls the CLI every 2s while the popover is open. In the background a
+4s timer runs an IOKit read only, with no CLI subprocess. The first poll is
+delayed by 300ms so the status item does not blink when the popover opens.
+Timers are added to `RunLoop.main` in `.common` mode so they keep firing while
+menus track the cursor or the screen sleeps.
 
 ### The popover chrome
 

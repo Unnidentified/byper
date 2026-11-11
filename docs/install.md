@@ -38,7 +38,7 @@ sudo ./install.sh
 
 ## The SUID bit
 
-`byper` must be `-rwsr-xr-x root:wheel`. A non-SUID copy prints `enabled [✓]` and does nothing on the hardware. Check both copies:
+`byper` must be `-rwsr-xr-x root:wheel`. A non-SUID copy cannot attach to `PowerUIAgent`, so `byper on` prints `[FAIL] bypass hold not confirmed` and exits 1. Check both copies:
 
 ```bash
 ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper

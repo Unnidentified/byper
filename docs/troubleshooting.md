@@ -1,8 +1,8 @@
 # Troubleshooting
 
-## Bypass says enabled but the battery still charges
+## Bypass will not engage
 
-The SUID bit is missing or the binary is not root-owned. The failure is silent: the CLI prints `enabled [✓]` and the hardware does nothing.
+The SUID bit is missing or the binary is not root-owned. Without it the CLI cannot attach to `PowerUIAgent`, so `byper on` prints `[FAIL] bypass hold not confirmed` and exits 1.
 
 ```bash
 ls -la /usr/local/bin/byper /Applications/byper.app/Contents/Resources/byper
