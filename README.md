@@ -5,7 +5,7 @@
 
 Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
-It holds your battery at whatever level you want and runs the whole computer off the charger, so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
+When you enable bypass, your battery is held at whatever level you want. Your computer, from this point forward, only sucks energy from the charger, meaning effective power draw from the battery is 0mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
 You don't need local tools, you can just click on Actions > [Build](#building) and you'll get a `.pkg` and a `.dmg` inside a `.zip`
 
