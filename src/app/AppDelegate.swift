@@ -182,6 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         .merge(with: monitor.$showLoggerInfo)
         .merge(with: monitor.$isSlowChargeMenuExpanded)
+        .merge(with: monitor.$isBypassOptionsExpanded)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
