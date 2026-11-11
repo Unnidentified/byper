@@ -20,7 +20,7 @@ Two programs, one engine:
 | Program | Language | Role |
 |---|---|---|
 | `byper` | C and Objective-C | Owns the power logic, the SMC reads and the bypass injection. Installed SUID root. |
-| `byper.app` | Swift and SwiftUI | Menu bar app. Never touches hardware. Shells out to the CLI and parses its JSON. |
+| `byper.app` | Swift and SwiftUI | Menu bar app. Shells out to the CLI and parses its JSON for the power logic, and reads `AppleSmartBattery` from IOKit in process for the fast path behind the menu bar pill. |
 
 The split is deliberate. The privileged code stays small and testable from a
 terminal, and the app can be rewritten without going near the engine.
@@ -329,8 +329,9 @@ Live:
 
 ## Hard constraints
 
-- SUID is load-bearing. A non-SUID CLI prints `enabled [✓]` and does nothing.
-  After any reinstall or copy, re-apply `chown root:wheel` and `chmod 4755`.
+- SUID is load-bearing. A non-SUID CLI cannot attach to `PowerUIAgent`, so
+  `byper on` prints `[FAIL] bypass hold not confirmed` and exits 1. After any
+  reinstall or copy, re-apply `chown root:wheel` and `chmod 4755`.
 - Never write SMC charge keys. They are read-only on Apple Silicon.
 - Never signal `powerd`.
 - Never persist a manual charge limit below 100.
@@ -341,7 +342,7 @@ Live:
 
 ## Current state
 
-- `main` is past the merge of PR #18, the digits and portability fix.
+- `main` is past the merge of PR #24, the readme panel shot.
 - The latest release is `v3.0.1`, the icon match. Assets:
   `byper-installer-3.0.1.pkg`, `.dmg`, `SHA256SUMS.txt`, and
   `menu-bar-comparison.png` and `menu-bar-detail.png` for the release notes.
@@ -380,7 +381,7 @@ some are API notes, and none of them are urgent.
 |---|---|
 | Bypass not landing | `src/powerui.m`, `spawn_hold_enable_script`, `powerui_enable_hold` |
 | CLI JSON fields | `src/main.c`, `print_status` |
-| App polling | `BatteryMonitor.startActivePolling`, `startBackgroundPolling` |
+| App polling | `BatteryMonitor.startActivePolling`, `refreshIOKitOnly` |
 | Menu bar icon | `BatteryPillIcon.swift` |
 | Popover layout | `BatteryDropdownView.swift` |
 | Popover chrome | `GlassPopover.swift`, then the `PopoverTuning` extensions |
