@@ -13,8 +13,8 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 
 <table>
 <tr>
-<td width="340" align="center" valign="middle">
-<img src="docs/images/popover.png" width="340" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
+<td width="480" align="center" valign="middle">
+<img src="docs/images/popover.png" width="480" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
 </td>
 <td valign="middle">
 <h3>The panel</h3>
