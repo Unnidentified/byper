@@ -9,6 +9,8 @@ It holds your battery at whatever level you want and runs the whole computer off
 
 You don't need a local toolchain, you can just click on [Actions > Build](https://github.com/Unnidentified/byper/actions/workflows/build.yml) and you'll get a `.pkg` and a `.dmg` (see [building](#building)).
 
+> The status bar icons are on top, the app is below.
+
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
 <img src="docs/images/popover.png" alt="The byper popover on a light, a mixed and a dark wallpaper" width="100%" />
