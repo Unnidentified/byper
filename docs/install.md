@@ -25,6 +25,24 @@ If Gatekeeper blocks the app:
 xattr -cr /Applications/byper.app
 ```
 
+## From Homebrew
+
+The cask lives in this repository, so tap it by URL:
+
+```bash
+brew tap Unnidentified/byper https://github.com/Unnidentified/byper
+brew install --cask byper
+```
+
+Upgrade and uninstall:
+
+```bash
+brew upgrade --cask byper
+brew uninstall --cask byper
+```
+
+The cask runs the same `.pkg`, so the postinstall still copies the CLI to `/usr/local/bin/byper`, sets `root:wheel` and `4755`, installs the completions and opens the app. `brew uninstall` releases any active hold, clears Low Power Mode, and removes the CLI, the symlinks, the completions and the app. Add `--zap` to remove the settings too.
+
 ## From source
 
 ```bash

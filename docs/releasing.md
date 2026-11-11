@@ -42,11 +42,31 @@ do not reuse its number. The next attempt is `beta.N+1`.
 2. `make all`, then `./pkg/build_pkg.sh`. That writes `byper-installer.pkg` and
    `byper-installer.dmg`.
 3. `shasum -a 256 byper-installer.pkg byper-installer.dmg > SHA256SUMS.txt`.
-4. Tag the merge commit on `main`, not the branch commit:
+4. Update `Casks/byper.rb` in its own PR. The hash is only known after
+   packaging, so it cannot ride along with the version bump. Read the `.pkg`
+   hash out of the sums file:
+
+   ```bash
+   grep ' byper-installer-X.Y.Z.pkg$' SHA256SUMS.txt
+   ```
+
+   Set `version` to `X.Y.Z` and `sha256` to that hash, then check and commit:
+
+   ```bash
+   ruby -c Casks/byper.rb
+   git add Casks/byper.rb
+   git commit -m "chore: bump the cask to X.Y.Z"
+   git push
+   ```
+
+   Merge it once the release is published, so the download URL in the cask
+   resolves. CI fails the PR if the cask version and
+   `CFBundleShortVersionString` disagree.
+5. Tag the merge commit on `main`, not the branch commit:
    `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push origin vX.Y.Z`.
-5. `gh release create vX.Y.Z` with the two assets and the sums. The title starts
+6. `gh release create vX.Y.Z` with the two assets and the sums. The title starts
    with the tag. Tick pre-release for a beta or an rc.
-6. The notes follow the style below.
+7. The notes follow the style below.
 
 ## Release notes
 

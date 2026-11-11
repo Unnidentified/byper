@@ -84,6 +84,22 @@ jobs:
           print('Info.plist ok:', d['CFBundleIdentifier'], d['LSMinimumSystemVersion'])
           PY
 
+      - name: Cask parses and matches the app version
+        run: |
+          set -euo pipefail
+          ruby -c Casks/byper.rb
+          ruby - <<'RB'
+          plist = File.read('src/app/Info.plist')
+          app = plist[%r{<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>}, 1]
+          cask = File.read('Casks/byper.rb')[%r{^\s*version\s+"([^"]+)"}, 1]
+          sha = File.read('Casks/byper.rb')[%r{^\s*sha256\s+"([0-9a-f]{64})"}, 1]
+          abort 'no CFBundleShortVersionString in Info.plist' if app.nil?
+          abort 'no version stanza in Casks/byper.rb' if cask.nil?
+          abort 'Casks/byper.rb needs a real 64 character sha256' if sha.nil?
+          abort "cask version #{cask} does not match Info.plist #{app}" unless cask == app
+          puts "cask version #{cask} matches Info.plist"
+          RB
+
       - name: No installer artifacts committed
         run: |
           set -euo pipefail
