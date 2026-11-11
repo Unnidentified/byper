@@ -100,6 +100,27 @@ jobs:
           puts "cask version #{cask} matches Info.plist"
           RB
 
+      - name: CLI version derives from Info.plist
+        run: |
+          set -euo pipefail
+          ruby - <<'RB'
+          main = File.read('src/main.c')
+          mk = File.read('Makefile')
+
+          literal = main[/"\d+\.\d+\.\d+"/]
+          abort "src/main.c hardcodes a version: #{literal}" if literal
+          abort 'src/main.c still defines VERSION' if main =~ /#define\s+VERSION\b/
+          abort 'src/main.c does not use BYPER_VERSION' unless main.include?('BYPER_VERSION')
+          version_line = mk.lines.find { |l| l =~ /^BYPER_VERSION\s*\?=/ }
+          abort 'Makefile does not allow a BYPER_VERSION override' if version_line.nil?
+          abort 'Makefile does not read CFBundleShortVersionString from Info.plist' unless version_line.include?('CFBundleShortVersionString') && version_line.include?('src/app/Info.plist')
+          abort 'Makefile does not read the plist with plutil or PlistBuddy' unless version_line =~ /plutil|PlistBuddy/
+          compile = mk.lines.find { |l| l.include?('$(CC)') && l.include?('$(SRC)') }
+          abort 'Makefile has no CLI compile line' if compile.nil?
+          abort 'Makefile does not pass the version define to the compiler' unless compile.include?('VERSION_DEFINE') || compile.include?('-DBYPER_VERSION')
+          puts 'CLI version derives from Info.plist'
+          RB
+
       - name: No installer artifacts committed
         run: |
           set -euo pipefail
@@ -196,3 +217,12 @@ jobs:
         run: |
           set -euo pipefail
           ./bin/byper --help | grep -q 'Usage:'
+
+      - name: CLI version matches Info.plist
+        run: |
+          set -euo pipefail
+          app="$(plutil -extract CFBundleShortVersionString raw -o - src/app/Info.plist)"
+          cli="$(./bin/byper --help | awk 'NR == 1 { sub(/^v/, "", $NF); print $NF }')"
+          echo "Info.plist: $app"
+          echo "CLI:        $cli"
+          test "$cli" = "$app"

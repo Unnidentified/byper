@@ -7,6 +7,12 @@ Semantic Versioning 2.0.0, written `vMAJOR.MINOR.PATCH`. The tag,
 default in `pkg/build_pkg.sh` are the same string. The release title starts with
 the tag. The version strings used to drift apart, so bump them in one commit.
 
+`src/app/Info.plist` is the single source of truth for the CLI. The Makefile
+reads `CFBundleShortVersionString` out of it and passes the value to the
+compiler as `BYPER_VERSION`, so `byper --help` reports the app version. There is
+no CLI version to bump by hand. `BYPER_VERSION=9.9.9 make all` overrides it for
+a test build, the same way `pkg/build_pkg.sh` honours the variable.
+
 - **MAJOR** for a redesign, or for anything that breaks an install path, a CLI
   flag, a settings key or the minimum macOS version.
 - **MINOR** for new features that keep the old behaviour working.
@@ -38,7 +44,8 @@ do not reuse its number. The next attempt is `beta.N+1`.
 
 1. Bump `CFBundleShortVersionString` and `CFBundleVersion` in
    `src/app/Info.plist`, and the `BYPER_VERSION` default in
-   `pkg/build_pkg.sh`.
+   `pkg/build_pkg.sh`. The CLI needs no edit: it reads the version from
+   Info.plist at build time.
 2. `make all`, then `./pkg/build_pkg.sh`. That writes `byper-installer.pkg` and
    `byper-installer.dmg`.
 3. `shasum -a 256 byper-installer.pkg byper-installer.dmg > SHA256SUMS.txt`.
