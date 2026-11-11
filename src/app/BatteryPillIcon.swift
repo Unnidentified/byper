@@ -33,6 +33,10 @@ enum BatteryPillIcon {
 
     /// Digit ink height, measured off the system battery at 2x.
     private static let digitHeight: CGFloat = 8.4
+    /// The status item draws the image one device pixel higher than the same
+    /// image drawn into a bitmap context, so the baseline carries a one pixel
+    /// offset to land where the system battery sits.
+    private static let baselineNudgePx: CGFloat = 1
     /// The number never takes more than this share of the body, so three
     /// digits shrink instead of running into the rounded ends.
     private static let maxDigitWidthRatio: CGFloat = 0.8
@@ -178,13 +182,34 @@ enum BatteryPillIcon {
         let inkBounds = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
         guard inkBounds.width > 0, inkBounds.height > 0 else { return }
 
+        // CoreText snaps the glyph raster to the device pixel grid, so a
+        // sub-pixel target lands on whichever side of the snap the context
+        // happens to fall. Work in device pixels, read the scale from the ctm
+        // rather than assuming 2, and put the baseline in the middle of a snap
+        // step so the result does not depend on the context. The centre comes
+        // from the font's cap height rather than the string's ink box, because
+        // the ink box shifts with the digits and would move the baseline
+        // between levels.
+        let scaleY = abs(ctx.ctm.d)
+        let targetBaselinePx = (designHeight / 2 - font.capHeight / 2) * scaleY + baselineNudgePx
+        let baselinePx = targetBaselinePx.rounded(.up) - 0.5
+
         ctx.saveGState()
         ctx.addPath(body)
         ctx.clip()
+        // The menu bar hands the drawing handler a context with font smoothing
+        // on, which spreads a one pixel stem over its neighbours and drops the
+        // peak coverage to about 86 percent. The system battery draws its
+        // digits with plain antialiasing, so the holes read as solid. Turn
+        // smoothing off so the raster matches the system glyphs.
+        ctx.setShouldSmoothFonts(false)
+        ctx.setAllowsFontSmoothing(false)
+        ctx.setShouldSubpixelPositionFonts(false)
+        ctx.setShouldSubpixelQuantizeFonts(false)
         ctx.setBlendMode(color == nil ? .destinationOut : .normal)
         ctx.textPosition = CGPoint(
             x: bodyWidth / 2 - inkBounds.midX,
-            y: designHeight / 2 - inkBounds.midY
+            y: baselinePx / scaleY
         )
         CTLineDraw(line, ctx)
         ctx.restoreGState()
