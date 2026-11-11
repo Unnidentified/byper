@@ -53,10 +53,75 @@ has held up.
 | `byper json` | JSON snapshot |
 | `byper mon` | Timestamped stream, `--export` writes the log |
 | `byper lpm on\|off` | Low Power Mode |
+| `byper caffeinate on\|off` | Hold the display and idle sleep |
+| `byper caffeinate auto on\|off` | Hold them only while a bypass hold is active |
+| `byper caffeinate status` | Caffeinate state and the keys behind it |
+| `byper logger [--quiet]` | Continuous CSV session log on the Desktop |
+| `byper auto` | Automation settings and the runner state |
+| `byper auto run [--quiet] [--force]` | Run the automations until interrupted |
+| `byper auto plug\|login\|display\|off-on-exit on\|off` | Toggle one automation |
+| `byper auto lpm add\|remove\|list\|clear [bundle-id]` | Per app Low Power Mode |
 | `byper help` | Usage |
 
 `src/smc.c` is the raw AppleSMC user client. `src/battery.c` parses the IOKit
-power sources. `src/power.c` reads the rail telemetry.
+power sources. `src/power.c` reads the rail telemetry. `src/prefs.c` owns the
+shared settings domain, `src/session.c` writes the CSV session log and
+`src/automation.c` holds the platform probes, caffeinate and the automation
+runner.
+
+### Shared settings
+
+The CLI and the app read and write one settings domain, `com.gefaass.byper`, in
+`~/Library/Preferences`. There is no second config file and no second set of key
+names. `src/prefs.c` reads through `CFPreferences` and writes through
+`/usr/bin/defaults` as the settings owner, so a change made in either program is
+visible to the other.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `byp_auto_caffeine_on_bypass` | bool | Hold the display and idle sleep while a bypass hold is active |
+| `byp_auto_hold_at_login` | bool | Engage bypass when the automation runner starts |
+| `byp_auto_hold_on_display` | bool, default true | Engage bypass when an external display attaches |
+| `byp_auto_hold_on_plug` | bool | Engage bypass when the charger connects |
+| `byp_auto_lpm_bundle_ids` | array of strings | Low Power Mode while one of these apps is frontmost |
+| `byp_cached_installed_apps` | array of dicts | The app's cache of installed apps. The CLI only reads it |
+| `byp_caffeine_always_on` | bool | Manual caffeinate |
+| `byp_disable_bypass_on_quit` | bool | Release the bypass hold when the automation runner exits |
+| `byp_master_level` | double 0 to 1 | The app's master slider. The CLI stands down below 0.999 |
+| `byp_power_mode` | string | `bypass` or `charging`, written by `on`, `off` and `t` |
+| `byp_resume_bypass_on_launch` | bool | The app's quit handoff. The CLI neither reads nor writes it |
+
+The CLI reads the keys on every tick, so a change made in the app is picked up
+without a restart. The app seeds its properties from the same keys at launch, so
+a change made in the CLI reaches the app at its next launch.
+
+### Automations
+
+A one shot command cannot notice a charger connect or a display attach, so the
+automations run in a foreground process:
+
+```bash
+byper auto run
+```
+
+It polls every 2s, re-reads the settings each tick, and drives the same engine
+the one shot verbs use. It refuses to start while `byper.app` is running,
+because the app already drives the same automations, and it takes a lock so two
+runners cannot overlap. There is no LaunchAgent: the app registers its own login
+item for `byp_auto_hold_at_login`, and a second always on driver would race it.
+A CLI only user adds `byper auto run` to Login Items.
+
+The runner also reconciles caffeinate (manual or on bypass) and per app Low
+Power Mode. It only turns Low Power Mode back off when it was the process that
+turned it on, so a manual `byper lpm on` survives.
+
+### The session logger
+
+`byper logger` writes `byper-session-<yyyyMMdd-HHmmss>.csv` to the Desktop of
+the user whose settings are shared, one row per second, flushed as it goes. The
+file name, the header and the columns match the app's export. When the CLI runs
+through the SUID path the Desktop belongs to the invoking user, not to root, so
+the file is created there and chowned to that user.
 
 ## The app
 

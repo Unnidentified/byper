@@ -22,6 +22,10 @@
 #include "battery.h"
 #include "power.h"
 #include "powerui.h"
+#include "prefs.h"
+#include "session.h"
+#include "automation.h"
+#include "hold.h"
 
 #define VERSION "2.3.1"
 
@@ -274,7 +278,7 @@ static void print_power_breakdown(void) {
            pb.cell1_mv, pb.cell2_mv, pb.cell3_mv);
 }
 
-static bool engage_bypass_at_any_percentage(void) {
+bool engage_bypass_at_any_percentage(void) {
     bool ok = powerui_enable_hold();
     if (ok) {
         FILE *fp = fopen("/tmp/byp.state", "w");
@@ -288,7 +292,7 @@ static bool engage_bypass_at_any_percentage(void) {
     return ok;
 }
 
-static bool disable_bypass_and_resume_charging(void) {
+bool disable_bypass_and_resume_charging(void) {
     unlink("/tmp/byp.state");
     bool ok = powerui_disable_hold();
     return ok;
@@ -1391,6 +1395,7 @@ static int handle_verb_on(void) {
     } else {
         printf("bypass charging enabled [✓] %.1f s\n", elapsed_sec);
     }
+    prefs_set_string(BYP_KEY_POWER_MODE, "bypass");
     char logline[128];
     snprintf(logline, sizeof(logline), "bypass charging enabled [ok] %.1f s", elapsed_sec);
     log_step_record("verb:on", logline);
@@ -1459,6 +1464,7 @@ static int handle_verb_off(void) {
     } else {
         printf("charging resumed [%+d mA] %.1f s\n", bAfter.amperage, elapsed_sec);
     }
+    prefs_set_string(BYP_KEY_POWER_MODE, "charging");
     char logline[128];
     snprintf(logline, sizeof(logline), "charging resumed [+%d mA] %.1f s", bAfter.amperage, elapsed_sec);
     log_step_record("verb:off", logline);
@@ -1522,6 +1528,8 @@ static int handle_toggle(void) {
     gettimeofday(&tv_end, NULL);
     double elapsed_sec = (tv_end.tv_sec - tv_start.tv_sec) + (tv_end.tv_usec - tv_start.tv_usec) / 1000000.0;
 
+    // The toggle has no truth table verdict of its own, so it does not record
+    // a mode in the shared settings. `on` and `off` do, after they verify.
     if (isHold) {
         if (isatty(STDOUT_FILENO)) {
             printf(CLR_GREEN "charging" CLR_RESET " resumed [" CLR_GREEN "%+d mA" CLR_RESET "] " CLR_BRIGHT "%.1f s" CLR_RESET "\n", bAfter.amperage, elapsed_sec);
@@ -1539,6 +1547,366 @@ static int handle_toggle(void) {
     }
 }
 
+// MARK: - Shared settings commands
+
+static bool parse_on_off(const char *value, bool *out) {
+    if (!value) return false;
+    if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0) {
+        *out = true;
+        return true;
+    }
+    if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0 || strcmp(value, "false") == 0) {
+        *out = false;
+        return true;
+    }
+    return false;
+}
+
+static const char *on_off_word(bool value) {
+    return value ? "on" : "off";
+}
+
+static void clock_string(char *out, size_t size) {
+    time_t now = time(NULL);
+    struct tm parts;
+    localtime_r(&now, &parts);
+    strftime(out, size, "%H:%M:%S", &parts);
+}
+
+static bool valid_bundle_id(const char *value) {
+    if (!value || !value[0] || strlen(value) > 255) return false;
+    bool has_dot = false;
+    for (const char *p = value; *p; p++) {
+        char c = *p;
+        if (c == '.') {
+            has_dot = true;
+            continue;
+        }
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_') {
+            continue;
+        }
+        return false;
+    }
+    return has_dot;
+}
+
+static void print_app_label(const char *bundle_id) {
+    char *name = prefs_copy_installed_app_name(bundle_id);
+    if (name) {
+        printf("%s (%s)", bundle_id, name);
+        free(name);
+    } else {
+        printf("%s", bundle_id);
+    }
+}
+
+static int handle_caffeinate(int argc, char *argv[]) {
+    const char *action = argc > 2 ? argv[2] : "status";
+
+    if (strcmp(action, "status") == 0) {
+        BatteryInfo info;
+        bool hold = battery_get_info(&info) && automation_hold_active(&info);
+        printf("caffeinate: %s\n", automation_caffeinate_running() ? "on" : "off");
+        printf("  manual      %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)),
+               BYP_KEY_CAFFEINE_ALWAYS_ON);
+        printf("  on bypass   %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false)),
+               BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
+        printf("  bypass hold %s\n", hold ? "active" : "inactive");
+        return 0;
+    }
+
+    if (strcmp(action, "on") == 0 || strcmp(action, "off") == 0) {
+        bool enable = strcmp(action, "on") == 0;
+        if (!prefs_set_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, enable)) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_CAFFEINE_ALWAYS_ON);
+            return 1;
+        }
+        BatteryInfo info;
+        bool hold = battery_get_info(&info) && automation_hold_active(&info);
+        bool auto_on_bypass = prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false);
+        bool wanted = enable || (auto_on_bypass && hold);
+        bool ok = wanted ? automation_caffeinate_start() : automation_caffeinate_stop();
+        if (!ok) {
+            printf("caffeinate: not confirmed\n");
+            return 1;
+        }
+        if (enable) printf("caffeinate: on\n");
+        else if (wanted) printf("caffeinate: on (on bypass)\n");
+        else printf("caffeinate: off\n");
+        return 0;
+    }
+
+    if (strcmp(action, "auto") == 0) {
+        bool enable;
+        if (argc < 4 || !parse_on_off(argv[3], &enable)) {
+            fprintf(stderr, "usage: byper caffeinate auto on|off\n");
+            return 1;
+        }
+        if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, enable)) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
+            return 1;
+        }
+        // State semantics, matching the app: turning the auto path on while a
+        // hold is already active lights caffeinate now, not at the next edge.
+        BatteryInfo info;
+        bool hold = battery_get_info(&info) && automation_hold_active(&info);
+        bool manual = prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false);
+        if (enable && hold) automation_caffeinate_start();
+        else if (!enable && !manual) automation_caffeinate_stop();
+        printf("caffeinate on bypass: %s\n", on_off_word(enable));
+        return 0;
+    }
+
+    fprintf(stderr, "usage: byper caffeinate on|off|auto on|auto off|status\n");
+    return 1;
+}
+
+static volatile sig_atomic_t g_logger_running = 0;
+
+static void handle_logger_sig(int sig) {
+    (void)sig;
+    g_logger_running = 0;
+}
+
+static int handle_logger(int argc, char *argv[]) {
+    bool quiet = false;
+    for (int i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "--quiet") == 0) {
+            quiet = true;
+        } else {
+            fprintf(stderr, "usage: byper logger [--quiet]\n");
+            return 1;
+        }
+    }
+
+    SessionLog *log = session_log_start();
+    if (!log) {
+        fprintf(stderr, "failed to create the session log\n");
+        return 1;
+    }
+    printf("logging to %s\n", session_log_path(log));
+    fflush(stdout);
+
+    g_logger_running = 1;
+    signal(SIGINT, handle_logger_sig);
+    signal(SIGTERM, handle_logger_sig);
+    signal(SIGHUP, handle_logger_sig);
+
+    while (g_logger_running) {
+        session_log_sample(log);
+        if (!quiet) {
+            BatteryInfo info;
+            if (battery_get_info(&info)) {
+                char clock[16];
+                clock_string(clock, sizeof(clock));
+                printf("[%s] %d%% %+d mA %.2f W\n", clock, info.percentage, info.amperage, fabs(info.wattage));
+                fflush(stdout);
+            }
+        }
+        for (int i = 0; i < 10 && g_logger_running; i++) usleep(100000);
+    }
+
+    int samples = session_log_samples(log);
+    char path[1024];
+    snprintf(path, sizeof(path), "%s", session_log_path(log));
+    session_log_stop(log);
+    printf("stopped: %d samples, %s\n", samples, path);
+    return 0;
+}
+
+static int handle_auto_run(int argc, char *argv[]) {
+    AutomationWatchOptions options;
+    options.quiet = false;
+    options.force = false;
+    for (int i = 3; i < argc; i++) {
+        if (strcmp(argv[i], "--quiet") == 0) {
+            options.quiet = true;
+        } else if (strcmp(argv[i], "--force") == 0) {
+            options.force = true;
+        } else {
+            fprintf(stderr, "usage: byper auto run [--quiet] [--force]\n");
+            return 1;
+        }
+    }
+    return automation_watch(&options);
+}
+
+static const char *auto_key_for(const char *group) {
+    if (strcmp(group, "plug") == 0) return BYP_KEY_AUTO_HOLD_ON_PLUG;
+    if (strcmp(group, "login") == 0) return BYP_KEY_AUTO_HOLD_AT_LOGIN;
+    if (strcmp(group, "display") == 0) return BYP_KEY_AUTO_HOLD_ON_DISPLAY;
+    if (strcmp(group, "off-on-exit") == 0) return BYP_KEY_DISABLE_BYPASS_ON_QUIT;
+    return NULL;
+}
+
+static int print_auto_status(void) {
+    printf("automations\n");
+    printf("  plug         %-3s  %s\n",
+           on_off_word(prefs_get_bool(BYP_KEY_AUTO_HOLD_ON_PLUG, false)), BYP_KEY_AUTO_HOLD_ON_PLUG);
+    printf("  login        %-3s  %s\n",
+           on_off_word(prefs_get_bool(BYP_KEY_AUTO_HOLD_AT_LOGIN, false)), BYP_KEY_AUTO_HOLD_AT_LOGIN);
+    printf("  display      %-3s  %s\n",
+           on_off_word(prefs_get_bool(BYP_KEY_AUTO_HOLD_ON_DISPLAY, true)), BYP_KEY_AUTO_HOLD_ON_DISPLAY);
+    printf("  off on exit  %-3s  %s\n",
+           on_off_word(prefs_get_bool(BYP_KEY_DISABLE_BYPASS_ON_QUIT, false)), BYP_KEY_DISABLE_BYPASS_ON_QUIT);
+
+    char **apps = NULL;
+    int count = prefs_copy_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, &apps);
+    printf("  auto lpm     %d app(s)  %s\n", count, BYP_KEY_AUTO_LPM_BUNDLE_IDS);
+    for (int i = 0; i < count; i++) {
+        printf("    ");
+        print_app_label(apps[i]);
+        printf("\n");
+    }
+    prefs_free_string_array(apps, count);
+
+    printf("  master       %.2f  %s\n",
+           prefs_get_double(BYP_KEY_MASTER_LEVEL, 1.0), BYP_KEY_MASTER_LEVEL);
+    printf("  runner       %s\n", automation_watch_running() ? "running" : "not running");
+    return 0;
+}
+
+static int handle_auto_lpm(int argc, char *argv[]) {
+    const char *action = argc > 3 ? argv[3] : "list";
+
+    if (strcmp(action, "list") == 0) {
+        char **apps = NULL;
+        int count = prefs_copy_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, &apps);
+        if (count == 0) {
+            printf("auto lpm: no apps\n");
+        } else {
+            printf("auto lpm: %d app(s)\n", count);
+            for (int i = 0; i < count; i++) {
+                printf("  ");
+                print_app_label(apps[i]);
+                printf("\n");
+            }
+        }
+        prefs_free_string_array(apps, count);
+        return 0;
+    }
+
+    if (strcmp(action, "clear") == 0) {
+        if (!prefs_set_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, NULL, 0)) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_LPM_BUNDLE_IDS);
+            return 1;
+        }
+        printf("auto lpm: cleared\n");
+        return 0;
+    }
+
+    if (strcmp(action, "add") != 0 && strcmp(action, "remove") != 0) {
+        fprintf(stderr, "usage: byper auto lpm [list|add <bundle-id>|remove <bundle-id>|clear]\n");
+        return 1;
+    }
+    if (argc < 5) {
+        fprintf(stderr, "usage: byper auto lpm %s <bundle-id>\n", action);
+        return 1;
+    }
+    const char *bundle = argv[4];
+    if (!valid_bundle_id(bundle)) {
+        fprintf(stderr, "invalid bundle id: %s\n", bundle);
+        return 1;
+    }
+
+    char **apps = NULL;
+    int count = prefs_copy_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, &apps);
+    bool present = false;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(apps[i], bundle) == 0) present = true;
+    }
+
+    if (strcmp(action, "add") == 0) {
+        if (present) {
+            printf("auto lpm: ");
+            print_app_label(bundle);
+            printf(" already listed\n");
+            prefs_free_string_array(apps, count);
+            return 0;
+        }
+        char **next = (char **)calloc((size_t)count + 1, sizeof(char *));
+        if (!next) {
+            prefs_free_string_array(apps, count);
+            return 1;
+        }
+        for (int i = 0; i < count; i++) next[i] = apps[i];
+        next[count] = (char *)bundle;
+        bool ok = prefs_set_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, (const char *const *)next, count + 1);
+        free(next);
+        prefs_free_string_array(apps, count);
+        if (!ok) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_LPM_BUNDLE_IDS);
+            return 1;
+        }
+        printf("auto lpm: added ");
+        print_app_label(bundle);
+        printf("\n");
+        char *name = prefs_copy_installed_app_name(bundle);
+        bool known = name != NULL;
+        free(name);
+        if (!known && prefs_installed_apps_known()) {
+            fprintf(stderr, "note: %s is not in the app cache, added anyway\n", bundle);
+        }
+        return 0;
+    }
+
+    if (!present) {
+        printf("auto lpm: ");
+        print_app_label(bundle);
+        printf(" not listed\n");
+        prefs_free_string_array(apps, count);
+        return 0;
+    }
+    char **next = (char **)calloc((size_t)count, sizeof(char *));
+    if (!next) {
+        prefs_free_string_array(apps, count);
+        return 1;
+    }
+    int kept = 0;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(apps[i], bundle) != 0) next[kept++] = apps[i];
+    }
+    bool ok = prefs_set_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, (const char *const *)next, kept);
+    free(next);
+    prefs_free_string_array(apps, count);
+    if (!ok) {
+        fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_LPM_BUNDLE_IDS);
+        return 1;
+    }
+    printf("auto lpm: removed ");
+    print_app_label(bundle);
+    printf("\n");
+    return 0;
+}
+
+static int handle_auto(int argc, char *argv[]) {
+    if (argc < 3) return print_auto_status();
+
+    const char *group = argv[2];
+    if (strcmp(group, "run") == 0) return handle_auto_run(argc, argv);
+    if (strcmp(group, "lpm") == 0) return handle_auto_lpm(argc, argv);
+
+    const char *key = auto_key_for(group);
+    if (!key) {
+        fprintf(stderr, "usage: byper auto [run|plug|login|display|off-on-exit|lpm] ...\n");
+        return 1;
+    }
+    bool enable;
+    if (argc < 4 || !parse_on_off(argv[3], &enable)) {
+        fprintf(stderr, "usage: byper auto %s on|off\n", group);
+        return 1;
+    }
+    if (!prefs_set_bool(key, enable)) {
+        fprintf(stderr, "failed to write %s\n", key);
+        return 1;
+    }
+    printf("%s: %s\n", group, on_off_word(enable));
+    return 0;
+}
+
 static void print_usage(const char *prog) {
     printf("byp -- macOS Charging Bypass & Power Telemetry Control v%s\n", VERSION);
     printf("Usage: %s [command]\n\n", prog);
@@ -1551,10 +1919,30 @@ static void print_usage(const char *prog) {
     printf("  byp p                   Hardware power rails breakdown\n");
     printf("  byp t                   Toggle hold / charging\n");
     printf("  byp json [power]        Machine-readable JSON telemetry\n");
+    printf("  byp lpm on|off          Set macOS Low Power Mode\n");
+    printf("  byp caffeinate on|off   Hold the display and idle sleep on or off\n");
+    printf("  byp caffeinate auto on|off\n");
+    printf("                          Hold them only while a bypass hold is active\n");
+    printf("  byp caffeinate status   Show the caffeinate state\n");
+    printf("  byp logger [--quiet]    Write a CSV session log to the Desktop\n");
+    printf("  byp auto                Show the automation settings\n");
+    printf("  byp auto run [--quiet] [--force]\n");
+    printf("                          Run the automations until interrupted\n");
+    printf("  byp auto plug on|off    Bypass when the charger connects\n");
+    printf("  byp auto login on|off   Bypass when the runner starts at login\n");
+    printf("  byp auto display on|off Bypass when an external display attaches\n");
+    printf("  byp auto off-on-exit on|off\n");
+    printf("                          Release the bypass hold when the automation\n");
+    printf("                          runner exits\n");
+    printf("  byp auto lpm add|remove|list|clear [bundle-id]\n");
+    printf("                          Low Power Mode while a listed app is frontmost\n");
     printf("  byp help                Show command usage\n");
+    printf("\n");
+    printf("Settings live in the com.gefaass.byper domain, shared with byper.app.\n");
 }
 
 int main(int argc, char *argv[]) {
+    prefs_init(getuid());
     setuid(0);
     seteuid(0);
     setbuf(stdout, NULL);
@@ -1638,6 +2026,21 @@ int main(int argc, char *argv[]) {
             }
         }
         return 1;
+    }
+
+    // CAFFEINATE
+    if (strcmp(cmd, "caffeinate") == 0) {
+        return handle_caffeinate(argc, argv);
+    }
+
+    // LOGGER
+    if (strcmp(cmd, "logger") == 0) {
+        return handle_logger(argc, argv);
+    }
+
+    // AUTOMATIONS
+    if (strcmp(cmd, "auto") == 0) {
+        return handle_auto(argc, argv);
     }
 
     // EXPORT

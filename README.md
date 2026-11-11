@@ -87,6 +87,10 @@ byper json             # Telemetry snapshot formatted as JSON
 byper mon              # Continuous timestamped stream (non-TTY friendly)
 byper mon --export     # Write the session log to the Desktop
 byper lpm on|off       # Low Power Mode
+byper caffeinate       # Hold the display and idle sleep (on|off)
+byper logger           # Continuous CSV session log on the Desktop
+byper auto             # Automation settings (plug, login, display, auto LPM)
+byper auto run         # Run the automations until interrupted
 byper help             # Command usage
 ```
 

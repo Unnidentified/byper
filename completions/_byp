@@ -9,6 +9,9 @@ _byp() {
         'mon:Launch interactive live telemetry and power flow monitor'
         's:Print one-line live status and battery temperature'
         'lpm:Toggle macOS Low Power Mode (1/0, on/off)'
+        'caffeinate:Hold the display and idle sleep (on, off, auto, status)'
+        'logger:Write a CSV session log to the Desktop'
+        'auto:Automation settings and the automation runner'
         'json:Output machine-readable JSON telemetry'
         'help:Show command usage and help'
     )
@@ -29,6 +32,21 @@ _byp() {
                     lpm_opts=('1:Enable Low Power Mode' '0:Disable Low Power Mode' 'on:Enable' 'off:Disable')
                     _describe -t lpm_opts 'lpm state' lpm_opts
                     ;;
+                caffeinate)
+                    local -a caffeine_opts
+                    caffeine_opts=('on:Hold the display and idle sleep' 'off:Release them' 'auto:Hold only while a bypass hold is active' 'status:Show the caffeinate state')
+                    _describe -t caffeine_opts 'caffeinate action' caffeine_opts
+                    ;;
+                logger)
+                    local -a logger_opts
+                    logger_opts=('--quiet:Write the log without the per sample line')
+                    _describe -t logger_opts 'logger options' logger_opts
+                    ;;
+                auto)
+                    local -a auto_opts
+                    auto_opts=('run:Run the automations until interrupted' 'plug:Bypass when the charger connects' 'login:Bypass when the runner starts at login' 'display:Bypass when an external display attaches' 'off-on-exit:Release the bypass hold when a long running command exits' 'lpm:Low Power Mode while a listed app is frontmost')
+                    _describe -t auto_opts 'automation' auto_opts
+                    ;;
                 json)
                     local -a json_opts
                     json_opts=('--watch:Stream NDJSON every second' '-w:Stream NDJSON')
@@ -38,6 +56,36 @@ _byp() {
                     local -a mon_opts
                     mon_opts=('--export:Export session log directly')
                     _describe -t mon_opts 'mon options' mon_opts
+                    ;;
+            esac
+            ;;
+        args)
+            case $words[2] in
+                caffeinate)
+                    if [[ $words[3] == auto ]]; then
+                        local -a auto_state
+                        auto_state=('on:Hold while a bypass hold is active' 'off:Stop holding on bypass')
+                        _describe -t auto_state 'auto state' auto_state
+                    fi
+                    ;;
+                auto)
+                    case $words[3] in
+                        run)
+                            local -a run_opts
+                            run_opts=('--quiet:Only print errors' '--force:Run even when byper.app is running')
+                            _describe -t run_opts 'run options' run_opts
+                            ;;
+                        plug|login|display|off-on-exit)
+                            local -a state_opts
+                            state_opts=('on:Enable' 'off:Disable')
+                            _describe -t state_opts 'state' state_opts
+                            ;;
+                        lpm)
+                            local -a lpm_actions
+                            lpm_actions=('add:Add a bundle id' 'remove:Remove a bundle id' 'list:List the bundle ids' 'clear:Remove every bundle id')
+                            _describe -t lpm_actions 'auto lpm action' lpm_actions
+                            ;;
+                    esac
                     ;;
             esac
             ;;
