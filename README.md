@@ -7,10 +7,9 @@ Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
 It holds your battery at whatever level you want and runs the whole computer off the charger (not from the battery, that's the whole point), so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
-You don't need a local toolchain, you can just click on Actions > Build and you'll get a `.pkg` and a `.dmg` (see [building](https://github.com/Unnidentified/byper/edit/main/README.md#building))
+You don't need a local toolchain, you can just click on [Actions > Build](https://github.com/Unnidentified/byper/actions/workflows/build.yml) and you'll get a `.pkg` and a `.dmg` (see [building](#building)).
 
-
-<img width="2446" height="336" alt="byper-pill-preview" src="https://github.com/user-attachments/assets/13371055-899b-421b-8440-22592709d901" />
+<img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
 <img src="docs/images/popover.png" alt="The byper popover on a light, a mixed and a dark wallpaper" width="100%" />
 
@@ -74,6 +73,8 @@ byper s          # One-line status summary
 byper p          # Hardware power rails (SoC, DRAM, PMIC, cells, top process)
 byper json       # Telemetry snapshot formatted as JSON
 byper mon        # Continuous timestamped stream (non-TTY friendly)
+byper mon --export   # Write the session log to the Desktop
+byper lpm on|off # Low Power Mode
 byper help       # Command usage
 ```
 
@@ -103,7 +104,7 @@ Because the attach takes seconds, the UI's verify-poll gates truth and the engin
 | Requirement | Why |
 |---|---|
 | apple silicon (M1-M4) | Builds target `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps |
-| macOS 11 Big Sur or newer | Oldest release running Apple Silicon. App Intents need macOS 13+ |
+| macOS 11 Big Sur or newer | Oldest release running Apple Silicon. App Intents need macOS 13+. The Liquid Glass popover needs macOS 26; older systems get the previous dark solid shell |
 | SIP debug flag disabled | Bypass attaches to `PowerUIAgent` with lldb, which stock SIP refuses |
 | command line tools | The installer sets them up if missing |
 

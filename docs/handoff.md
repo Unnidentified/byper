@@ -1,56 +1,184 @@
 # Handoff
 
-This is the briefing for the next agent working on byper. Read it before touching anything. It describes the code as it stands on `main` after PR #7, not the older docs that used to live in this folder.
+You are reading the briefing for whoever works on byper next. It is written for
+a person or a model with no prior context. Read it top to bottom before you
+touch a file. It tells you what the project is, how to get it running, how to
+change it without breaking it, and what is already known to be wrong.
+
+Everything here describes `main` as it stands today. If a claim in this file
+turns out to be false, fix the file in the same PR that proves it wrong. A stale
+handoff is worse than no handoff.
 
 ## What byper is
 
-A charge-bypass tool for Apple Silicon Macs. It holds the battery at the current level and runs the machine from the charger at 0 mA net battery draw. Two programs:
+A charge-bypass tool for Apple Silicon Macs. It holds the battery at whatever
+level it is at and runs the machine from the charger, so net battery draw is
+0 mA. It also carries a battery toolkit: power rail telemetry, Low Power Mode
+control, caffeinate, automations and a session logger.
 
-- `byper`: C/Obj-C CLI, SUID root, owns the power logic.
-- `byper.app`: SwiftUI menu bar app, shells out to the CLI.
+Two programs, one engine:
 
-## Current state
+| Program | Language | Role |
+|---|---|---|
+| `byper` | C and Objective-C | Owns the power logic, the SMC reads and the bypass injection. Installed SUID root. |
+| `byper.app` | Swift and SwiftUI | Menu bar app. Never touches hardware. Shells out to the CLI and parses its JSON. |
 
-- `main` is at the merge of PR #12, the Liquid Glass popover.
-- The latest release is `v3.0.0`, the Liquid Glass redesign. Assets: `byper-installer-3.0.0.pkg`, `.dmg`, `SHA256SUMS.txt`.
-- `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are both `3.0.0`. They used to drift apart; bump them together. The scheme is in [releasing.md](releasing.md).
-- CI: `.github/workflows/ci.yml` runs on every PR and push to `main`. Jobs: `changes` (diff filter), `checks` (shell syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links), `compile` (`make all`, artifact checks, CLI smoke test).
-- Build: `.github/workflows/build.yml` is manual (`workflow_dispatch`). It builds, packages, and optionally creates a release. It is not triggered by pushes.
+The split is deliberate. The privileged code stays small and testable from a
+terminal, and the app can be rewritten without going near the engine.
 
-## Repo layout
+## Get running
+
+You need an Apple Silicon Mac. The build targets `arm64-apple-macos11.0` and
+will not produce a working binary anywhere else.
+
+```bash
+git clone https://github.com/Unnidentified/byper.git
+cd byper
+make all                  # bin/byper, bin/byper-mon.command, byper.app
+./pkg/build_pkg.sh        # byper-installer.pkg and byper-installer.dmg
+```
+
+`make all` is the whole build. There is no package manager, no lockfile and no
+generated project. `BYPER_VERSION=3.0.1 ./pkg/build_pkg.sh` overrides the
+version stamped into the package.
+
+To run the app you just built, without installing it:
+
+```bash
+./byper.app/Contents/MacOS/byper
+```
+
+Do not copy the build into `/Applications` while you are iterating. The
+installed copy and the dev copy fight over the status item and the Cmd+Opt+B
+hotkey, and you will spend an hour debugging a stale binary.
+
+There is no unit test suite. The test gate is the CI compile job, which builds,
+checks the artifacts, verifies the signature and runs `./bin/byper --help`. Run
+the same thing locally before you push:
+
+```bash
+make clean && make all
+test -x bin/byper && test -x byper.app/Contents/MacOS/byper
+codesign --verify --deep --strict byper.app
+./bin/byper --help | grep -q Usage:
+```
+
+Anything that touches the bypass engine needs a real machine with a charger
+attached. There is no way to fake it. If you cannot test it on hardware, say so
+in the PR instead of claiming it works.
+
+## How to work on this repo
+
+### Forking and upstreaming
+
+Fork the repo, work on your fork, open a PR against `main`. Direct pushes to
+`main` are not part of the workflow, including for the maintainer.
+
+If you are working from a clone with push access, the same rules apply: branch,
+push the branch, open a PR, let CI run, then merge.
+
+### Branches
+
+Short lived, named `type/short-description`, where type is one of `feat`, `fix`,
+`docs`, `chore`, `ci`, `refactor`. Examples: `fix/pill-digit-height`,
+`docs/handoff-rewrite`, `feat/auto-lpm-per-app`.
+
+One concern per branch. If you find an unrelated bug while working, open a
+separate PR for it. A PR that fixes a bug and reformats a file cannot be
+reviewed.
+
+### Commits
+
+Format is `type: description`, lowercase, no scope, no trailing period.
+
+```
+fix: keep the pill readable on a bright menu bar
+docs: rewrite the handoff for a new contributor
+```
+
+Never `feat(popover): ...`. Never a `Generated by ...` trailer. Never an em dash
+or an en dash, in a commit message, a comment, a doc or a UI string. Use a
+comma, a colon or parentheses instead.
+
+Squash on merge. The PR title becomes the commit on `main`, so write the PR
+title in the same format.
+
+### Before you open a PR
+
+1. `make clean && make all` passes with no new warnings.
+2. You ran the app and looked at what you changed. For anything visual, attach a
+   before and after screenshot to the PR. A UI claim without a screenshot is not
+   reviewable.
+3. Your diff contains only what the PR says it contains. No drive-by renames, no
+   reformatting, no dead code left behind.
+4. You did not bump the version. Version bumps are their own commit, made when
+   cutting a release. See [releasing.md](releasing.md).
+5. You did not commit a `.pkg`, a `.dmg`, a build artifact or a screenshot that
+   belongs in a release asset.
+
+### Reviewing
+
+CI must be green. The `compile` job is skipped when a PR touches no source, so
+a docs-only PR only needs `checks`.
+
+Read the diff, not the description. If a change touches `src/powerui.m`,
+`src/smc.c` or the install path, ask what hardware it was tested on.
+
+### Things that will get a PR rejected
+
+- Reintroducing the `VANILLA` build guards. They were removed on purpose.
+- Writing to SMC charge keys. The firmware rejects them.
+- Signalling `powerd`.
+- Persisting a manual charge limit below 100.
+- Making the Build workflow run on push. It is manual by design.
+- Adding a dependency. The project has none and wants none.
+- Documenting Threshold or Slow Charge as live features. They are disabled.
+
+## Code map
 
 | Path | Role |
 |---|---|
-| `src/main.c` | CLI dispatcher, TUI, JSON, status, rails, export |
-| `src/powerui.m` | PowerUIAgent lookup, lldb scripts, hold enable/disable, verify polls |
+| `src/main.c` | CLI dispatcher, TUI, JSON output, status, rails, export |
+| `src/powerui.m` | PowerUIAgent lookup, lldb scripts, hold enable and disable, verify polls |
 | `src/smc.c` | AppleSMC user client, key reads |
-| `src/battery.c` | IOKit power-source parsing |
+| `src/battery.c` | IOKit power source parsing |
 | `src/power.c` | Rail telemetry |
-| `src/app/AppDelegate.swift` | Status item, popover, hotkey, appearance KVO, privileged install |
+| `src/app/AppDelegate.swift` | Status item, popover lifecycle, hotkey, appearance KVO, privileged install |
 | `src/app/BatteryMonitor.swift` | Observable state, polling, automations, presets, logger |
-| `src/app/BatteryDropdownView.swift` | Popover UI |
-| `src/app/GlassPopover.swift` | Liquid Glass shell, notch shape, sunken card, status pill, panel controller |
-| `src/app/BatteryPillIcon.swift` | Native menu bar icon |
-| `src/app/CLIEngineBridge.swift` | Runs the CLI, decodes JSON, LPM calls |
-| `src/app/ByperIntents.swift` | App Intents (macOS 13+) |
-| `src/app/install_helper.c` | Root helper for the admin-dialog install |
+| `src/app/BatteryDropdownView.swift` | Popover content |
+| `src/app/GlassPopover.swift` | Glass shell, notched outline, sunken card, status pill, panel controller, core tuning |
+| `src/app/PopoverTuning+Outline.swift` | Notch and corner constants |
+| `src/app/PopoverTuning+Depth.swift` | Card depth constants |
+| `src/app/PopoverTuning+TopBar.swift` | Top bar and progress tail constants |
+| `src/app/BatteryPillIcon.swift` | Menu bar icon, drawn natively |
+| `src/app/CLIEngineBridge.swift` | Runs the CLI, decodes JSON, Low Power Mode calls |
+| `src/app/ByperIntents.swift` | App Intents, macOS 13 and later |
+| `src/app/install_helper.c` | Root helper for the admin dialog install |
 | `pkg/` | Package builder, preinstall, postinstall, uninstaller |
 | `completions/` | Zsh and Bash completions |
 | `docs/` | This folder |
 
-## Build and test
+The Makefile lists Swift sources explicitly in `SWIFT_SRC`. A new `.swift` file
+is invisible to the build until you add it there. That is the single most common
+"why is my change not doing anything" mistake in this repo.
 
-```bash
-make all                  # bin/byper, bin/byper-mon.command, byper.app
-./pkg/build_pkg.sh        # byper-installer.pkg + .dmg
-BYPER_VERSION=3.0.0 ./pkg/build_pkg.sh
-```
+## The bypass engine
 
-There is no unit test suite. The CI compile job is the test gate: it builds, checks the artifacts, verifies the signature, and runs `./bin/byper --help`. Run the same locally before pushing.
+This is the part you must not break. Read it before changing anything in
+`src/powerui.m`.
 
-## The bypass mechanism
+macOS has no public API for "stop charging at the current level". The charging
+state lives in `PowerUIAgent`, a system daemon, in memory. It is not persisted
+and not externally controllable.
 
-`src/powerui.m` finds `PowerUIAgent` by PID with `sysctl`. It writes an lldb script to `/tmp/byp_cmd_<pid>_<time>.lldb` and forks a worker that runs `lldb -p <pid> --batch -s <script>` as root. The parent returns immediately.
+So byper attaches to it:
+
+1. Find `PowerUIAgent` by PID with `sysctl`. No subprocess.
+2. Write an lldb batch script to `/tmp/byp_cmd_<pid>_<time>.lldb`, serialized
+   with a lock file.
+3. Fork an orphaned worker that runs `lldb -p <pid> --batch -s <script>` as
+   root. The parent returns immediately.
+4. Poll the hardware until it reports the hold. Never trust the lldb exit code.
 
 The enable script calls `PowerUISmartChargeManager`:
 
@@ -66,108 +194,208 @@ id $m = (id)[PowerUISmartChargeManager manager];
 (void)[$m handleNewBatteryLevel:<soc> whileExternalConnected:1 fullyCharged:0];
 ```
 
-The disable script calls `clearAllChargeLimits`, `clearManualChargeLimit`, `clearMCLOverride`, `disableMCL`, `setReachedTargetSoC:0`, `setOverrideAllSignals:0`, `setBecameOBCEligible:0`, `setDisabledUntilDate:nil`, `enableCharging`, and `handleNewBatteryLevel:whileExternalConnected:fullyCharged:`.
+The disable script calls `clearAllChargeLimits`, `clearManualChargeLimit`,
+`clearMCLOverride`, `disableMCL`, `setReachedTargetSoC:0`,
+`setOverrideAllSignals:0`, `setBecameOBCEligible:0`, `setDisabledUntilDate:nil`,
+`enableCharging`, and `handleNewBatteryLevel:whileExternalConnected:fullyCharged:`.
 
-Both paths post `com.apple.powerui.smartchargestatuschanged` and `com.apple.powerui.mclstatuschanged`, kick the kernel battery manager, and poll the hardware. The retry curve is 1.5s, 3.5s, 6s, 10s, then every 15s, capped at 45s. The result is the hardware truth, not the lldb exit code.
+Both paths post `com.apple.powerui.smartchargestatuschanged` and
+`com.apple.powerui.mclstatuschanged`, kick the kernel battery manager, and poll.
+The retry curve is 1.5s, 3.5s, 6s, 10s, then every 15s, capped at 45s.
 
-Direct SMC writes to the charge-limit keys do not work on Apple Silicon. `CHBI` writes are rejected by the firmware. Do not try to replace the injection with an SMC write.
+Direct SMC writes to the charge-limit keys do not work on Apple Silicon. `CHBI`
+writes are rejected by the firmware. Do not try to replace the injection with an
+SMC write. It has been tried.
 
-## The truth table
+### The truth table
 
 | State | AC | IsCharging | NCR | Amps |
 |---|---|---|---|---|
 | hold | attached | no | `0x01000000` | abs < 100 mA |
 | charging | attached | yes | 0 | positive |
-| idle / full | attached | no | 0 | abs <= 100 mA, SoC >= 95% |
+| idle or full | attached | no | 0 | abs <= 100 mA, SoC >= 95% |
 | on battery | detached | no | any | negative |
 
-Parse amperage as a signed 16/32-bit integer. Raw registry dumps can wrap negative values as unsigned two's complement.
+Parse amperage as a signed 16 or 32 bit integer. Raw registry dumps can wrap
+negative values as unsigned two's complement.
 
 ## The app
 
-`AppDelegate.swift` owns the status item and the popover. `BatteryMonitor.swift` is the observable state hub. `BatteryDropdownView.swift` is the popover. `CLIEngineBridge.swift` runs the CLI and decodes its JSON.
+`AppDelegate.swift` owns the status item and the popover lifecycle.
+`BatteryMonitor.swift` is the observable state hub. `BatteryDropdownView.swift`
+is the popover content. `CLIEngineBridge.swift` runs the CLI and decodes JSON.
 
 Polling:
 
 - 2s while the popover is open.
 - 4s in the background.
-- 1s auto-LPM reconcile.
-- The first poll is delayed by 300ms so the status item does not blink when the popover opens.
-- Timers are added to `RunLoop.main` in `.common` mode so they keep firing while menus track the cursor or the screen sleeps.
+- 1s auto Low Power Mode reconcile.
+- The first poll is delayed 300ms so the status item does not blink on open.
+- Timers go on `RunLoop.main` in `.common` mode, so they keep firing while a
+  menu tracks the cursor or the screen sleeps. `Timer.scheduledTimer` uses
+  `.default` and stalls. Do not use it here.
 
-The popover is 244pt wide and locked to `darkAqua`. On macOS 13+ the hosting controller uses `NSHostingSizingOptions.preferredContentSize`. Every expandable flag must still be in the `Publishers.Merge` in `applicationDidFinishLaunching` for the older path.
+The global hotkey is Cmd+Opt+B, registered through Carbon. App Intents expose
+bypass on, off and toggle on macOS 13 and later.
 
-The global hotkey is Cmd+Opt+B. App Intents expose bypass on, off and toggle on macOS 13+.
+### The popover
 
-## The menu bar icon
+On macOS 26 and later the shell and its notch are one continuous Liquid Glass
+shape, hosted in a borderless non-activating `NSPanel` anchored under the status
+item. The notch is spliced into the same path as the body, which is what keeps
+the two reading as one piece. Two separate glass views would show a seam.
 
-`BatteryPillIcon.swift` draws the icon natively. No PNGs.
+The panel is `hasShadow = false` on purpose. AppKit derives the window shadow
+from the alpha channel, and a partly transparent shell makes it fall back to a
+rectangular mask, which paints a hard square behind the rounded corners.
+`invalidateShadow()` does not fix it. The glass supplies its own depth.
 
-- Design space 30 x 14, default height 12pt.
+The inner card is opaque and sits on the glass as a sunken panel: a dark rim
+above, a light rim below, and an inner shadow clipped to the card. It is not
+part of the glass and must not be given a `.glassEffect`.
+
+Reduce Transparency, or a system older than macOS 26, falls back to the previous
+dark solid shell.
+
+Every tunable lives in `PopoverTuning` and its three extensions. Change a
+constant there, not a literal in a view. The current values:
+
+| Constant | Value |
+|---|---|
+| `shellWidth` | 244 |
+| `cornerRadius` | 26 (card 15 plus the 11 pt gutter, so the arcs share a centre) |
+| `topRightCornerRadius` | 5, continuous |
+| `notchBaseWidth` | 23 |
+| `notchCaretHeight` | 10.5 |
+| `notchShoulderFillet` | 4 |
+| `notchTipRadius` | 2 |
+| `topBarTopInset` | 8 |
+| `tailLength` / `tailDrop` / `tailFadeLength` | 26 / 4 / 24 |
+| `cardCornerRadius` | 15 |
+| `innerShadowOpacity` / `Radius` / `OffsetY` | 0.45 / 6 / 3 |
+| `rimShadowOpacity` / `rimLightOpacity` | 0.40 / 0.30 |
+| `closeDuration` | 0.13, or 0.10 with Reduce Motion |
+| `shellStyle` | `.clear`, brown tint at 0.20. `.dark` is 0.45 |
+
+### The menu bar icon
+
+`BatteryPillIcon.swift` draws the icon natively. There are no PNGs and there
+should not be any again.
+
+- Design space 30 x 14, drawn at 12pt.
 - Body 27 x 14, corner radius 4.2.
-- Nub: x 28.3 to 29.9, y 4.65 to 9.35, right corners r0.8, flat left.
-- Digit ink height 8.4, font size about 11.92, centred on the ink bounding box.
+- Nub: x 28.3 to 29.9, y 4.65 to 9.35, right corners r0.8, flat left, 1.3 clear
+  of the body.
+- Digit ink height 8.4, font size derived from the font's cap height (about
+  11.92), centred on the ink bounding box, not the line box.
 - Fill width `round(27 * level / 100)`.
-- Track opacity 0.44 for the idle pill, 0.20 for the coloured pills. Nub opacity 0.55.
+- Track opacity 0.44 for the idle pill, 0.20 for the coloured pills. Nub 0.55.
 - Base ink black at 0.93 alpha, paper white at 0.93 alpha.
-- Mode colours: charging `#30D158`, bypass `#DC8038`, low power `#FFD60A`, low battery `#FF453A`.
+- Mode colours: charging `#30D158`, bypass `#DC8038`, low power `#FFD60A`, low
+  battery `#FF453A`.
 - The track and nub use the menu bar ink, not the mode colour.
-- The number uses the menu bar text colour: black on a light bar, white on a dark one. The idle pill is the exception, where the number is a knockout.
-- The drawing handler reads `NSAppearance.currentDrawing()` to decide light or dark.
-- `AppDelegate` observes `button.effectiveAppearance`, filters to `.vibrantDark` and `.vibrantLight`, and calls `refreshIcon()` when the value changes. That is the wallpaper signal. `NSApp.effectiveAppearance` follows the system mode, not the menu bar, so do not use it.
+- The number uses the menu bar text colour: black on a light bar, white on a
+  dark one. The idle pill is the exception, where the number is a knockout.
 
-## Live features
+The drawing handler reads `NSAppearance.currentDrawing()` to decide light or
+dark. `AppDelegate` observes `button.effectiveAppearance`, filters to
+`.vibrantDark` and `.vibrantLight`, and calls `refreshIcon()` when the value
+changes. That is the wallpaper signal. `NSApp.effectiveAppearance` follows the
+system mode, not the menu bar, so it is the wrong signal.
+
+## What is live, and what is not
+
+Live:
 
 - Bypass toggle, with "Off on exit".
 - Powersave (Low Power Mode), manual plus per-app auto-LPM.
 - Caffeinate, manual plus "On Bypass".
-- Settings: Auto Bypass on Connect, at Login, on Display; Logger; Export; Presets Travel and Docked.
-- The master slider on the left is a continuous level. It fades and disables the rows as it descends. Full-off snapshots the state, full-on restores it.
+- Settings: Auto Bypass on Connect, at Login, on Display; Logger; Export;
+  Presets Travel and Docked.
+- The master slider on the left. It fades and disables the rows as it descends.
+  Full off snapshots the state, full on restores it.
 - The logger writes `byper-session-<timestamp>.csv` to the Desktop.
 - Global hotkey Cmd+Opt+B.
 - App Intents for bypass on, off and toggle.
 
-## Disabled features
+Not live. Do not document these as features:
 
-Do not document these as live:
-
-- **Threshold.** `checkAutoBypassThreshold()` disables the flag on launch. The trigger only engaged while freshly toggled and had reliability issues.
-- **Slow Charge.** The `slowChargeEnabled` setter forces the flag off. The duty cycle could re-engage bypass after a while.
+- **Threshold.** `checkAutoBypassThreshold()` disables the flag on launch. The
+  trigger only engaged while freshly toggled and was unreliable.
+- **Slow Charge.** The `slowChargeEnabled` setter forces the flag off. The duty
+  cycle could re-engage bypass after a while.
 
 ## Hard constraints
 
-- SUID is load-bearing. A non-SUID CLI prints `enabled [✓]` and does nothing. After any reinstall or copy, re-apply `chown root:wheel` and `chmod 4755`.
+- SUID is load-bearing. A non-SUID CLI prints `enabled [✓]` and does nothing.
+  After any reinstall or copy, re-apply `chown root:wheel` and `chmod 4755`.
 - Never write SMC charge keys. They are read-only on Apple Silicon.
 - Never signal `powerd`.
-- Never persist an MCL below 100.
-- No em dashes or en dashes in docs, comments, commits or UI strings.
-- No "Generated by Mistral Vibe" trailer in commits.
-- Commit format is `type: description`, no scope. Never `feat(xxx):`.
-- Workflow: fix, give the installer, wait for feedback, then open a PR, then the user merges.
-- The Build workflow stays manual. CI is a test gate, not an auto-build.
+- Never persist a manual charge limit below 100.
+- No em dashes or en dashes anywhere.
 - No emoji in UI or CLI output.
+- No dependencies. The build is `make` and the system toolchain.
+- The Build workflow stays manual. CI is a test gate, not an auto-build.
+
+## Current state
+
+- `main` is at the merge of PR #14, the README screenshot.
+- The latest release is `v3.0.0`, the Liquid Glass redesign. Assets:
+  `byper-installer-3.0.0.pkg`, `.dmg`, `SHA256SUMS.txt`, and
+  `popover-comparison.png` for the release notes.
+- `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
+  both `3.0.0`. They used to drift apart. Bump them together.
+- CI is `.github/workflows/ci.yml`: `changes` (diff filter), `checks` (shell
+  syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links
+  and anchors), `compile` (`make all`, artifact checks, CLI smoke test).
+- Build is `.github/workflows/build.yml`, manual, with `version` and `release`
+  inputs. It is not triggered by pushes.
 
 ## Known issues
 
-- `pkg/postinstall` still mentions "vanilla branch" and `byper-vanilla.app`. It is legacy cleanup. Do not reintroduce the vanilla variant.
-- `install.sh` prints `byper stream` and `byper json --watch`. Neither command exists. The real ones are `byper mon` and `byper json`.
-- `pkg/Distribution.xml` has a hardcoded `2.3.1` title. `build_pkg.sh` replaces it with `TITLE`. Do not edit the title by hand.
-- `uninstall.sh` only removes files. It does not release a hold or clear LPM. The package uninstaller does.
-- `runPrivilegedInstall` in `AppDelegate.swift` has hardcoded project paths under `/Users/gefaass`.
+These are real and unfixed. None of them are urgent.
+
+- `pkg/postinstall` still mentions "vanilla branch" and `byper-vanilla.app`. It
+  is legacy cleanup for upgrades over the old variant. Do not reintroduce the
+  variant.
+- `install.sh` prints `byper stream` and `byper json --watch` at the end.
+  Neither command exists. The real ones are `byper mon` and `byper json`.
+- `pkg/Distribution.xml` has a hardcoded `2.3.1` in its title. `build_pkg.sh`
+  replaces it with `TITLE`. Do not edit the title by hand.
+- `uninstall.sh` only removes files. It does not release a hold or clear Low
+  Power Mode. The package uninstaller does.
+- `runPrivilegedInstall` in `AppDelegate.swift` has hardcoded project paths
+  under `/Users/gefaass`.
 - `src/main.c` falls back to `/Users/gefaass` for the Desktop export path.
-- The stock menu bar battery can lag the app by one level in screenshots. Check the stock digits before comparing.
-- The status item button's `effectiveAppearance` fires a storm of `Aqua`, `DarkAqua` and `Vibrant*` values on click. The KVO filters to the vibrant pair and guards against repeats, so it does not re-render on click.
+- The status item button's `effectiveAppearance` fires a storm of `Aqua`,
+  `DarkAqua` and `Vibrant*` values on click. The KVO filters to the vibrant pair
+  and guards against repeats, so it does not re-render on click. Do not widen
+  that filter.
+- The stock menu bar battery can lag the app by one level in screenshots. Check
+  the stock digits before comparing anything.
 - `NSAppearance.current` is deprecated. Use `NSAppearance.currentDrawing()`.
-- `NSAppearance.currentDrawingAppearance` is renamed to `currentDrawing()` in this SDK.
-- `NSWorkspace.desktopImageDidChangeNotification` does not exist in this SDK. The wallpaper signal is the button's `effectiveAppearance`.
+- `NSWorkspace.desktopImageDidChangeNotification` does not exist in this SDK.
+  The wallpaper signal is the button's `effectiveAppearance`.
 
 ## Where to look
 
-- Bypass not landing: `src/powerui.m`, `spawn_hold_enable_script`, `powerui_enable_hold`.
-- CLI JSON fields: `src/main.c`, `print_status`.
-- App polling: `BatteryMonitor.startActivePolling`, `startBackgroundPolling`.
-- Menu bar icon: `BatteryPillIcon.swift`.
-- Popover layout: `BatteryDropdownView.swift`.
-- Package: `pkg/build_pkg.sh`, `pkg/preinstall`, `pkg/postinstall`, `pkg/uninstall-postinstall`.
-- CI: `.github/workflows/ci.yml`.
-- Build and release: `.github/workflows/build.yml`.
+| Symptom | Start here |
+|---|---|
+| Bypass not landing | `src/powerui.m`, `spawn_hold_enable_script`, `powerui_enable_hold` |
+| CLI JSON fields | `src/main.c`, `print_status` |
+| App polling | `BatteryMonitor.startActivePolling`, `startBackgroundPolling` |
+| Menu bar icon | `BatteryPillIcon.swift` |
+| Popover layout | `BatteryDropdownView.swift` |
+| Popover chrome | `GlassPopover.swift`, then the `PopoverTuning` extensions |
+| Package | `pkg/build_pkg.sh`, `pkg/preinstall`, `pkg/postinstall`, `pkg/uninstall-postinstall` |
+| CI | `.github/workflows/ci.yml` |
+| Build and release | `.github/workflows/build.yml`, [releasing.md](releasing.md) |
+
+## The other docs
+
+- [architecture.md](architecture.md): how the pieces fit, for someone reading
+  the code for the first time.
+- [install.md](install.md): install, uninstall, the SUID bit.
+- [limitations.md](limitations.md): what byper cannot do, and why.
+- [troubleshooting.md](troubleshooting.md): symptom to fix.
+- [releasing.md](releasing.md): versioning, branches, cutting a release.

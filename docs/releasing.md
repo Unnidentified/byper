@@ -46,7 +46,22 @@ do not reuse its number. The next attempt is `beta.N+1`.
    `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push origin vX.Y.Z`.
 5. `gh release create vX.Y.Z` with the two assets and the sums. The title is the
    tag. Tick pre-release for a beta or an rc.
-6. The notes list what changed, then an Install section naming the two files.
+6. The notes follow the style below.
+
+## Release notes
+
+Write for someone deciding whether to install, not for someone reading the diff.
+
+- Open with a sentence about what changed for them. Not a heading. A release
+  that starts with "What's changed" every single time reads like a template.
+- Three to six bullets, in plain language. No file paths, no symbol names, no
+  bolded function names. Those belong in the commit, not the release.
+- Say what was broken before, if something was broken. "Reconnecting the charger
+  now brings bypass back" is better than "fixed reconcile guard".
+- Keep the checksums if the release has them. Keep the Install section naming
+  the two files.
+- A pre-release says what it is previewing and what might still move.
+- No em dashes, no emoji, no marketing adjectives.
 
 ## History
 

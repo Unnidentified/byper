@@ -3,7 +3,8 @@
 ## Requirements
 
 - Apple Silicon Mac (M1 or newer). The build target is `arm64-apple-macos11.0`.
-- macOS 11 Big Sur or newer.
+- macOS 11 Big Sur or newer. The Liquid Glass popover needs macOS 26; older
+  systems get the previous dark solid shell, and everything else works the same.
 - Command Line Tools, for `lldb`. The package installs them if they are missing.
 - SIP's debug restriction relaxed. See [limitations.md](limitations.md#sip).
 
