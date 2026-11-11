@@ -32,6 +32,12 @@
 #define CLR_GREEN   "\033[32m"
 #define CLR_CYAN    "\033[36m"
 #define CLR_YELLOW  "\033[33m"
+#define CLR_DIM_YELLOW "\033[2;33m" // muted secondary text in the monitor
+#define CLR_BRIGHT_YELLOW "\033[1;33m" // primary values in the monitor
+
+// Monitor geometry
+#define TUI_BAR_CELLS  20
+#define TUI_RULE_WIDTH 67
 
 static char *g_session_log = NULL;
 static size_t g_session_log_len = 0;
@@ -469,27 +475,28 @@ static void* action_worker_thread(void *arg) {
     return NULL;
 }
 
-static void format_flow_glyphs(char *out, size_t out_sz, bool active, bool is_valve_closed, const char *state_clr, int frame_idx) {
+static void format_flow_glyphs(char *out, size_t out_sz, bool active, bool is_valve_closed, int frame_idx) {
     if (!active) {
         if (is_valve_closed) {
-            snprintf(out, out_sz, CLR_DIM "✕" CLR_RESET " " CLR_DIM "✕" CLR_RESET " " CLR_DIM "✕" CLR_RESET);
+            snprintf(out, out_sz, CLR_DIM_YELLOW "×" CLR_RESET " " CLR_DIM_YELLOW "×" CLR_RESET " " CLR_DIM_YELLOW "×" CLR_RESET);
         } else {
-            snprintf(out, out_sz, CLR_DIM "▶" CLR_RESET " " CLR_DIM "▶" CLR_RESET " " CLR_DIM "▶" CLR_RESET);
+            snprintf(out, out_sz, CLR_DIM_YELLOW "►" CLR_RESET " " CLR_DIM_YELLOW "►" CLR_RESET " " CLR_DIM_YELLOW "►" CLR_RESET);
         }
         return;
     }
 
     int frame = frame_idx % 3;
     if (frame == 0) {
-        // Frame 1: [BRIGHT]▶[/BRIGHT] [DIM]▶[/DIM] [DIM]▶[/DIM]
-        snprintf(out, out_sz, "%s" CLR_BRIGHT "▶" CLR_RESET " " CLR_DIM "▶" CLR_RESET " " CLR_DIM "▶" CLR_RESET, state_clr);
+        snprintf(out, out_sz, CLR_CYAN "►" CLR_RESET " " CLR_DIM_YELLOW "►" CLR_RESET " " CLR_DIM_YELLOW "►" CLR_RESET);
     } else if (frame == 1) {
-        // Frame 2: [DIM]▶[/DIM] [BRIGHT]▶[/BRIGHT] [DIM]▶[/DIM]
-        snprintf(out, out_sz, CLR_DIM "▶" CLR_RESET " %s" CLR_BRIGHT "▶" CLR_RESET " " CLR_DIM "▶" CLR_RESET, state_clr);
+        snprintf(out, out_sz, CLR_DIM_YELLOW "►" CLR_RESET " " CLR_CYAN "►" CLR_RESET " " CLR_DIM_YELLOW "►" CLR_RESET);
     } else {
-        // Frame 3: [DIM]▶[/DIM] [DIM]▶[/DIM] [BRIGHT]▶[/BRIGHT]
-        snprintf(out, out_sz, CLR_DIM "▶" CLR_RESET " " CLR_DIM "▶" CLR_RESET " %s" CLR_BRIGHT "▶" CLR_RESET, state_clr);
+        snprintf(out, out_sz, CLR_DIM_YELLOW "►" CLR_RESET " " CLR_DIM_YELLOW "►" CLR_RESET " " CLR_CYAN "►" CLR_RESET);
     }
+}
+
+static void print_rule(void) {
+    for (int i = 0; i < TUI_RULE_WIDTH; i++) fputs("─", stdout);
 }
 
 static void live_view_run(void) {
@@ -700,10 +707,16 @@ static void live_view_run(void) {
         if (!pb_ok || !bi_ok) {
             if (tick == 0) printf("\033[H\033[2J");
             else printf("\033[H");
-            printf(CLR_DIM "[" CLR_RESET CLR_BRIGHT "%c" CLR_RESET CLR_DIM "]" CLR_RESET " " CLR_BRIGHT "%s" CLR_RESET "  " CLR_BRIGHT "+%lds" CLR_RESET "\033[K\n\n", spinner, time_str, elapsed);
-            printf("  read error\033[K\n\n");
-            printf(CLR_DIM "────────────────────────────────────────────────────────" CLR_RESET "\033[K\n");
-            printf(" " CLR_BRIGHT "[t]" CLR_RESET CLR_DIM " toggle hold/charge   " CLR_RESET CLR_BRIGHT "[e]" CLR_RESET CLR_DIM " export startup log   " CLR_RESET CLR_BRIGHT "[r]" CLR_RESET CLR_DIM " raw   " CLR_RESET CLR_BRIGHT "[q]" CLR_RESET CLR_DIM " quit" CLR_RESET "\033[K\n\033[J");
+            printf("  " CLR_DIM_YELLOW "[" CLR_RESET CLR_BRIGHT_YELLOW "%c" CLR_RESET CLR_DIM_YELLOW "]" CLR_RESET " "
+                   CLR_BRIGHT_YELLOW "%s" CLR_RESET "  " CLR_BRIGHT_YELLOW "+%lds" CLR_RESET "\033[K\n\n", spinner, time_str, elapsed);
+            printf("  " CLR_DIM_YELLOW "read error" CLR_RESET "\033[K\n\n");
+            printf(CLR_DIM_YELLOW);
+            print_rule();
+            printf(CLR_RESET "\033[K\n");
+            printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET CLR_DIM_YELLOW " toggle hold/charge  " CLR_RESET
+                   CLR_BRIGHT_YELLOW "[r]" CLR_RESET CLR_DIM_YELLOW " raw  " CLR_RESET
+                   CLR_BRIGHT_YELLOW "[e]" CLR_RESET CLR_DIM_YELLOW " export startup log  " CLR_RESET
+                   CLR_BRIGHT_YELLOW "[q]" CLR_RESET CLR_DIM_YELLOW " quit" CLR_RESET "\033[K\n\033[J");
             fflush(stdout);
             sleep(1);
             tick++;
@@ -759,8 +772,7 @@ static void live_view_run(void) {
         prev_ac_connected = pb.ac_connected;
 
         int ad_w = get_adapter_watts();
-        bool isCharging = (pb.ac_connected && (pb.is_charging || pb.battery_ma >= 50));
-        
+
         int cur_state = !pb.ac_connected ? 3 : (isHold ? 1 : 2);
         const char *cur_state_str = (cur_state == 1) ? "hold" : ((cur_state == 2) ? "charging" : "on battery");
 
@@ -930,28 +942,20 @@ static void live_view_run(void) {
             last_state = cur_state;
         }
 
-        // State color
-        const char *state_clr;
-        if (!pb.ac_connected) {
-            state_clr = CLR_YELLOW;
-        } else if (isHold) {
-            state_clr = CLR_CYAN;
-        } else {
-            state_clr = CLR_GREEN;
-        }
-
         int pct = pb.percentage;
         if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-        int filled = pct / 10;
-        if (filled < 0) filled = 0; if (filled > 10) filled = 10;
-        int empty = 10 - filled;
+        int filled = (pct * TUI_BAR_CELLS + 50) / 100;
+        if (filled < 0) filled = 0; if (filled > TUI_BAR_CELLS) filled = TUI_BAR_CELLS;
+        int gap = (filled > 0 && filled < TUI_BAR_CELLS) ? 1 : 0;
+        int empty = TUI_BAR_CELLS - filled - gap;
 
-        char bar_filled[64] = {0};
-        char bar_empty[64] = {0};
+        char bar_filled[128] = {0};
+        char bar_empty[128] = {0};
         char *pbf = bar_filled;
         char *pbe = bar_empty;
         for (int i = 0; i < filled; i++) pbf += sprintf(pbf, "█");
-        for (int i = 0; i < empty; i++) pbe += sprintf(pbe, "░");
+        for (int i = 0; i < gap; i++) pbf += sprintf(pbf, " ");
+        for (int i = 0; i < empty; i++) pbe += sprintf(pbe, "─");
 
         const char *batt_word;
         if (!pb.ac_connected) batt_word = "discharging";
@@ -966,25 +970,20 @@ static void live_view_run(void) {
         char batt_glyphs[128];
 
         if (pb.ac_connected) {
-            format_flow_glyphs(laptop_glyphs, sizeof(laptop_glyphs), laptop_active, false, state_clr, tick);
-            format_flow_glyphs(batt_glyphs, sizeof(batt_glyphs), batt_active, isHold || abs(pb.battery_ma) < 50, state_clr, tick);
+            format_flow_glyphs(laptop_glyphs, sizeof(laptop_glyphs), laptop_active, false, tick);
+            format_flow_glyphs(batt_glyphs, sizeof(batt_glyphs), batt_active, isHold || abs(pb.battery_ma) < 50, tick);
         } else {
             bool batt_discharging_active = (laptop_active || fabs(pb.battery_w) > 0.1);
-            format_flow_glyphs(batt_glyphs, sizeof(batt_glyphs), batt_discharging_active, false, CLR_YELLOW, tick);
+            format_flow_glyphs(batt_glyphs, sizeof(batt_glyphs), batt_discharging_active, false, tick);
         }
 
         char batt_detail[64];
         if (isHold || abs(pb.battery_ma) < 50) {
             snprintf(batt_detail, sizeof(batt_detail), "0 mA, valve closed");
-        } else if (isCharging || pb.battery_ma >= 50) {
-            if (is_settling) snprintf(batt_detail, sizeof(batt_detail), "~+%.1f A", (double)pb.battery_ma / 1000.0);
-            else snprintf(batt_detail, sizeof(batt_detail), "+%.1f A", (double)pb.battery_ma / 1000.0);
-        } else if (!pb.ac_connected) {
-            if (is_settling) snprintf(batt_detail, sizeof(batt_detail), "~-%.1f A", -(double)pb.battery_ma / 1000.0);
-            else snprintf(batt_detail, sizeof(batt_detail), "-%.1f A", -(double)pb.battery_ma / 1000.0);
+        } else if (is_settling) {
+            snprintf(batt_detail, sizeof(batt_detail), "~%+d mA, valve open", pb.battery_ma);
         } else {
-            if (is_settling) snprintf(batt_detail, sizeof(batt_detail), "~+%.1f A", (double)fmax(pb.battery_ma, 0) / 1000.0);
-            else snprintf(batt_detail, sizeof(batt_detail), "+%.1f A", (double)fmax(pb.battery_ma, 0) / 1000.0);
+            snprintf(batt_detail, sizeof(batt_detail), "%+d mA, valve open", pb.battery_ma);
         }
 
         // Power number strings with settling tildes and cross-check asterisk
@@ -993,19 +992,27 @@ static void live_view_run(void) {
         char adapter_str[32];
 
         if (show_rail_sum_asterisk) {
-            if (is_settling) snprintf(laptop_w_str, sizeof(laptop_w_str), "~%4.1f W*", rail_sum_w);
-            else snprintf(laptop_w_str, sizeof(laptop_w_str), " %4.1f W*", rail_sum_w);
+            if (is_settling) snprintf(laptop_w_str, sizeof(laptop_w_str), "~%.1f W*", rail_sum_w);
+            else snprintf(laptop_w_str, sizeof(laptop_w_str), "%.1f W*", rail_sum_w);
         } else {
-            if (is_settling) snprintf(laptop_w_str, sizeof(laptop_w_str), "~%4.1f W", pb.total_system_w);
-            else snprintf(laptop_w_str, sizeof(laptop_w_str), " %4.1f W", pb.total_system_w);
+            if (is_settling) snprintf(laptop_w_str, sizeof(laptop_w_str), "~%.1f W", pb.total_system_w);
+            else snprintf(laptop_w_str, sizeof(laptop_w_str), "%.1f W", pb.total_system_w);
         }
 
-        if (is_settling) snprintf(batt_w_str, sizeof(batt_w_str), "~%4.1f W", fabs(pb.battery_w));
-        else snprintf(batt_w_str, sizeof(batt_w_str), "%5.1f W", fabs(pb.battery_w));
+        if (is_settling) snprintf(batt_w_str, sizeof(batt_w_str), "~%.1f W", fabs(pb.battery_w));
+        else snprintf(batt_w_str, sizeof(batt_w_str), "%.1f W", fabs(pb.battery_w));
 
         int disp_ad_w = ad_w > 0 ? ad_w : (int)(pb.dc_in_w + 0.5f);
         if (is_settling) snprintf(adapter_str, sizeof(adapter_str), "adapter ~%d W", disp_ad_w);
         else snprintf(adapter_str, sizeof(adapter_str), "adapter %d W", disp_ad_w);
+
+        // Adapter utilisation: laptop draw as a share of the adapter rating
+        char load_str[48] = {0};
+        if (disp_ad_w > 0) {
+            int load_pct = (int)(pb.total_system_w / (double)disp_ad_w * 100.0 + 0.5);
+            if (load_pct < 0) load_pct = 0;
+            snprintf(load_str, sizeof(load_str), CLR_DIM_YELLOW "  %d%% load" CLR_RESET, load_pct);
+        }
 
         // Estimate line under battery bar (ADDENDUM 6: omitted entirely while on hold)
         char est_line_colored[256];
@@ -1022,8 +1029,8 @@ static void live_view_run(void) {
                 mins = (int)((rem_wh / dischg_w) * 60.0 + 0.5);
             }
             if (mins < 1) mins = 1;
-            if (mins >= 60) snprintf(est_line_colored, sizeof(est_line_colored), CLR_YELLOW "~%dh %02dm left at " CLR_RESET CLR_BRIGHT "%.1f W" CLR_RESET, mins / 60, mins % 60, dischg_w);
-            else snprintf(est_line_colored, sizeof(est_line_colored), CLR_YELLOW "~%dm left at " CLR_RESET CLR_BRIGHT "%.1f W" CLR_RESET, mins, dischg_w);
+            if (mins >= 60) snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "~%dh %02dm left at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f W" CLR_RESET, mins / 60, mins % 60, dischg_w);
+            else snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "~%dm left at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f W" CLR_RESET, mins, dischg_w);
         } else if (isHold || !pb.is_charging || pb.not_charging_reason != 0 || pb.battery_ma < 500) {
             est_line_colored[0] = '\0';
         } else {
@@ -1035,8 +1042,8 @@ static void live_view_run(void) {
             if (cur_a < 0.5) cur_a = 0.5;
             int mins = (int)((rem_mah / (cur_a * 1000.0)) * 60.0 + 0.5);
             if (mins < 1) mins = 1;
-            if (mins >= 60) snprintf(est_line_colored, sizeof(est_line_colored), CLR_GREEN "full in ~%dh %02dm at " CLR_RESET CLR_BRIGHT "%.1f A" CLR_RESET, mins / 60, mins % 60, cur_a);
-            else snprintf(est_line_colored, sizeof(est_line_colored), CLR_GREEN "full in ~%dm at " CLR_RESET CLR_BRIGHT "%.1f A" CLR_RESET, mins, cur_a);
+            if (mins >= 60) snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "full in ~%dh %02dm at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET, mins / 60, mins % 60, cur_a);
+            else snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "full in ~%dm at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET, mins, cur_a);
         }
 
         char batt_word_colored[64];
@@ -1073,73 +1080,71 @@ static void live_view_run(void) {
         if (tick == 0) printf("\033[H\033[2J");
         else printf("\033[H");
 
-        // Header: [spinner] wall-clock, +elapsed (ADDENDUM 6: state word renders only once on battery line)
-        printf(CLR_DIM "[" CLR_RESET CLR_BRIGHT "%c" CLR_RESET CLR_DIM "]" CLR_RESET " " CLR_BRIGHT "%s" CLR_RESET "  " CLR_BRIGHT "+%lds" CLR_RESET "\033[K\n\n",
+        // Header: spinner, wall clock, elapsed since the monitor started
+        printf("  " CLR_DIM_YELLOW "[" CLR_RESET CLR_BRIGHT_YELLOW "%c" CLR_RESET CLR_DIM_YELLOW "]" CLR_RESET " "
+               CLR_BRIGHT_YELLOW "%s" CLR_RESET "  " CLR_BRIGHT_YELLOW "+%lds" CLR_RESET "\033[K\n\n",
                spinner, time_str, elapsed);
 
-        // Body: Active flow line contrast (Bold and bright in state color with progressive animated arrows vs Dim inactive)
-        if (pb.ac_connected) {
-            // Laptop Flow Line
-            if (laptop_active) {
-                printf(CLR_BRIGHT "  WALL " CLR_RESET "%s" CLR_BRIGHT " laptop    %s    %s" CLR_RESET "\033[K\n",
-                       laptop_glyphs, laptop_w_str, adapter_str);
-            } else {
-                printf(CLR_DIM "  WALL " CLR_RESET "%s" CLR_DIM " laptop    %s    %s" CLR_RESET "\033[K\n",
-                       laptop_glyphs, laptop_w_str, adapter_str);
-            }
-
-            // Battery Flow Line
-            if (batt_active) {
-                printf(CLR_BRIGHT "  WALL " CLR_RESET "%s" CLR_BRIGHT " battery   %s    %s" CLR_RESET "\033[K\n\n",
-                       batt_glyphs, batt_w_str, batt_detail);
-            } else {
-                printf(CLR_DIM "  WALL " CLR_RESET "%s" CLR_DIM " battery   %s    %s" CLR_RESET "\033[K\n\n",
-                       batt_glyphs, batt_w_str, batt_detail);
-            }
-        } else {
-            // Wall line unplugged
-            printf(CLR_DIM "  wall      unplugged" CLR_RESET "\033[K\n");
-
-            // Battery line active on battery
-            if (laptop_active || fabs(pb.battery_w) > 0.1) {
-                printf(CLR_BRIGHT "  BATT " CLR_RESET "%s" CLR_BRIGHT " laptop    %s    %s" CLR_RESET "\033[K\n\n",
-                       batt_glyphs, laptop_w_str, batt_detail);
-            } else {
-                printf(CLR_DIM "  BATT " CLR_RESET "%s" CLR_DIM " laptop    %s    %s" CLR_RESET "\033[K\n\n",
-                       batt_glyphs, laptop_w_str, batt_detail);
-            }
-        }
-
-        // Battery Bar: State word once on battery line in state color, next to % and time-in-state
-        printf("  " CLR_DIM "battery [" CLR_RESET CLR_BRIGHT "%s" CLR_RESET CLR_DIM "%s]" CLR_RESET " " CLR_BRIGHT "%d%%" CLR_RESET "  %s  " CLR_DIM "%s" CLR_RESET "\033[K\n",
-               bar_filled, bar_empty, pct, batt_word_colored, time_in_state_str);
-
-        // Estimate line under battery bar (ADDENDUM 6: omitted entirely while on hold)
-        if (cur_state != 1 && est_line_colored[0] != '\0') {
-            printf("  %s\033[K\n\n", est_line_colored);
-        } else {
-            printf("\n");
-        }
-
-        // Summary (ADDENDUM 6: dim prose \033[2m; only % and W/A numbers stay bright; state verbs not colored)
+        // Status sentence: what is powering the machine and what the battery is doing
         if (!pb.ac_connected) {
-            printf("  " CLR_DIM "> no wall power. battery is running the laptop." CLR_RESET "\033[K\n");
+            printf("  " CLR_DIM_YELLOW "> no wall power. battery is running the laptop." CLR_RESET "\033[K\n\n");
         } else if (isHold || abs(pb.battery_ma) < 50) {
-            printf("  " CLR_DIM "> wall is running the laptop. battery is resting at " CLR_RESET CLR_BRIGHT "%d%%" CLR_RESET CLR_DIM "." CLR_RESET "\033[K\n", pct);
+            printf("  " CLR_DIM_YELLOW "> wall is running the laptop. battery is resting at " CLR_RESET CLR_BRIGHT_YELLOW "%d%%" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\n", pct);
         } else {
             double chg_a = (double)fmax(pb.battery_ma, 0) / 1000.0;
             if (is_settling) {
-                printf("  " CLR_DIM "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT "~%.1f A" CLR_RESET CLR_DIM "." CLR_RESET "\033[K\n", chg_a);
+                printf("  " CLR_DIM_YELLOW "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT_YELLOW "~%.1f A" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\n", chg_a);
             } else {
-                printf("  " CLR_DIM "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT "%.1f A" CLR_RESET CLR_DIM "." CLR_RESET "\033[K\n", chg_a);
+                printf("  " CLR_DIM_YELLOW "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\n", chg_a);
             }
         }
 
-        // Raw
+        // Battery bar: filled and empty track, percentage, state word, time in state
+        printf("  " CLR_DIM_YELLOW "battery " CLR_RESET CLR_BRIGHT_YELLOW "%s" CLR_RESET CLR_DIM_YELLOW "%s" CLR_RESET " "
+               CLR_BRIGHT_YELLOW "%d%%" CLR_RESET "  %s  " CLR_DIM_YELLOW "%s" CLR_RESET "\033[K\n",
+               bar_filled, bar_empty, pct, batt_word_colored, time_in_state_str);
+
+        // Estimate line under the bar, omitted while the battery is resting
+        if (cur_state != 1 && est_line_colored[0] != '\0') {
+            printf("  %s\033[K\n", est_line_colored);
+            printf("\033[K\n");
+        } else {
+            printf("\033[K\n");
+        }
+
+        // Power flow rows: wall to laptop, then wall to battery
+        if (pb.ac_connected) {
+            if (laptop_active) {
+                printf("  " CLR_BRIGHT_YELLOW "WALL" CLR_RESET " %s " CLR_BRIGHT_YELLOW "laptop    %s   %s" CLR_RESET "%s\033[K\n",
+                       laptop_glyphs, laptop_w_str, adapter_str, load_str);
+            } else {
+                printf("  " CLR_DIM_YELLOW "WALL" CLR_RESET " %s " CLR_DIM_YELLOW "laptop    %s   %s" CLR_RESET "%s\033[K\n",
+                       laptop_glyphs, laptop_w_str, adapter_str, load_str);
+            }
+
+            if (batt_active) {
+                printf("  " CLR_BRIGHT_YELLOW "WALL" CLR_RESET " %s " CLR_BRIGHT_YELLOW "battery   %s   %s" CLR_RESET "\033[K\n",
+                       batt_glyphs, batt_w_str, batt_detail);
+            } else {
+                printf("  " CLR_DIM_YELLOW "WALL" CLR_RESET " %s " CLR_DIM_YELLOW "battery   %s   %s" CLR_RESET "\033[K\n",
+                       batt_glyphs, batt_w_str, batt_detail);
+            }
+        } else {
+            printf("  " CLR_BRIGHT_YELLOW "BATT" CLR_RESET " %s " CLR_BRIGHT_YELLOW "laptop    %s   %s" CLR_RESET "\033[K\n",
+                   batt_glyphs, laptop_w_str, batt_detail);
+            char wall_glyphs[128];
+            format_flow_glyphs(wall_glyphs, sizeof(wall_glyphs), false, true, tick);
+            printf("  " CLR_DIM_YELLOW "WALL" CLR_RESET " %s " CLR_DIM_YELLOW "battery   --      unplugged" CLR_RESET "\033[K\n",
+                   wall_glyphs);
+        }
+
+        // Raw telemetry, only when toggled with [r]. Split so it fits 80 columns.
         if (show_raw) {
-            printf("\n" CLR_DIM "  raw: ncr=0x%08x isChg=%d amp=%+dmA pmu=%d load=%.1fW rails=%.1fW cells=%u/%u/%u mV temp=%.1fC" CLR_RESET "\033[K\n",
+            printf("\n" CLR_DIM_YELLOW "  raw: ncr=0x%08x chg=%d amp=%+dmA pmu=%d load=%.1fW rails=%.1fW" CLR_RESET "\033[K\n",
                    pb.not_charging_reason, pb.is_charging ? 1 : 0, pb.battery_ma, bInfo.pmuConfigured,
-                   pb.total_system_w, rail_sum_w, pb.cell1_mv, pb.cell2_mv, pb.cell3_mv, bInfo.temperature);
+                   pb.total_system_w, rail_sum_w);
+            printf(CLR_DIM_YELLOW "  raw: cells=%u/%u/%u mV temp=%.1fC" CLR_RESET "\033[K\n",
+                   pb.cell1_mv, pb.cell2_mv, pb.cell3_mv, bInfo.temperature);
         }
 
         // Yellow WARN line (only when temp > 40C or cell spread > 30 mV)
@@ -1147,8 +1152,10 @@ static void live_view_run(void) {
             printf("\n  " CLR_YELLOW "%s" CLR_RESET "\033[K\n", warn_buf);
         }
 
-        // Footer (ADDENDUM 6: live elapsed seconds in footer [t] [|] resuming charging... 7s / unverified after 15 s)
-        printf(CLR_DIM "────────────────────────────────────────────────────────" CLR_RESET "\033[K\n");
+        // Separator and footer
+        printf(CLR_DIM_YELLOW);
+        print_rule();
+        printf(CLR_RESET "\033[K\n");
         if (pending_act.active && !pending_act.completed) {
             char spin_c = spinner_chars[pending_act.spinner_tick % 4];
             struct timeval tv_now_ft;
@@ -1159,47 +1166,50 @@ static void live_view_run(void) {
 
             if (el_ft < 15.0) {
                 if (pending_act.target_state == 2) {
-                    printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_GREEN "[%c]" CLR_RESET " " CLR_DIM "resuming charging... %ds" CLR_RESET "\033[K\n", spin_c, el_s);
+                    printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_GREEN "[%c]" CLR_RESET " " CLR_DIM_YELLOW "resuming charging... %ds" CLR_RESET "\033[K\n", spin_c, el_s);
                 } else {
-                    printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_CYAN "[%c]" CLR_RESET " " CLR_DIM "engaging hold... %ds" CLR_RESET "\033[K\n", spin_c, el_s);
+                    printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_CYAN "[%c]" CLR_RESET " " CLR_DIM_YELLOW "engaging hold... %ds" CLR_RESET "\033[K\n", spin_c, el_s);
                 }
             } else {
-                printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_YELLOW "unverified after 15 s, still watching" CLR_RESET "\033[K\n");
+                printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_YELLOW "unverified after 15 s, still watching" CLR_RESET "\033[K\n");
             }
         } else if (now < transient_until && transient_msg[0] != '\0') {
             if (strstr(transient_msg, "[FAIL]")) {
-                printf(" " CLR_YELLOW "%s" CLR_RESET "\033[K\n", transient_msg);
+                printf("  " CLR_YELLOW "%s" CLR_RESET "\033[K\n", transient_msg);
             } else if (strstr(transient_msg, "hold engaged")) {
                 if (strstr(transient_msg, "late")) {
                     const char *v_part = strstr(transient_msg, "verified");
-                    printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_CYAN "hold engaged" CLR_RESET " " CLR_YELLOW "%s" CLR_RESET "\033[K\n", v_part ? v_part : transient_msg + 4);
+                    printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_CYAN "hold engaged" CLR_RESET " " CLR_YELLOW "%s" CLR_RESET "\033[K\n", v_part ? v_part : transient_msg + 4);
                 } else {
                     const char *ok_part = strstr(transient_msg, "[ok]");
                     if (ok_part) {
-                        printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_CYAN "hold engaged" CLR_RESET " " CLR_BRIGHT "[ok]" CLR_RESET "%s\033[K\n", ok_part + 4);
+                        printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_CYAN "hold engaged" CLR_RESET " " CLR_BRIGHT_YELLOW "[ok]" CLR_RESET "%s\033[K\n", ok_part + 4);
                     } else {
-                        printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_CYAN "hold engaged" CLR_RESET " " CLR_BRIGHT "[ok]" CLR_RESET " %s\033[K\n", transient_msg + 17);
+                        printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_CYAN "hold engaged" CLR_RESET " " CLR_BRIGHT_YELLOW "[ok]" CLR_RESET " %s\033[K\n", transient_msg + 17);
                     }
                 }
             } else if (strstr(transient_msg, "charging resumed")) {
                 if (strstr(transient_msg, "late")) {
                     const char *v_part = strstr(transient_msg, "verified");
-                    printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_GREEN "charging resumed" CLR_RESET " " CLR_YELLOW "%s" CLR_RESET "\033[K\n", v_part ? v_part : transient_msg + 4);
+                    printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_GREEN "charging resumed" CLR_RESET " " CLR_YELLOW "%s" CLR_RESET "\033[K\n", v_part ? v_part : transient_msg + 4);
                 } else {
                     const char *flow_bracket = strstr(transient_msg, "resumed [");
                     if (flow_bracket) {
-                        printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_GREEN "charging resumed" CLR_RESET " " CLR_GREEN "%s" CLR_RESET "\033[K\n", flow_bracket + 8);
+                        printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_GREEN "charging resumed" CLR_RESET " " CLR_GREEN "%s" CLR_RESET "\033[K\n", flow_bracket + 8);
                     } else {
-                        printf(" " CLR_BRIGHT "[t]" CLR_RESET " " CLR_GREEN "charging resumed" CLR_RESET " %s\033[K\n", transient_msg + 21);
+                        printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET " " CLR_GREEN "charging resumed" CLR_RESET " %s\033[K\n", transient_msg + 21);
                     }
                 }
             } else if (strncmp(transient_msg, "[e]", 3) == 0) {
-                printf(" " CLR_BRIGHT "[e]" CLR_RESET " %s\033[K\n", transient_msg + 4);
+                printf("  " CLR_BRIGHT_YELLOW "[e]" CLR_RESET " %s\033[K\n", transient_msg + 4);
             } else {
-                printf(" %s\033[K\n", transient_msg);
+                printf("  %s\033[K\n", transient_msg);
             }
         } else {
-            printf(" " CLR_BRIGHT "[t]" CLR_RESET CLR_DIM " toggle hold/charge   " CLR_RESET CLR_BRIGHT "[e]" CLR_RESET CLR_DIM " export startup log   " CLR_RESET CLR_BRIGHT "[r]" CLR_RESET CLR_DIM " raw   " CLR_RESET CLR_BRIGHT "[q]" CLR_RESET CLR_DIM " quit" CLR_RESET "\033[K\n");
+            printf("  " CLR_BRIGHT_YELLOW "[t]" CLR_RESET CLR_DIM_YELLOW " toggle hold/charge  " CLR_RESET
+                   CLR_BRIGHT_YELLOW "[r]" CLR_RESET CLR_DIM_YELLOW " raw  " CLR_RESET
+                   CLR_BRIGHT_YELLOW "[e]" CLR_RESET CLR_DIM_YELLOW " export startup log  " CLR_RESET
+                   CLR_BRIGHT_YELLOW "[q]" CLR_RESET CLR_DIM_YELLOW " quit" CLR_RESET "\033[K\n");
         }
         printf("\033[J");
         fflush(stdout);
@@ -1221,8 +1231,10 @@ static void live_view_run(void) {
                 }
                 if (ch == 'q' || ch == 'Q' || ch == 3) {
                     // Key echo: [q] [\] quitting...
-                    printf(CLR_DIM "────────────────────────────────────────────────────────" CLR_RESET "\033[K\n");
-                    printf(" " CLR_BRIGHT "[q]" CLR_RESET " " CLR_BRIGHT "[\\]" CLR_RESET " " CLR_DIM "quitting..." CLR_RESET "\033[K\n\033[J");
+                    printf(CLR_DIM_YELLOW);
+                    print_rule();
+                    printf(CLR_RESET "\033[K\n");
+                    printf("  " CLR_BRIGHT_YELLOW "[q]" CLR_RESET " " CLR_BRIGHT_YELLOW "[\\]" CLR_RESET " " CLR_DIM_YELLOW "quitting..." CLR_RESET "\033[K\n\033[J");
                     fflush(stdout);
                     log_step_record("key:q", "quit");
                     usleep(120000);
@@ -1230,8 +1242,10 @@ static void live_view_run(void) {
                     break;
                 } else if (ch == 'r' || ch == 'R') {
                     // Key echo: [r] [-] toggling raw...
-                    printf(CLR_DIM "────────────────────────────────────────────────────────" CLR_RESET "\033[K\n");
-                    printf(" " CLR_BRIGHT "[r]" CLR_RESET " " CLR_BRIGHT "[-]" CLR_RESET " " CLR_DIM "toggling raw..." CLR_RESET "\033[K\n\033[J");
+                    printf(CLR_DIM_YELLOW);
+                    print_rule();
+                    printf(CLR_RESET "\033[K\n");
+                    printf("  " CLR_BRIGHT_YELLOW "[r]" CLR_RESET " " CLR_BRIGHT_YELLOW "[-]" CLR_RESET " " CLR_DIM_YELLOW "toggling raw..." CLR_RESET "\033[K\n\033[J");
                     fflush(stdout);
                     show_raw = !show_raw;
                     log_step_record("key:r", show_raw ? "toggle raw on" : "toggle raw off");
@@ -1239,8 +1253,10 @@ static void live_view_run(void) {
                     break;
                 } else if (ch == 'e' || ch == 'E') {
                     // Key echo: [e] [/] writing session log...
-                    printf(CLR_DIM "────────────────────────────────────────────────────────" CLR_RESET "\033[K\n");
-                    printf(" " CLR_BRIGHT "[e]" CLR_RESET " " CLR_BRIGHT "[/]" CLR_RESET " " CLR_DIM "writing session log..." CLR_RESET "\033[K\n\033[J");
+                    printf(CLR_DIM_YELLOW);
+                    print_rule();
+                    printf(CLR_RESET "\033[K\n");
+                    printf("  " CLR_BRIGHT_YELLOW "[e]" CLR_RESET " " CLR_BRIGHT_YELLOW "[/]" CLR_RESET " " CLR_DIM_YELLOW "writing session log..." CLR_RESET "\033[K\n\033[J");
                     fflush(stdout);
 
                     char exp_path[256] = {0};
