@@ -137,7 +137,13 @@ To install:
 curl -fsSL https://byper.org/install | bash
 ```
 
-Or grab `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnidentified/byper/releases/latest). Either way, your settings survive upgrades, and the installer sets up Command Line Tools if you don't have them and installs the SUID helper.
+Or with Homebrew:
+```bash
+brew tap Unnidentified/byper https://github.com/Unnidentified/byper
+brew install --cask byper
+```
+
+Or grab `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnidentified/byper/releases/latest). In each case, your settings survive upgrades, and the installer sets up Command Line Tools if you don't have them and installs the SUID helper.
 
 
 > Seeing "App is damaged and can't be opened"? That's macOS's gatekeeper being gatekeeper. To fix that issue, clear the quarantine attribute:
