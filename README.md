@@ -9,9 +9,9 @@ It holds your battery at whatever level you want and runs the whole computer off
 
 You don't need a local toolchain, you can just click on Actions > Build and you'll get a `.pkg` and a `.dmg` (see [building](https://github.com/Unnidentified/byper/edit/main/README.md#building))
 
-
 <img width="2446" height="336" alt="byper-pill-preview" src="https://github.com/user-attachments/assets/13371055-899b-421b-8440-22592709d901" />
 
+> Here you can see how does the app (DOWN) and the status bar icons (UP) look!
 <img src="docs/images/popover.png" alt="The byper popover on a light, a mixed and a dark wallpaper" width="100%" />
 
 ---
