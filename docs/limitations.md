@@ -34,12 +34,3 @@ The threshold automation is not offered. `checkAutoBypassThreshold()` disables t
 The app is ad-hoc signed, not Developer ID signed. Gatekeeper blocks quarantine-flagged copies until Open Anyway or `xattr -dr com.apple.quarantine`.
 
 No credentials are embedded in the repository. The non-root dev path reads `BYP_SUDO_PASS` from the environment.
-
-## Single-user assumptions
-
-Two paths still assume the original developer's account:
-
-- `src/app/AppDelegate.swift` has `/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/byper.app` and `bin/byper` in `runPrivilegedInstall`.
-- `src/main.c` falls back to `/Users/gefaass` when it looks for the Desktop export path.
-
-The package path works without them. A source install under a different account may need those literals changed.

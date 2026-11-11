@@ -68,4 +68,4 @@ byper off        # charging resumes
 
 Run the package and choose **Uninstall**. It releases any active hold, clears Low Power Mode, removes the binaries, the app, the completions and the settings.
 
-The source `uninstall.sh` only removes the files. It does not release a hold or clear Low Power Mode, so run `byper off` and `byper lpm off` first if you use it.
+The source `uninstall.sh` performs the same hardware reset before it removes anything: it releases any active hold and clears Low Power Mode, so the machine returns to stock power behaviour. It calls `sudo pmset -a lowpowermode 0` directly, so expect a password prompt.

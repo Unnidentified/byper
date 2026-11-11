@@ -352,20 +352,13 @@ Live:
 
 ## Known issues
 
-These are real and unfixed. None of them are urgent.
+Things worth knowing before you touch this area. Some are traps in the code,
+some are API notes, and none of them are urgent.
 
-- `pkg/postinstall` still mentions "vanilla branch" and `byper-vanilla.app`. It
-  is legacy cleanup for upgrades over the old variant. Do not reintroduce the
-  variant.
-- `install.sh` prints `byper stream` and `byper json --watch` at the end.
-  Neither command exists. The real ones are `byper mon` and `byper json`.
 - `pkg/Distribution.xml` has a hardcoded `2.3.1` in its title. `build_pkg.sh`
-  replaces it with `TITLE`. Do not edit the title by hand.
-- `uninstall.sh` only removes files. It does not release a hold or clear Low
-  Power Mode. The package uninstaller does.
-- `runPrivilegedInstall` in `AppDelegate.swift` has hardcoded project paths
-  under `/Users/gefaass`.
-- `src/main.c` falls back to `/Users/gefaass` for the Desktop export path.
+  replaces it with `TITLE`. Do not edit the title by hand. The `sed`
+  replacement is unescaped, so a `TITLE` containing `&` would corrupt the XML
+  silently, and a missing title tag would be a silent no-op.
 - The status item button's `effectiveAppearance` fires a storm of `Aqua`,
   `DarkAqua` and `Vibrant*` values on click. The KVO filters to the vibrant pair
   and guards against repeats, so it does not re-render on click. Do not widen
@@ -373,8 +366,10 @@ These are real and unfixed. None of them are urgent.
 - The stock menu bar battery can lag the app by one level in screenshots. Check
   the stock digits before comparing anything.
 - `NSAppearance.current` is deprecated. Use `NSAppearance.currentDrawing()`.
+  There are no uses of the deprecated form today.
 - `NSWorkspace.desktopImageDidChangeNotification` does not exist in this SDK.
-  The wallpaper signal is the button's `effectiveAppearance`.
+  The wallpaper signal is the button's `effectiveAppearance`. There are no uses
+  of the notification today.
 
 ## Where to look
 
