@@ -315,20 +315,12 @@ Live:
 - Bypass toggle, with "Off on exit".
 - Powersave (Low Power Mode), manual plus per-app auto-LPM.
 - Caffeinate, manual plus "On Bypass".
-- Settings: Auto Bypass on Connect, at Login, on Display; Logger; Export;
-  Presets Travel and Docked.
+- Settings: Auto Bypass on Connect, at Login, on Display; Logger; Export.
 - The master slider on the left. It fades and disables the rows as it descends.
   Full off snapshots the state, full on restores it.
 - The logger writes `byper-session-<timestamp>.csv` to the Desktop.
 - Global hotkey Cmd+Opt+B.
 - App Intents for bypass on, off and toggle.
-
-Not live. Do not document these as features:
-
-- **Threshold.** `checkAutoBypassThreshold()` disables the flag on launch. The
-  trigger only engaged while freshly toggled and was unreliable.
-- **Slow Charge.** The `slowChargeEnabled` setter forces the flag off. The duty
-  cycle could re-engage bypass after a while.
 
 ## Hard constraints
 
