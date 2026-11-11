@@ -73,6 +73,8 @@ in the PR instead of claiming it works.
 Fork the repo, work on your fork, open a PR against `main`. Feature work and
 fixes go through a PR, and CI has to be green before it merges.
 
+Before committing or pushing a PR, make a quick check to see if the author has made changes to any of the releases's descriptions, /docs, or the README itself.
+
 The maintainer does occasionally push a one-line README fix straight to `main`.
 Do not read that as the pattern. Anything that touches `src/`, `pkg/` or the
 workflows goes through a PR.
