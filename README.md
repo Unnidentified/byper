@@ -20,7 +20,7 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 <h4> <- Preview of the menu ui</h3>
 <p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns. The graph is a fancy temperature graph, and below it, you can see your current charger specs.</p>
 <p>Byper toggle enables bypass. It remembers the state from before it was unplugged.</p>
-<p>Settings dropdown: bypass (on-connect/at-login/on-display-connect), and a logger that writes a text file to your Desktop to debug errors.</p>
+<p>Settings dropdown: bypass (on-connect/at-login/on-display-connect), and a logger that writes a debug text file to your Desktop.</p>
 </td>
 </tr>
 </table>
