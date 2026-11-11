@@ -8,6 +8,11 @@ CC = clang
 CFLAGS = -O3 -Wall -Wextra -std=c11 -fobjc-arc -target arm64-apple-macos11.0
 FRAMEWORKS = -framework IOKit -framework CoreFoundation -framework Foundation -framework CoreGraphics
 
+# Version: CFBundleShortVersionString in src/app/Info.plist is the single source
+# of truth. BYPER_VERSION overrides it, the same way pkg/build_pkg.sh does.
+BYPER_VERSION ?= $(shell plutil -extract CFBundleShortVersionString raw -o - src/app/Info.plist 2>/dev/null || echo 0.0.0-dev)
+VERSION_DEFINE = -DBYPER_VERSION=\"$(BYPER_VERSION)\"
+
 SWIFTC = swiftc
 SWIFT_FLAGS = -O -whole-module-optimization -target arm64-apple-macos11.0
 SWIFT_FRAMEWORKS = -framework AppKit -framework SwiftUI -framework Foundation -framework IOKit -framework Carbon -framework AppIntents
@@ -27,9 +32,9 @@ SWIFT_SRC = src/app/BatteryPillIcon.swift src/app/GlassPopover.swift src/app/Pop
 
 all: $(TARGET) $(MON_CMD) app
 
-$(TARGET): $(SRC)
+$(TARGET): $(SRC) src/app/Info.plist
 	@mkdir -p $(TARGET_DIR)
-	$(CC) $(CFLAGS) $(SRC) $(FRAMEWORKS) -o $(TARGET)
+	$(CC) $(CFLAGS) $(VERSION_DEFINE) $(SRC) $(FRAMEWORKS) -o $(TARGET)
 	@codesign -s - -f $(TARGET) >/dev/null 2>&1 || true
 	@echo "Build successful: $(TARGET)"
 

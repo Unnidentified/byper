@@ -27,7 +27,11 @@
 #include "automation.h"
 #include "hold.h"
 
-#define VERSION "2.3.1"
+// Version comes from the Makefile, which reads CFBundleShortVersionString out
+// of src/app/Info.plist. The fallback keeps a bare clang build compiling.
+#ifndef BYPER_VERSION
+#define BYPER_VERSION "dev"
+#endif
 
 // ANSI Formatting (3-Color keyword map: Green, Cyan, Yellow; Dim structure, Bright values)
 #define CLR_RESET   "\033[0m"
@@ -1908,7 +1912,7 @@ static int handle_auto(int argc, char *argv[]) {
 }
 
 static void print_usage(const char *prog) {
-    printf("byp -- macOS Charging Bypass & Power Telemetry Control v%s\n", VERSION);
+    printf("byp -- macOS Charging Bypass & Power Telemetry Control v%s\n", BYPER_VERSION);
     printf("Usage: %s [command]\n\n", prog);
     printf("Commands:\n");
     printf("  byp                     Open live power and bypass monitor\n");

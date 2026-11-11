@@ -356,7 +356,8 @@ automations are driven.
   `byper-installer-3.0.1.pkg`, `.dmg`, `SHA256SUMS.txt`, and
   `menu-bar-comparison.png` and `menu-bar-detail.png` for the release notes.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
-  both `3.0.1`. They used to drift apart. Bump them together.
+  both `3.0.1`. They used to drift apart. Bump them together. The CLI reads
+  `CFBundleShortVersionString` at build time, so it has no version of its own.
 - CI is `.github/workflows/ci.yml`: `changes` (diff filter), `checks` (shell
   syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links
   and anchors), `compile` (`make all`, artifact checks, CLI smoke test).
