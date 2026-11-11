@@ -7,7 +7,7 @@ Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
 When you enable bypass, your battery is held at whatever level you want. Your computer, from this point forward, only sucks energy from the charger, meaning effective power draw from the battery is 0mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
-You don't need local tools, you can just click on Actions > [Build](#building) and you'll get a `.pkg` and a `.dmg` inside a `.zip`
+You don't need to build it locally, you can just click on actions > [build](#building), you'll get a `.pkg` and a `.dmg` inside a `.zip`
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
@@ -17,13 +17,10 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 <img src="docs/images/popover.png" width="480" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
 </td>
 <td valign="middle">
-<h3>The panel</h3>
-<p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns.</p>
-<p>The graph is live draw, the readout is voltage and amperage, and the rows below are the ones you reach for most.</p>
-<p>Byper engages charge bypass. The switch stays grey while the machine is unplugged, since there is nothing to bypass. Its chevron holds one option, off on exit.</p>
-<p>Powersave turns on Low Power Mode. Its chevron opens a picker, so Low Power Mode can come on by itself while a chosen app is frontmost.</p>
-<p>Caffeinate holds the display and idle sleep. Its chevron adds on bypass, so the hold can follow the bypass state.</p>
-<p>Settings opens the automations, bypass on connect, at login or when a display is attached, and the session logger that writes power, temperature and charging history to a spreadsheet on your Desktop.</p>
+<h4> <- Preview of the menu ui</h3>
+<p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns. The graph is a fancy temperature graph, and below it, you can see your current charger specs.</p>
+<p>Byper toggle enables bypass. It remembers the state from before it was unplugged.</p>
+<p>Settings dropdown includes: bypass (on-connect/at-login/on-display-connect), and the a logger that writes a text file on your Desktop to debug errors.</p>
 </td>
 </tr>
 </table>
@@ -51,7 +48,7 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 3. Tick `release` to publish a GitHub Release.
 4. When the run finishes, grab the files from the run page or from releases.
 
-On the other hand, to build it locally (which is faster btw), run:
+On the other hand, to build it locally (faster), run:
 
 ```bash
 make all              # bin/byper, bin/byper-mon.command, byper.app
@@ -80,17 +77,17 @@ The main slider on the left progressively dims and disables the menu rows (bypas
 ## CLI Commands
 
 ```bash
-byper            # Interactive real-time TUI monitor
-byper on         # Engage charge bypass (plugged in)
-byper off        # Resume standard charging
-byper t          # Toggle bypass state
-byper s          # One-line status summary
-byper p          # Hardware power rails (SoC, DRAM, PMIC, cells)
-byper json       # Telemetry snapshot formatted as JSON
-byper mon        # Continuous timestamped stream (non-TTY friendly)
-byper mon --export   # Write the session log to the Desktop
-byper lpm on|off # Low Power Mode
-byper help       # Command usage
+byper                  # Interactive real-time TUI monitor
+byper on               # Engage charge bypass (plugged in)
+byper off              # Resume standard charging
+byper t                # Toggle bypass state
+byper s                # One-line status summary
+byper p                # Hardware power rails (SoC, DRAM, PMIC, cells)
+byper json             # Telemetry snapshot formatted as JSON
+byper mon              # Continuous timestamped stream (non-TTY friendly)
+byper mon --export     # Write the session log to the Desktop
+byper lpm on|off       # Low Power Mode
+byper help             # Command usage
 ```
 
 ---
