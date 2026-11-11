@@ -71,8 +71,12 @@ in the PR instead of claiming it works.
 
 ### Forking and upstreaming
 
-Fork the repo, work on your fork, open a PR against `main`. Direct pushes to
-`main` are not part of the workflow, including for the maintainer.
+Fork the repo, work on your fork, open a PR against `main`. Feature work and
+fixes go through a PR, and CI has to be green before it merges.
+
+The maintainer does occasionally push a one-line README fix straight to `main`.
+Do not read that as the pattern. Anything that touches `src/`, `pkg/` or the
+workflows goes through a PR.
 
 If you are working from a clone with push access, the same rules apply: branch,
 push the branch, open a PR, let CI run, then merge.
