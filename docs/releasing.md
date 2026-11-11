@@ -28,6 +28,11 @@ it and the title is what people copy.
 A pre-release never becomes Latest. If one is abandoned, leave it published and
 do not reuse its number. The next attempt is `beta.N+1`.
 
+A pre-release does not bump the cask. `Casks/byper.rb` keeps pointing at the
+last stable release for the whole beta and rc cycle, so `brew install --cask
+byper` never hands out a preview. The cask is bumped when the stable release is
+cut, not before.
+
 ## Branches
 
 - `main` is always releasable. Everything on it has passed CI.
@@ -67,8 +72,9 @@ do not reuse its number. The next attempt is `beta.N+1`.
    ```
 
    Merge it once the release is published, so the download URL in the cask
-   resolves. CI fails the PR if the cask version and
-   `CFBundleShortVersionString` disagree.
+   resolves. CI fails the PR if the cask version is ahead of
+   `CFBundleShortVersionString`. A cask that is behind is allowed, because it
+   lags during a pre-release cycle.
 5. Tag the merge commit on `main`, not the branch commit:
    `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push origin vX.Y.Z`.
 6. `gh release create vX.Y.Z` with the two assets and the sums. The title starts

@@ -84,11 +84,13 @@ jobs:
           print('Info.plist ok:', d['CFBundleIdentifier'], d['LSMinimumSystemVersion'])
           PY
 
-      - name: Cask parses and matches the app version
+      - name: Cask parses and is not ahead of the app version
         run: |
           set -euo pipefail
           ruby -c Casks/byper.rb
           ruby - <<'RB'
+          require 'rubygems'
+
           plist = File.read('src/app/Info.plist')
           app = plist[%r{<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>}, 1]
           cask = File.read('Casks/byper.rb')[%r{^\s*version\s+"([^"]+)"}, 1]
@@ -96,8 +98,15 @@ jobs:
           abort 'no CFBundleShortVersionString in Info.plist' if app.nil?
           abort 'no version stanza in Casks/byper.rb' if cask.nil?
           abort 'Casks/byper.rb needs a real 64 character sha256' if sha.nil?
-          abort "cask version #{cask} does not match Info.plist #{app}" unless cask == app
-          puts "cask version #{cask} matches Info.plist"
+
+          # The cask tracks stable releases and is bumped at stable release time,
+          # not at pre-release time. It may lag Info.plist during a beta or rc
+          # cycle, but it must never point past the app version.
+          if Gem::Version.new(cask) > Gem::Version.new(app)
+            abort "cask version #{cask} is ahead of Info.plist #{app}"
+          end
+
+          puts "cask version #{cask} is not ahead of Info.plist #{app}"
           RB
 
       - name: CLI version derives from Info.plist
