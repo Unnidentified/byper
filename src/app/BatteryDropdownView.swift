@@ -5,14 +5,16 @@
 
 import SwiftUI
 
-// The popover's one checkmark. The caffeinate dropdown and every checkmark toggle
-// draw this, so the two cannot drift apart again.
+// The popover's one checkmark. The caffeinate conditions, the app pickers, "Off on
+// exit" and the settings automations all draw this, so the shape and the colour
+// cannot drift apart.
 struct PopoverCheckmark: View {
     let isOn: Bool
     var body: some View {
         Image(systemName: isOn ? "checkmark.square.fill" : "square")
             .font(.system(size: 11))
-            .foregroundColor(isOn ? BatteryDropdownView.solarGold : Color(white: 0.45))
+            .foregroundColor(isOn ? BatteryDropdownView.checkmarkBrown
+                                  : BatteryDropdownView.checkmarkBrownDim)
     }
 }
 
@@ -114,6 +116,12 @@ struct BatteryDropdownView: View {
     static let coolBrownOrange = Color(red: 0.86, green: 0.50, blue: 0.22) // #DC8038 - Metallic Copper / Brown-Orange
     static let emeraldGreen = Color(red: 0.19, green: 0.82, blue: 0.35)   // #30D158 - Fast Charging
     static let solarGold = Color(red: 1.0, green: 0.84, blue: 0.04)      // #FFD60A - Low Power Mode
+    // Checkmark ink. Deliberately low contrast against the brown card: the
+    // checkmark is meant to sit in the background, not to pop. Filled boxes use
+    // the brighter brown, empty boxes the dimmer one, so the state still reads
+    // from the fill and from a small brightness step.
+    static let checkmarkBrown = Color(red: 0.42, green: 0.29, blue: 0.20)    // #6B4A33
+    static let checkmarkBrownDim = Color(red: 0.33, green: 0.24, blue: 0.18) // #543D2E
     static let neonMintTeal = Color(red: 0.0, green: 0.95, blue: 0.72)   // #00F2B8 - "ACTIVE" Badge
     static let graphWarmSolar = Color(red: 0.96, green: 0.58, blue: 0.16) // #F59429 - Warm Solar Copper
     static let thermoAmber = Color(red: 1.0, green: 0.60, blue: 0.12)    // #FF991F - Temperature Icon
@@ -547,10 +555,17 @@ struct BatteryDropdownView: View {
                         .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.45))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
+                        // Fixed line height: the natural height is 9pt without a
+                        // descender and 10pt with one, and a row that changed
+                        // height with the armed set would resize the panel.
+                        .frame(height: 10)
                         .padding(.leading, 22)
                         .accessibilityIdentifier("Caffeinate Summary")
                 }
-                .frame(height: 36)
+                // 16pt title line, minus the 2pt pull, plus the 10pt summary line.
+                // Tight enough to keep the same rhythm as the rows above, fixed so
+                // arming a condition never resizes the panel.
+                .frame(height: 24)
                 .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 .masterRowProbe("caffeine")
 
@@ -582,6 +597,10 @@ struct BatteryDropdownView: View {
                         }
                     }
                     .padding(.leading, 22)
+                    // Pull the list up under the row. The row already ends just
+                    // below the summary, so the parent's 4pt stack spacing leaves
+                    // the first checkbox floating clear of it.
+                    .padding(.top, -3)
                     .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 }
 
