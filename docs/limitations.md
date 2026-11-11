@@ -21,7 +21,7 @@ Filesystem, kernel-extension and NVRAM protections stay on. Only the debugger-at
 - Apple Silicon only. The build target is `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps.
 - macOS 11 or newer. App Intents need macOS 13.
 - The Liquid Glass popover needs macOS 26. Older systems, and anyone with Reduce Transparency on, get the previous dark solid shell. Nothing else changes.
-- The register signatures (`MoO`, `NCR`, rail keys) were mapped on specific macOS versions. A major update can shift them. The verify poll surfaces that as "enabled but not holding".
+- The register signatures (`NCR`, rail keys) were mapped on specific macOS versions. A major update can shift them. The verify poll surfaces that as "enabled but not holding".
 
 ## Precision
 

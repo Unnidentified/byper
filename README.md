@@ -57,7 +57,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 | telemetry | SMC power rails | Per-rail wattage for SoC, DRAM, PMIC and DC-In, individual pack cell voltages, top CPU consumers with estimated wattage |
 | bypass | Hardware charge bypass | System runs off the adapter at 0 mA net battery draw, battery held at whatever level you picked |
 | powersave | Low Power Mode | Manual toggle, plus per-app auto-LPM while a designated app is frontmost. The manual switch wins over automation |
-| caffeinate | Display and idle sleep hold | "Always", or "Auto Enable on Bypass". Again, the manual switch wins |
+| caffeinate | Display and idle sleep hold | Manual toggle, or "On Bypass". Again, the manual switch wins |
 | automations | Auto-bypass | On charger connect, at login, or on external display attach |
 | logger | Session logger | Records CSV telemetry to your Desktop |
 | shortcuts | Hotkey and App Intents | Global `⌘⌥B`, plus App Intents for bypass on/off/toggle on macOS 13+ |
@@ -74,7 +74,7 @@ byper on         # Engage charge bypass (plugged in)
 byper off        # Resume standard charging
 byper t          # Toggle bypass state
 byper s          # One-line status summary
-byper p          # Hardware power rails (SoC, DRAM, PMIC, cells, top process)
+byper p          # Hardware power rails (SoC, DRAM, PMIC, cells)
 byper json       # Telemetry snapshot formatted as JSON
 byper mon        # Continuous timestamped stream (non-TTY friendly)
 byper mon --export   # Write the session log to the Desktop
@@ -95,7 +95,7 @@ So byper attaches to it:
 3. Forks an orphaned worker that runs `lldb -p <pid> --batch` as root, calls the daemon's own smart-charge entry points to enter *Not Charging / hold* mode, then detaches. The parent returns immediately.
 4. Confirms the result by polling SMC registers, never by trusting the injection.
 
-The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the truth table back.
+The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the resulting state back from the not-charging reason and the amperage.
 
 Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware**. `CHBI` writes don't stick, so injection is the only path that works.
 
@@ -174,7 +174,7 @@ Installed paths:
 |---|---|
 | `/usr/local/bin/byper` | SUID-root CLI (`chown root:wheel`, `chmod 4755`) |
 | `/usr/local/bin/byp`, `/usr/local/bin/chbypass` | Symlinks to the same binary |
-| `/usr/local/bin/byper-mon.command` (+ `byp-mon.command`) | Standalone monitor |
+| `/usr/local/bin/byper-mon.command` (+ `byp-mon.command`) | Standalone monitor, from `install.sh` |
 | `/usr/local/share/zsh/site-functions/_byper`, `_byp` | Zsh completions |
 | `/usr/local/share/bash-completion/completions/byper`, `byp` | Bash completions |
 | `/Applications/byper.app` | Menu bar app |
