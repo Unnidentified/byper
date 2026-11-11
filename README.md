@@ -5,7 +5,7 @@
 
 Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
-It holds your battery at whatever level you want and runs the whole computer off the charger (not from the battery, that's the whole point), so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
+It holds your battery at whatever level you want and runs the whole computer off the charger, so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
 You don't need local tools, you can just click on [Actions > Build](https://github.com/Unnidentified/byper/actions/workflows/build.yml) and you'll get a `.pkg` and a `.dmg` bundled inside a `.zip` (see [building](#building)).
 
@@ -95,7 +95,7 @@ So byper attaches to it:
 
 The actual charge inhibition is the SMC **mode-of-operation** value (`MoO`: 1 = charging, 7 = hold). The daemon sets it and the CLI reads the truth table back.
 
-Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware**. `CHBI` writes don't stick, which is why injection is the load-bearing path rather than a shortcut.
+Direct SMC writes to the charge-limit keys were tested and are **rejected by the firmware**. `CHBI` writes don't stick, so injection is the only path that works.
 
 Because the attach takes seconds, the UI's verify-poll gates truth and the engine retries on a 1.5s / 3.5s / 6s / 10s curve, capped at 45s. A toggle can therefore lag a tap by up to ~45s. That is expected, not a hang.
 

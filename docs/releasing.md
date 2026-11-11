@@ -50,12 +50,13 @@ do not reuse its number. The next attempt is `beta.N+1`.
 
 ## Release notes
 
-Write for someone deciding whether to install, not for someone reading the diff.
+Write for someone deciding whether to install.
 
-- Open with a sentence about what changed for them. Not a heading. A release
-  that starts with "What's changed" every single time reads like a template.
+- Open with a sentence about what changed for them, without a heading. A
+  release that starts with "What's changed" every single time reads like a
+  template.
 - Three to six bullets, in plain language. No file paths, no symbol names, no
-  bolded function names. Those belong in the commit, not the release.
+  bolded function names. Those belong in the commit.
 - Say what was broken before, if something was broken. "Reconnecting the charger
   now brings bypass back" is better than "fixed reconcile guard".
 - Keep the checksums if the release has them. Keep the Install section naming
@@ -79,4 +80,4 @@ the older releases still carry the old version.
 | `v2.3.0`, `v2.3.1`, `v2.4.0`, `v2.4.1` | unchanged |
 
 `v2.5.0-test` was the first Liquid Glass build. It is a preview of the 3.0.0
-redesign, so it became `v3.0.0-beta.1` rather than a 2.5.0 that never shipped.
+redesign, so it became `v3.0.0-beta.1`. There was never a 2.5.0.

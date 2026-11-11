@@ -75,7 +75,7 @@ they keep firing while menus track the cursor or the screen sleeps.
 and its notch are one continuous Liquid Glass shape, drawn by
 `NotchedRoundedRect` and hosted in a borderless non-activating `NSPanel`
 anchored under the status item. The notch is spliced into the same path as the
-body, which is what keeps the two reading as one piece. The inner card is opaque
+body, so the two read as one piece. The inner card is opaque
 and sits on the glass as a sunken panel. Reduce Transparency, or an older
 system, falls back to the previous dark solid shell.
 
