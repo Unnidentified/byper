@@ -6,8 +6,7 @@ touch a file. It tells you what the project is, how to get it running, how to
 change it without breaking it, and what is already known to be wrong.
 
 Everything here describes `main` as it stands today. If a claim in this file
-turns out to be false, fix the file in the same PR that proves it wrong. A stale
-handoff is worse than no handoff.
+turns out to be false, fix the file in the same PR that proves it wrong.
 
 ## What byper is
 
@@ -125,8 +124,9 @@ title in the same format.
 CI must be green. The `compile` job is skipped when a PR touches no source, so
 a docs-only PR only needs `checks`.
 
-Read the diff, not the description. If a change touches `src/powerui.m`,
-`src/smc.c` or the install path, ask what hardware it was tested on.
+Read the diff itself. The description can be wrong. If a change touches
+`src/powerui.m`, `src/smc.c` or the install path, ask what hardware it was
+tested on.
 
 ### Things that will get a PR rejected
 
@@ -246,8 +246,8 @@ bypass on, off and toggle on macOS 13 and later.
 
 On macOS 26 and later the shell and its notch are one continuous Liquid Glass
 shape, hosted in a borderless non-activating `NSPanel` anchored under the status
-item. The notch is spliced into the same path as the body, which is what keeps
-the two reading as one piece. Two separate glass views would show a seam.
+item. The notch is spliced into the same path as the body, so the two read as one
+piece. Two separate glass views would show a seam.
 
 The panel is `hasShadow = false` on purpose. AppKit derives the window shadow
 from the alpha channel, and a partly transparent shell makes it fall back to a
@@ -261,8 +261,8 @@ part of the glass and must not be given a `.glassEffect`.
 Reduce Transparency, or a system older than macOS 26, falls back to the previous
 dark solid shell.
 
-Every tunable lives in `PopoverTuning` and its three extensions. Change a
-constant there, not a literal in a view. The current values:
+Every tunable lives in `PopoverTuning` and its three extensions. Change the
+constant there so the value stays in one place. The current values:
 
 | Constant | Value |
 |---|---|
@@ -297,7 +297,8 @@ should not be any again.
 - Base ink black at 0.93 alpha, paper white at 0.93 alpha.
 - Mode colours: charging `#30D158`, bypass `#DC8038`, low power `#FFD60A`, low
   battery `#FF453A`.
-- The track and nub use the menu bar ink, not the mode colour.
+- The track and nub use the menu bar ink. The mode colour only fills the
+  charge.
 - The number uses the menu bar text colour: black on a light bar, white on a
   dark one. The idle pill is the exception, where the number is a knockout.
 
@@ -339,7 +340,7 @@ Not live. Do not document these as features:
 - No em dashes or en dashes anywhere.
 - No emoji in UI or CLI output.
 - No dependencies. The build is `make` and the system toolchain.
-- The Build workflow stays manual. CI is a test gate, not an auto-build.
+- The Build workflow stays manual. CI only tests; it never publishes.
 
 ## Current state
 
