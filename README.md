@@ -127,18 +127,19 @@ curl -fsSL https://byper.org/install | bash
 
 Or grab `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnidentified/byper/releases/latest). Either way, your settings survive upgrades, and the installer sets up Command Line Tools if you don't have them and installs the SUID helper.
 
----
-
-## How to uninstall
-
-Run the .pkg and choose `Uninstall` (its postinstall removes every trace, including settings), or remove the paths in [Project layout](#project-layout) by hand and clear `~/Library/{Preferences/com.gefaass.byper.plist, Caches/com.gefaass.byper, Saved Application State/com.gefaass.byper.savedState}`.
-
 
 > Seeing "App is damaged and can't be opened"? That's macOS's gatekeeper being gatekeeper. To fix that issue, clear the quarantine attribute:
 > ```bash
 > xattr -cr /Applications/byper.app
 > ```
 > (or for a downloaded package: `xattr -c byper-installer.pkg`).
+
+---
+
+## How to uninstall
+
+Run the .pkg and choose `Uninstall` (its postinstall removes every trace, including settings), or remove the paths in [Project layout](#project-layout) by hand and clear `~/Library/{Preferences/com.gefaass.byper.plist, Caches/com.gefaass.byper, Saved Application State/com.gefaass.byper.savedState}`.
+
 
 ---
 
