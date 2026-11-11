@@ -1022,38 +1022,6 @@ static void live_view_run(void) {
             snprintf(load_str, sizeof(load_str), CLR_DIM_YELLOW "  %d%% load" CLR_RESET, load_pct);
         }
 
-        // Estimate line under battery bar (ADDENDUM 6: omitted entirely while on hold)
-        char est_line_colored[256];
-        est_line_colored[0] = '\0';
-        if (!pb.ac_connected) {
-            double dischg_w = pb.total_system_w > 0.1 ? pb.total_system_w : fabs(pb.battery_w);
-            if (dischg_w < 0.1) dischg_w = 0.1;
-            int mins = 0;
-            if (bInfo.avgTimeToEmpty > 0 && bInfo.avgTimeToEmpty < 65535) {
-                mins = bInfo.avgTimeToEmpty;
-            } else {
-                int cur_cap = bInfo.remainingCapacity > 0 ? bInfo.remainingCapacity : (bInfo.percentage * 50);
-                double rem_wh = ((double)cur_cap * (double)pb.battery_mv) / 1000000.0;
-                mins = (int)((rem_wh / dischg_w) * 60.0 + 0.5);
-            }
-            if (mins < 1) mins = 1;
-            if (mins >= 60) snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "~%dh %02dm left at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f W" CLR_RESET, mins / 60, mins % 60, dischg_w);
-            else snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "~%dm left at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f W" CLR_RESET, mins, dischg_w);
-        } else if (isHold || !pb.is_charging || pb.not_charging_reason != 0 || pb.battery_ma < 500) {
-            est_line_colored[0] = '\0';
-        } else {
-            int full_cap = bInfo.fullChargeCapacity > 0 ? bInfo.fullChargeCapacity : (bInfo.designCapacity > 0 ? bInfo.designCapacity : 5292);
-            int cur_cap = bInfo.remainingCapacity > 0 ? bInfo.remainingCapacity : (bInfo.percentage * full_cap / 100);
-            int rem_mah = full_cap - cur_cap;
-            if (rem_mah < 0) rem_mah = 0;
-            double cur_a = (double)pb.battery_ma / 1000.0;
-            if (cur_a < 0.5) cur_a = 0.5;
-            int mins = (int)((rem_mah / (cur_a * 1000.0)) * 60.0 + 0.5);
-            if (mins < 1) mins = 1;
-            if (mins >= 60) snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "full in ~%dh %02dm at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET, mins / 60, mins % 60, cur_a);
-            else snprintf(est_line_colored, sizeof(est_line_colored), CLR_DIM_YELLOW "full in ~%dm at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET, mins, cur_a);
-        }
-
         char batt_word_colored[64];
         if (strcmp(batt_word, "charging") == 0) {
             snprintf(batt_word_colored, sizeof(batt_word_colored), CLR_GREEN "charging" CLR_RESET);
@@ -1090,20 +1058,20 @@ static void live_view_run(void) {
 
         // Header: spinner, wall clock, elapsed since the monitor started
         printf("  " CLR_DIM_YELLOW "[" CLR_RESET CLR_BRIGHT_YELLOW "%c" CLR_RESET CLR_DIM_YELLOW "]" CLR_RESET " "
-               CLR_BRIGHT_YELLOW "%s" CLR_RESET "  " CLR_BRIGHT_YELLOW "+%lds" CLR_RESET "\033[K\n\n",
+               CLR_BRIGHT_YELLOW "%s" CLR_RESET "  " CLR_BRIGHT_YELLOW "+%lds" CLR_RESET "\033[K\n\033[K\n",
                spinner, time_str, elapsed);
 
         // Status sentence: what is powering the machine and what the battery is doing
         if (!pb.ac_connected) {
-            printf("  " CLR_DIM_YELLOW "> no wall power. battery is running the laptop." CLR_RESET "\033[K\n\n");
+            printf("  " CLR_DIM_YELLOW "> no wall power. battery is running the laptop." CLR_RESET "\033[K\n\033[K\n");
         } else if (isHold || abs(pb.battery_ma) < 50) {
-            printf("  " CLR_DIM_YELLOW "> wall is running the laptop. battery is resting at " CLR_RESET CLR_BRIGHT_YELLOW "%d%%" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\n", pct);
+            printf("  " CLR_DIM_YELLOW "> wall is running the laptop. battery is resting at " CLR_RESET CLR_BRIGHT_YELLOW "%d%%" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\033[K\n", pct);
         } else {
             double chg_a = (double)fmax(pb.battery_ma, 0) / 1000.0;
             if (is_settling) {
-                printf("  " CLR_DIM_YELLOW "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT_YELLOW "~%.1f A" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\n", chg_a);
+                printf("  " CLR_DIM_YELLOW "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT_YELLOW "~%.1f A" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\033[K\n", chg_a);
             } else {
-                printf("  " CLR_DIM_YELLOW "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\n", chg_a);
+                printf("  " CLR_DIM_YELLOW "> wall is running the laptop and charging the battery at " CLR_RESET CLR_BRIGHT_YELLOW "%.1f A" CLR_RESET CLR_DIM_YELLOW "." CLR_RESET "\033[K\n\033[K\n", chg_a);
             }
         }
 
@@ -1112,13 +1080,8 @@ static void live_view_run(void) {
                CLR_BRIGHT_YELLOW "%d%%" CLR_RESET "  %s  " CLR_DIM_YELLOW "%s" CLR_RESET "\033[K\n",
                bar_filled, bar_empty, pct, batt_word_colored, time_in_state_str);
 
-        // Estimate line under the bar, omitted while the battery is resting
-        if (cur_state != 1 && est_line_colored[0] != '\0') {
-            printf("  %s\033[K\n", est_line_colored);
-            printf("\033[K\n");
-        } else {
-            printf("\033[K\n");
-        }
+        // Blank line between the battery bar and the power flow rows
+        printf("\033[K\n");
 
         // Power flow rows: wall to laptop, then wall to battery
         if (pb.ac_connected) {
@@ -1148,7 +1111,7 @@ static void live_view_run(void) {
 
         // Raw telemetry, only when toggled with [r]. Split so it fits 80 columns.
         if (show_raw) {
-            printf("\n" CLR_DIM_YELLOW "  raw: ncr=0x%08x chg=%d amp=%+dmA pmu=%d load=%.1fW rails=%.1fW" CLR_RESET "\033[K\n",
+            printf("\033[K\n" CLR_DIM_YELLOW "  raw: ncr=0x%08x chg=%d amp=%+dmA pmu=%d load=%.1fW rails=%.1fW" CLR_RESET "\033[K\n",
                    pb.not_charging_reason, pb.is_charging ? 1 : 0, pb.battery_ma, bInfo.pmuConfigured,
                    pb.total_system_w, rail_sum_w);
             printf(CLR_DIM_YELLOW "  raw: cells=%u/%u/%u mV temp=%.1fC" CLR_RESET "\033[K\n",
@@ -1157,7 +1120,7 @@ static void live_view_run(void) {
 
         // Yellow WARN line (only when temp > 40C or cell spread > 30 mV)
         if (has_warn) {
-            printf("\n  " CLR_YELLOW "%s" CLR_RESET "\033[K\n", warn_buf);
+            printf("\033[K\n  " CLR_YELLOW "%s" CLR_RESET "\033[K\n", warn_buf);
         }
 
         // Separator and footer
