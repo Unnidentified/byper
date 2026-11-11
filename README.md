@@ -13,10 +13,10 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 
 <table>
 <tr>
-<td width="44%" align="center" valign="middle">
-<img src="docs/images/popover.png" width="100%" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
+<td width="340" align="center" valign="middle">
+<img src="docs/images/popover.png" width="340" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
 </td>
-<td width="56%" valign="middle">
+<td valign="middle">
 <h3>The panel</h3>
 <p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns.</p>
 <p>The graph is live draw, the readout is voltage and amperage, and the rows below are the ones you reach for most.</p>
