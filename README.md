@@ -10,7 +10,22 @@ When you enable bypass, your battery is held at whatever level you want. Your co
 You don't need local tools, you can just click on Actions > [Build](#building) and you'll get a `.pkg` and a `.dmg` inside a `.zip`
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
-<img src="docs/images/popover.png" alt="The byper popover on a light, a mixed and a dark wallpaper" width="100%" />
+
+<table>
+<tr>
+<td width="44%" align="center" valign="middle">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-dark.png">
+<img src="docs/images/popover-light.png" width="100%" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
+</picture>
+</td>
+<td width="56%" valign="middle">
+<h3>The panel</h3>
+<p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns.</p>
+<p>The graph is live draw, the readout is voltage and amperage, and the rows below are the ones you reach for most.</p>
+</td>
+</tr>
+</table>
 
 ---
 
