@@ -149,6 +149,9 @@ tested on.
 | `src/smc.c` | AppleSMC user client, key reads |
 | `src/battery.c` | IOKit power source parsing |
 | `src/power.c` | Rail telemetry |
+| `src/prefs.c` | The `com.gefaass.byper` settings domain, shared with the app |
+| `src/session.c` | CSV session logger, same file name and columns as the app |
+| `src/automation.c` | Platform probes, caffeinate, the automation runner |
 | `src/app/AppDelegate.swift` | Status item, popover lifecycle, hotkey, appearance KVO, privileged install |
 | `src/app/BatteryMonitor.swift` | Observable state, polling, automations, presets, logger |
 | `src/app/BatteryDropdownView.swift` | Popover content |
@@ -326,6 +329,12 @@ Live:
 - The logger writes `byper-session-<timestamp>.csv` to the Desktop.
 - Global hotkey Cmd+Opt+B.
 - App Intents for bypass on, off and toggle.
+
+The CLI covers the same feature set except the app UI concerns: the global
+hotkey, App Intents and the master slider. `byper caffeinate`, `byper logger`
+and `byper auto` read and write the same settings domain as the app. See
+[architecture.md](architecture.md) for the commands, the keys and how the
+automations are driven.
 
 ## Hard constraints
 

@@ -6,13 +6,13 @@
 
 CC = clang
 CFLAGS = -O3 -Wall -Wextra -std=c11 -fobjc-arc -target arm64-apple-macos11.0
-FRAMEWORKS = -framework IOKit -framework CoreFoundation -framework Foundation
+FRAMEWORKS = -framework IOKit -framework CoreFoundation -framework Foundation -framework CoreGraphics
 
 SWIFTC = swiftc
 SWIFT_FLAGS = -O -whole-module-optimization -target arm64-apple-macos11.0
 SWIFT_FRAMEWORKS = -framework AppKit -framework SwiftUI -framework Foundation -framework IOKit -framework Carbon -framework AppIntents
 
-SRC = src/main.c src/smc.c src/battery.c src/power.c src/powerui.m
+SRC = src/main.c src/smc.c src/battery.c src/power.c src/powerui.m src/prefs.c src/session.c src/automation.c
 TARGET_DIR = bin
 TARGET = $(TARGET_DIR)/byper
 MON_CMD = $(TARGET_DIR)/byper-mon.command
