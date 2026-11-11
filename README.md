@@ -7,7 +7,7 @@ Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
 It holds your battery at whatever level you want and runs the whole computer off the charger (not from the battery, that's the whole point), so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
-You don't need a local toolchain, you can just click on Actions > Build and you'll get a `.pkg` and a `.dmg` (see [building](https://github.com/Unnidentified/byper/edit/main/README.md#building))
+You don't need local tools, you can just click on Actions > [Build](https://github.com/Unnidentified/byper/edit/main/README.md#building) and you'll get a `.pkg` and a `.dmg` bundled inside a `.zip`
 
 <img width="2446" height="336" alt="byper-pill-preview" src="https://github.com/user-attachments/assets/13371055-899b-421b-8440-22592709d901" />
 
