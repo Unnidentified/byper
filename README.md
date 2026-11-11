@@ -116,7 +116,7 @@ Because the attach takes seconds, the UI's verify-poll gates truth and the engin
 | Requirement | Why |
 |---|---|
 | apple silicon (M1-M4) | Builds target `arm64-apple-macos11.0`. Intel would need a universal2 build and untested SMC register maps |
-| macOS 11 Big Sur or newer | Oldest release running Apple Silicon. App Intents need macOS 13+. The Liquid Glass popover needs macOS 26; older systems get the previous dark solid shell |
+| macOS 11 Big Sur or newer | Oldest release running on Apple Silicon. App Intents need macOS 13+. The Liquid Glass popover needs macOS 26; older systems get the previous dark solid shell |
 | SIP debug flag disabled | Bypass attaches to `PowerUIAgent` with lldb, which stock SIP refuses |
 | command line tools | The installer sets them up if missing |
 
