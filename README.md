@@ -14,10 +14,7 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 <table>
 <tr>
 <td width="44%" align="center" valign="middle">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-dark.png">
-<img src="docs/images/popover-light.png" width="100%" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
-</picture>
+<img src="docs/images/popover.png" width="100%" alt="The byper popover: the master slider on the left, the live power graph, the voltage and amperage readout, and the four rows for bypass, powersave, caffeinate and settings">
 </td>
 <td width="56%" valign="middle">
 <h3>The panel</h3>
