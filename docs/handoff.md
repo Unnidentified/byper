@@ -289,20 +289,23 @@ constant there so the value stays in one place. The current values:
 should not be any again.
 
 - Design space 30 x 14, drawn at 12pt.
-- Body 27 x 14, corner radius 4.2.
-- Nub: x 28.3 to 29.9, y 4.65 to 9.35, right corners r0.8, flat left, 1.3 clear
-  of the body.
+- Body 27 x 14, corner radius 4.75.
+- Nub: x 28.3 to 30.035, y 4.65 to 9.35, a superellipse on the right (exponent
+  1.64, 0.071 shoulder), flat left, 1.3 clear of the body.
 - Digit ink height 8.4, font size derived from the font's cap height (about
   11.92), centred on the ink bounding box, not the line box.
-- Fill width `round(27 * level / 100)`.
-- Track opacity 0.44 for the idle pill, 0.20 for the coloured pills. Nub 0.55.
-- Base ink black at 0.93 alpha, paper white at 0.93 alpha.
+- Fill edge `round(23.14 * level / 100)` points, so it lands on the same column
+  as the system battery.
+- Track opacity 0.425 on a light idle bar, 0.450 on a dark one, 0.20 for the
+  coloured pills. Nub 0.55.
+- Base ink black at 0.91 alpha, paper white at 0.946 alpha.
 - Mode colours: charging `#30D158`, bypass `#DC8038`, low power `#FFD60A`, low
   battery `#FF453A`.
 - The track and nub use the menu bar ink. The mode colour only fills the
   charge.
 - The number uses the menu bar text colour: black on a light bar, white on a
-  dark one. The idle pill is the exception, where the number is a knockout.
+  dark one. The idle pill is the exception, where the number is a knockout at
+  0.85.
 
 The drawing handler reads `NSAppearance.currentDrawing()` to decide light or
 dark. `AppDelegate` observes `button.effectiveAppearance`, filters to
@@ -338,12 +341,12 @@ Live:
 
 ## Current state
 
-- `main` is at the merge of PR #14, the README screenshot.
-- The latest release is `v3.0.0`, the Liquid Glass redesign. Assets:
-  `byper-installer-3.0.0.pkg`, `.dmg`, `SHA256SUMS.txt`, and
-  `popover-comparison.png` for the release notes.
+- `main` is past the merge of PR #18, the digits and portability fix.
+- The latest release is `v3.0.1`, the icon match. Assets:
+  `byper-installer-3.0.1.pkg`, `.dmg`, `SHA256SUMS.txt`, and
+  `menu-bar-comparison.png` and `menu-bar-detail.png` for the release notes.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
-  both `3.0.0`. They used to drift apart. Bump them together.
+  both `3.0.1`. They used to drift apart. Bump them together.
 - CI is `.github/workflows/ci.yml`: `changes` (diff filter), `checks` (shell
   syntax, plist, no installer artifacts, no `VANILLA`, workflow YAML, docs links
   and anchors), `compile` (`make all`, artifact checks, CLI smoke test).

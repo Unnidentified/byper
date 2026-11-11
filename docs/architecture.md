@@ -26,8 +26,8 @@ and drives its own smart-charge methods.
 4. The CLI polls the SMC and IOKit until the hardware reports the hold. It
    retries the lldb session at 1.5s, 3.5s, 6s, 10s, then every 15s, capped at
    45s.
-5. The hold is confirmed by the SMC mode-of-operation value (`MoO` 7) and the
-   not-charging reason (`NCR` `0x01000000`), not by the lldb exit code.
+5. The hold is confirmed by the not-charging reason (`NCR` `0x01000000`) and a
+   near-zero amperage, not by the lldb exit code.
 
 The reverse path (`byper off`) calls `clearAllChargeLimits`,
 `clearManualChargeLimit`, `clearMCLOverride`, `disableMCL`, `enableCharging`,
@@ -97,7 +97,8 @@ Swift sources explicitly, so a new file has to be added to `SWIFT_SRC`.
 
 The icon is drawn natively in `BatteryPillIcon.swift`. It is a 30 x 14 design
 space scaled to 12pt, with a 27 x 14 body and a D-shaped nub. The idle pill
-punches the level out; the coloured pills draw it in the menu bar text colour.
+knocks the level out at 0.85; the coloured pills draw it in the menu bar text
+colour.
 The drawing handler reads `NSAppearance.currentDrawing()` to decide whether the
 menu bar is light or dark. The status item button's `effectiveAppearance` drives
 the refresh when the wallpaper changes.
@@ -119,7 +120,7 @@ completions.
 |---|---|
 | `/usr/local/bin/byper` | SUID CLI |
 | `/usr/local/bin/byp`, `/usr/local/bin/chbypass` | Symlinks |
-| `/usr/local/bin/byper-mon.command` | Standalone monitor |
+| `/usr/local/bin/byper-mon.command` | Standalone monitor, from `install.sh` |
 | `/usr/local/share/zsh/site-functions/_byper`, `_byp` | Zsh completions |
 | `/usr/local/share/bash-completion/completions/byper`, `byp` | Bash completions |
 | `/Applications/byper.app` | Menu bar app |

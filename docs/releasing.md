@@ -2,10 +2,10 @@
 
 ## Version numbers
 
-Semantic Versioning 2.0.0, written `vMAJOR.MINOR.PATCH`. The tag, the release
-title, `CFBundleShortVersionString` in `src/app/Info.plist` and the
-`BYPER_VERSION` default in `pkg/build_pkg.sh` are the same string. They used to
-drift apart, so bump them in one commit.
+Semantic Versioning 2.0.0, written `vMAJOR.MINOR.PATCH`. The tag,
+`CFBundleShortVersionString` in `src/app/Info.plist` and the `BYPER_VERSION`
+default in `pkg/build_pkg.sh` are the same string. The release title starts with
+the tag. The version strings used to drift apart, so bump them in one commit.
 
 - **MAJOR** for a redesign, or for anything that breaks an install path, a CLI
   flag, a settings key or the minimum macOS version.
@@ -44,8 +44,8 @@ do not reuse its number. The next attempt is `beta.N+1`.
 3. `shasum -a 256 byper-installer.pkg byper-installer.dmg > SHA256SUMS.txt`.
 4. Tag the merge commit on `main`, not the branch commit:
    `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push origin vX.Y.Z`.
-5. `gh release create vX.Y.Z` with the two assets and the sums. The title is the
-   tag. Tick pre-release for a beta or an rc.
+5. `gh release create vX.Y.Z` with the two assets and the sums. The title starts
+   with the tag. Tick pre-release for a beta or an rc.
 6. The notes follow the style below.
 
 ## Release notes
@@ -66,7 +66,7 @@ Write for someone deciding whether to install.
 
 ## History
 
-The releases before 3.0.0 did not follow the scheme above. Some carried `(beta)`
+Some releases before 3.0.0 did not follow the scheme above. A few carried `(beta)`
 in the title, one carried a `-test` suffix, and one tag did not match its title.
 They were renamed in place. The assets were not rebuilt, so the file names on
 the older releases still carry the old version.

@@ -34,7 +34,7 @@ make all
 sudo ./install.sh
 ```
 
-`install.sh` builds as the invoking user even when run with sudo, so the build artifacts do not end up root-owned. It installs the same paths as the package.
+`install.sh` builds as the invoking user even when run with sudo, so the build artifacts do not end up root-owned. It installs the same paths as the package, plus the standalone monitor.
 
 ## The SUID bit
 
