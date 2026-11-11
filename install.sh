@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-#  macos-ch.bypass — install.sh
+#  macos-ch.bypass - install.sh
 #  Installs 'byper', 'byp', 'chbypass', 'byper-mon.command', 'byper.app',
 #  and shell completions (Zsh / Bash)
 # ============================================================
@@ -73,7 +73,7 @@ echo "Usage:"
 echo "  [+] Live Telemetry Monitor:       byper (or byp)"
 echo "  [+] Enable Pure Bypass (On Hold): byper on"
 echo "  [+] Disable Bypass (Full Charge): byper off"
-echo "  [+] NDJSON Live Stream:           byper stream (or byper json --watch)"
+echo "  [+] NDJSON Live Stream:           byper mon (or byper json)"
 echo "  [+] Hardware & MagSafe PDO:       byper p"
 echo "  [+] Status Summary:               byper s"
 echo "  [+] Toggle Hold / Charging:       byper t"
