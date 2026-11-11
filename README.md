@@ -31,7 +31,7 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 
 - [Building](#building)
 - [Components](#components)
-- [CLI Commands](#cli-commands)
+- [CLI Usage](#cli-usage)
 - [How bypass works](#how-bypass-works)
 - [Requirements](#requirements)
 - [How to Install](#how-to-install)
@@ -74,7 +74,7 @@ The main slider on the left progressively dims and disables the menu rows (bypas
 
 ---
 
-## CLI Commands
+## CLI Usage
 
 ```bash
 byper                  # Interactive real-time TUI monitor
