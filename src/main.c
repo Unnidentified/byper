@@ -395,10 +395,11 @@ static int export_session_log(char *out_path, size_t out_path_size) {
     }
 
     if (!home || strcmp(home, "/var/root") == 0 || strcmp(home, "/private/var/root") == 0) {
+        // Portable fallback: a Desktop under the current HOME if it exists, else /tmp.
+        char desktop[512];
         struct stat st;
-        if (stat("/Users/gefaass/Desktop", &st) == 0) {
-            home = "/Users/gefaass";
-        } else {
+        int n = home ? snprintf(desktop, sizeof(desktop), "%s/Desktop", home) : -1;
+        if (n <= 0 || (size_t)n >= sizeof(desktop) || stat(desktop, &st) != 0) {
             home = "/tmp";
         }
     }

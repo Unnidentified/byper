@@ -217,8 +217,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // attributed to byper and SecurityAgent can offer Touch ID. `do shell script
         // ... with administrator privileges` routes the request through /bin/sh and
         // shows up as "a script started by bash" instead.
-        let projectApp = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/byper.app"
-        let projectCli = "/Users/gefaass/Desktop/Documents/agent stuff/macos-ch.bypass #2/bin/byper"
+        // Both paths come from the running bundle, so a source install under any
+        // account works: the app is the bundle we run from and the CLI is the
+        // copy the Makefile stages in Contents/Resources.
+        let projectApp = Bundle.main.bundlePath
+        let projectCli = Bundle.main.resourceURL?.appendingPathComponent("byper").path
+            ?? projectApp + "/Contents/Resources/byper"
+        guard FileManager.default.fileExists(atPath: projectApp) else {
+            NSLog("byper: install aborted, app bundle not found at %@", projectApp)
+            return
+        }
+        guard FileManager.default.isExecutableFile(atPath: projectCli) else {
+            NSLog("byper: install aborted, CLI not found at %@", projectCli)
+            return
+        }
         guard let helper = Bundle.main.path(forResource: "byper-installer", ofType: nil),
               FileManager.default.isExecutableFile(atPath: helper) else { return }
 
