@@ -301,20 +301,34 @@ bool automation_lid_closed(void) {
     return closed;
 }
 
-// The armed mode, in the same words the app's dropdown uses.
-const char *caffeinate_mode_name(void) {
-    if (prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)) return "on";
-    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false)) return "on bypass";
-    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false)) return "on lid close";
-    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_CHARGER, false)) return "on charger";
-    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)) return "per app";
-    return "off";
+// The armed conditions, in the same words the app's dropdown uses, joined with
+// " + ", or "off" when none is armed. The manual switch is reported separately
+// because it is the always-on override, not a condition.
+const char *caffeinate_armed_summary(void) {
+    static char summary[128];
+    static const struct { const char *key; const char *name; } conditions[] = {
+        { BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, "on bypass" },
+        { BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, "on lid close" },
+        { BYP_KEY_AUTO_CAFFEINE_ON_CHARGER, "on charger" },
+        { BYP_KEY_AUTO_CAFFEINE_PER_APP, "per app" },
+    };
+    size_t used = 0;
+    summary[0] = '\0';
+    for (size_t i = 0; i < sizeof(conditions) / sizeof(conditions[0]); i++) {
+        if (!prefs_get_bool(conditions[i].key, false)) continue;
+        int written = snprintf(summary + used, sizeof(summary) - used, "%s%s",
+                               used ? " + " : "", conditions[i].name);
+        if (written < 0) break;
+        used += (size_t)written;
+        if (used >= sizeof(summary)) { used = sizeof(summary) - 1; break; }
+    }
+    return used ? summary : "off";
 }
 
-// True when the armed caffeinate mode is satisfied right now. Mirrors the app's
-// desired-state pipeline: the modes are mutually exclusive, so this is a plain
-// OR over the armed mode's trigger, and a mode releases as soon as its trigger
-// drops. The runner and the app therefore agree on when caffeinate should run.
+// True when caffeinate should be running right now: the manual switch is on, or
+// any armed condition is satisfied. The four conditions are independent and
+// combinable, so this is a plain OR and a condition releases as soon as its
+// trigger drops. The runner and the app therefore agree on when caffeinate runs.
 bool automation_caffeinate_wanted(const BatteryInfo *info) {
     if (prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)) return true;
     if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false) && automation_hold_active(info)) return true;
@@ -412,7 +426,7 @@ static void watch_print_settings(const AutomationWatchOptions *options) {
     int count = prefs_copy_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, &apps);
     printf("auto lpm: %d app(s)\n", count);
     prefs_free_string_array(apps, count);
-    printf("caffeinate: %s\n", caffeinate_mode_name());
+    printf("caffeinate: %s\n", caffeinate_armed_summary());
     fflush(stdout);
 }
 
@@ -505,8 +519,8 @@ int automation_watch(const AutomationWatchOptions *options) {
         }
 
         if (master) {
-            // Caffeinate: whichever of the six modes is armed, and whether its
-            // trigger holds right now.
+            // Caffeinate: the switch, or any armed condition whose trigger
+            // holds right now.
             bool want_caffeine = automation_caffeinate_wanted(&info);
             bool caffeine_running = automation_caffeinate_running();
             if (want_caffeine && !caffeine_running) {

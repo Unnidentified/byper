@@ -31,11 +31,13 @@ bool automation_caffeinate_stop(void);
 // machine with no lid.
 bool automation_lid_closed(void);
 
-// The armed caffeinate mode, in the words the app's dropdown uses.
-const char *caffeinate_mode_name(void);
+// The armed caffeinate conditions, in the words the app's dropdown uses, joined
+// with " + ", or "off" when none is armed.
+const char *caffeinate_armed_summary(void);
 
-// True when the armed caffeinate mode is satisfied right now. The modes are
-// mutually exclusive, so this is a plain OR over the armed mode's trigger.
+// True when caffeinate should be running right now: the manual switch is on, or
+// any armed condition is satisfied. The conditions are independent, so this is a
+// plain OR over the switch and every armed condition's trigger.
 bool automation_caffeinate_wanted(const BatteryInfo *info);
 
 // Releases the bypass hold on process exit when byp_disable_bypass_on_quit is

@@ -1568,41 +1568,14 @@ static void print_app_label(const char *bundle_id) {
     }
 }
 
-// The six caffeinate modes are mutually exclusive. Every write goes through these
-// helpers so a mode armed from the terminal disarms the other five exactly the way
-// the app's dropdown does, and the two front ends can never leave two modes armed.
-static const char *const kCaffeinateModeKeys[] = {
-    BYP_KEY_CAFFEINE_ALWAYS_ON,
-    BYP_KEY_AUTO_CAFFEINE_ON_BYPASS,
-    BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE,
-    BYP_KEY_AUTO_CAFFEINE_ON_CHARGER,
-    BYP_KEY_AUTO_CAFFEINE_PER_APP,
-};
-#define CAFFEINATE_MODE_KEY_COUNT (sizeof(kCaffeinateModeKeys) / sizeof(kCaffeinateModeKeys[0]))
-
-// Selects one mode and disarms the other five.
-static void caffeinate_select_mode(const char *key) {
-    for (size_t i = 0; i < CAFFEINATE_MODE_KEY_COUNT; i++) {
-        prefs_set_bool(kCaffeinateModeKeys[i], strcmp(kCaffeinateModeKeys[i], key) == 0);
-    }
-}
-
-// Disarms one mode and leaves the rest alone, so "auto off" cannot silently
-// disarm a mode the user picked somewhere else.
-static void caffeinate_clear_mode(const char *key) {
-    prefs_set_bool(key, false);
-}
-
-// Selects Off: every mode disarmed.
-static void caffeinate_clear_all(void) {
-    for (size_t i = 0; i < CAFFEINATE_MODE_KEY_COUNT; i++) {
-        prefs_set_bool(kCaffeinateModeKeys[i], false);
-    }
-}
-
-// Starts or stops the detached caffeinate so it matches the armed mode, and
-// reports whether the mode is satisfied right now. Shared by every mode action
-// so they cannot drift apart.
+// The four caffeinate conditions are independent and combinable, so every write
+// touches exactly one key and leaves the other three alone. The manual switch is
+// separate: it is the always-on override, not a condition, so "caffeinate off"
+// never disarms a condition and a condition engaging never moves the switch.
+//
+// Starts or stops the detached caffeinate so it matches the switch and the armed
+// conditions, and reports whether it should be running right now. Shared by every
+// action so they cannot drift apart.
 static int caffeinate_apply(bool *wanted_out) {
     BatteryInfo info;
     bool have_info = battery_get_info(&info);
@@ -1622,8 +1595,12 @@ static int handle_caffeinate(int argc, char *argv[]) {
     if (strcmp(action, "status") == 0) {
         BatteryInfo info;
         bool have_info = battery_get_info(&info);
-        printf("caffeinate: %s\n", automation_caffeinate_running() ? "on" : "off");
-        printf("  mode        %s\n", caffeinate_mode_name());
+        // The effective state, not the CLI's own detached process: with the app
+        // running it is the app that holds the assertion, and the switch or an
+        // armed condition is what the user asked for.
+        printf("caffeinate: %s\n",
+               have_info && automation_caffeinate_wanted(&info) ? "on" : "off");
+        printf("  armed       %s\n", caffeinate_armed_summary());
         printf("  manual      %-3s  %s\n",
                on_off_word(prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)),
                BYP_KEY_CAFFEINE_ALWAYS_ON);
@@ -1653,45 +1630,50 @@ static int handle_caffeinate(int argc, char *argv[]) {
         return 0;
     }
 
+    // The switch. It is the manual always-on and nothing else, so turning it off
+    // leaves every armed condition armed and caffeinate may keep running.
     if (strcmp(action, "on") == 0 || strcmp(action, "off") == 0) {
         bool enable = strcmp(action, "on") == 0;
-        if (enable) caffeinate_select_mode(BYP_KEY_CAFFEINE_ALWAYS_ON);
-        else caffeinate_clear_all();
+        if (!prefs_set_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, enable)) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_CAFFEINE_ALWAYS_ON);
+            return 1;
+        }
         bool wanted = false;
         if (caffeinate_apply(&wanted) != 0) return 1;
         if (enable) printf("caffeinate: on\n");
-        else if (wanted) printf("caffeinate: on (%s)\n", caffeinate_mode_name());
+        else if (wanted) printf("caffeinate: on (%s)\n", caffeinate_armed_summary());
         else printf("caffeinate: off\n");
         return 0;
     }
 
-    if (strcmp(action, "auto") == 0) {
-        bool enable;
-        if (argc < 4 || !parse_on_off(argv[3], &enable)) {
-            fprintf(stderr, "usage: byper caffeinate auto on|off\n");
-            return 1;
-        }
-        if (enable) caffeinate_select_mode(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
-        else caffeinate_clear_mode(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
-        // State semantics, matching the app: turning the auto path on while a
-        // hold is already active lights caffeinate now, not at the next edge.
-        if (caffeinate_apply(NULL) != 0) return 1;
-        printf("caffeinate on bypass: %s\n", on_off_word(enable));
-        return 0;
+    // The four conditions. Each subcommand writes its own key and leaves the other
+    // three alone, so arming one from the terminal cannot disarm one the user
+    // picked in the app. "auto" is the pre-existing spelling of "bypass".
+    const char *condition_key = NULL;
+    const char *condition_name = NULL;
+    if (strcmp(action, "bypass") == 0 || strcmp(action, "auto") == 0) {
+        condition_key = BYP_KEY_AUTO_CAFFEINE_ON_BYPASS;
+        condition_name = "on bypass";
+    } else if (strcmp(action, "lid") == 0) {
+        condition_key = BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE;
+        condition_name = "on lid close";
+    } else if (strcmp(action, "charger") == 0) {
+        condition_key = BYP_KEY_AUTO_CAFFEINE_ON_CHARGER;
+        condition_name = "on charger";
     }
 
-    if (strcmp(action, "lid") == 0 || strcmp(action, "charger") == 0) {
+    if (condition_key) {
         bool enable;
         if (argc < 4 || !parse_on_off(argv[3], &enable)) {
             fprintf(stderr, "usage: byper caffeinate %s on|off\n", action);
             return 1;
         }
-        bool lid = strcmp(action, "lid") == 0;
-        const char *key = lid ? BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE : BYP_KEY_AUTO_CAFFEINE_ON_CHARGER;
-        if (enable) caffeinate_select_mode(key);
-        else caffeinate_clear_mode(key);
+        if (!prefs_set_bool(condition_key, enable)) {
+            fprintf(stderr, "failed to write %s\n", condition_key);
+            return 1;
+        }
         if (caffeinate_apply(NULL) != 0) return 1;
-        printf("caffeinate on %s: %s\n", lid ? "lid close" : "charger", on_off_word(enable));
+        printf("caffeinate %s: %s\n", condition_name, on_off_word(enable));
         return 0;
     }
 
@@ -1701,7 +1683,10 @@ static int handle_caffeinate(int argc, char *argv[]) {
             return 1;
         }
         if (strcmp(argv[3], "off") == 0) {
-            caffeinate_clear_mode(BYP_KEY_AUTO_CAFFEINE_PER_APP);
+            if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)) {
+                fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_PER_APP);
+                return 1;
+            }
             if (caffeinate_apply(NULL) != 0) return 1;
             printf("caffeinate per app: off\n");
             return 0;
@@ -1732,7 +1717,10 @@ static int handle_caffeinate(int argc, char *argv[]) {
             }
         }
         prefs_free_string_array(apps, count);
-        caffeinate_select_mode(BYP_KEY_AUTO_CAFFEINE_PER_APP);
+        if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, true)) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_PER_APP);
+            return 1;
+        }
         if (caffeinate_apply(NULL) != 0) return 1;
         printf("caffeinate per app: on (");
         print_app_label(argv[3]);
@@ -1741,7 +1729,7 @@ static int handle_caffeinate(int argc, char *argv[]) {
     }
 
     fprintf(stderr, "usage: byper caffeinate on|off|status\n");
-    fprintf(stderr, "       byper caffeinate auto on|off\n");
+    fprintf(stderr, "       byper caffeinate bypass on|off\n");
     fprintf(stderr, "       byper caffeinate lid on|off\n");
     fprintf(stderr, "       byper caffeinate charger on|off\n");
     fprintf(stderr, "       byper caffeinate app <bundle-id>|off\n");
@@ -2005,14 +1993,15 @@ static void print_usage(const char *prog) {
     printf("  byp json [power]        Machine-readable JSON telemetry\n");
     printf("  byp lpm on|off          Set macOS Low Power Mode\n");
     printf("  byp caffeinate on|off   Hold the display and idle sleep on or off\n");
-    printf("  byp caffeinate auto on|off\n");
-    printf("                          Hold them only while a bypass hold is active\n");
+    printf("  byp caffeinate bypass on|off\n");
+    printf("                          Hold them while a bypass hold is active\n");
+    printf("                          (alias: byp caffeinate auto on|off)\n");
     printf("  byp caffeinate lid on|off\n");
-    printf("                          Hold them only while the lid is closed\n");
+    printf("                          Hold them while the lid is closed\n");
     printf("  byp caffeinate charger on|off\n");
-    printf("                          Hold them only while the charger is attached\n");
+    printf("                          Hold them while the charger is attached\n");
     printf("  byp caffeinate app <bundle-id>|off\n");
-    printf("                          Hold them only while that app is frontmost\n");
+    printf("                          Hold them while that app is frontmost\n");
     printf("  byp caffeinate status   Show the caffeinate state\n");
     printf("  byp logger [--quiet]    Write a CSV session log to the Desktop\n");
     printf("  byp auto                Show the automation settings\n");
@@ -2029,6 +2018,9 @@ static void print_usage(const char *prog) {
     printf("  byp help                Show command usage\n");
     printf("\n");
     printf("Settings live in the com.gefaass.byper domain, shared with byper.app.\n");
+    printf("Caffeinate conditions combine: arm any number of them, and caffeinate\n");
+    printf("holds while any armed condition is true. The switch is the manual\n");
+    printf("always-on and overrides them.\n");
 }
 
 int main(int argc, char *argv[]) {
