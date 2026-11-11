@@ -23,6 +23,32 @@ final class BatteryMonitor: ObservableObject {
         case charging = "charging"
         case bypass = "bypass"
     }
+
+    // The six caffeinate selections. They are mutually exclusive: exactly one is
+    // armed at a time, so two modes can never fight over the assertion. "On" is
+    // the manual switch, and it is a mode rather than an override layer, which is
+    // what keeps the handoff's "manual wins over automation" invariant: an
+    // automation is never armed while the manual switch is, so nothing can
+    // release a manual engagement behind the user's back.
+    enum CaffeineMode: String, CaseIterable, Codable {
+        case off
+        case on
+        case bypass
+        case lidClose = "lid_close"
+        case charger
+        case app
+
+        var label: String {
+            switch self {
+            case .off: return "Off"
+            case .on: return "On"
+            case .bypass: return "On bypass"
+            case .lidClose: return "On lid close"
+            case .charger: return "On charger"
+            case .app: return "Per app"
+            }
+        }
+    }
     
     @Published var powerMode: PowerMode = PowerMode(rawValue: UserDefaults.standard.string(forKey: "byp_power_mode") ?? "charging") ?? .charging {
         didSet {
@@ -297,6 +323,66 @@ final class BatteryMonitor: ObservableObject {
             UserDefaults.standard.set(caffeineAlwaysOn, forKey: "byp_caffeine_always_on")
         }
     }
+    // The two newer caffeinate modes. Same domain, same naming as the pair above.
+    @Published var autoCaffeineOnLidClose: Bool = UserDefaults.standard.bool(forKey: "byp_auto_caffeine_on_lid_close") {
+        didSet {
+            UserDefaults.standard.set(autoCaffeineOnLidClose, forKey: "byp_auto_caffeine_on_lid_close")
+        }
+    }
+    @Published var autoCaffeineOnCharger: Bool = UserDefaults.standard.bool(forKey: "byp_auto_caffeine_on_charger") {
+        didSet {
+            UserDefaults.standard.set(autoCaffeineOnCharger, forKey: "byp_auto_caffeine_on_charger")
+        }
+    }
+    // Per-app caffeinate, the same shape as byp_auto_lpm_bundle_ids: a set of
+    // bundle ids, so the picker and the reconciler are the LPM ones reused. The
+    // arming flag is separate from the set on purpose: selecting "Per app" before
+    // picking anything must stick, and switching away and back must not drop the
+    // selection.
+    @Published var autoCaffeinePerApp: Bool = UserDefaults.standard.bool(forKey: "byp_auto_caffeine_per_app") {
+        didSet {
+            UserDefaults.standard.set(autoCaffeinePerApp, forKey: "byp_auto_caffeine_per_app")
+        }
+    }
+    @Published var autoCaffeineBundleIds: Set<String> = BatteryMonitor.loadAutoCaffeineBundleIds() {
+        didSet {
+            if autoCaffeineBundleIds != oldValue {
+                UserDefaults.standard.set(Array(autoCaffeineBundleIds), forKey: "byp_auto_caffeine_bundle_ids")
+            }
+        }
+    }
+    @Published var isCaffeineAppPickerExpanded: Bool = false
+    // Live sensor mirrors for the two modes that have no existing published signal.
+    @Published var lidClosed: Bool = false
+    @Published var frontmostAppBundleID: String? = nil
+
+    // The single selection the dropdown shows. Derived from the persisted flags so
+    // the CLI keeps owning the same keys, and resolved by priority so a domain
+    // written by an older build (or by hand) still lands on one mode.
+    var caffeineMode: CaffeineMode {
+        if caffeineAlwaysOn { return .on }
+        if autoCaffeineOnBypass { return .bypass }
+        if autoCaffeineOnLidClose { return .lidClose }
+        if autoCaffeineOnCharger { return .charger }
+        if autoCaffeinePerApp { return .app }
+        return .off
+    }
+
+    // Writes every flag, so selecting a mode always clears the other five. This is
+    // the only place the app arms a caffeinate mode, which is what makes the
+    // exclusivity structural rather than a UI convention. The bundle id set is
+    // deliberately left alone: it is the picker's memory, not the arming state.
+    func setCaffeineMode(_ mode: CaffeineMode) {
+        caffeineAlwaysOn = mode == .on
+        autoCaffeineOnBypass = mode == .bypass
+        autoCaffeineOnLidClose = mode == .lidClose
+        autoCaffeineOnCharger = mode == .charger
+        autoCaffeinePerApp = mode == .app
+    }
+
+    private static func loadAutoCaffeineBundleIds() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: "byp_auto_caffeine_bundle_ids") ?? [])
+    }
     // Master slider (0.0 = everything off, 1.0 = fully on). Dragging it down fades the
     // menu rows out chronologically and disables each feature as the knob passes its
     // row; sliding back up over a row restores the state it had when it was disabled.
@@ -409,8 +495,7 @@ final class BatteryMonitor: ObservableObject {
         var bypass: PowerMode?
         var lpm: Bool?
         var threshold: Bool?
-        var caffeineAlways: Bool?
-        var caffeineAuto: Bool?
+        var caffeineMode: CaffeineMode?
         var autoPlug: Bool?
         var autoLogin: Bool?
         var autoDisplay: Bool?
@@ -466,11 +551,9 @@ final class BatteryMonitor: ObservableObject {
             if snap.threshold == nil { snap.threshold = autoBypassThresholdEnabled }
             withAnimation(.easeInOut(duration: 0.25)) { autoBypassThresholdEnabled = false }
         case "caffeine":
-            if snap.caffeineAlways == nil { snap.caffeineAlways = caffeineAlwaysOn }
-            if snap.caffeineAuto == nil { snap.caffeineAuto = autoCaffeineOnBypass }
+            if snap.caffeineMode == nil { snap.caffeineMode = caffeineMode }
             withAnimation(.easeInOut(duration: 0.25)) {
-                caffeineAlwaysOn = false
-                autoCaffeineOnBypass = false
+                setCaffeineMode(.off)
             }
         case "settings":
             if snap.autoPlug == nil { snap.autoPlug = autoHoldOnPlug }
@@ -517,8 +600,7 @@ final class BatteryMonitor: ObservableObject {
             if let t = snap.threshold { withAnimation(.easeInOut(duration: 0.25)) { autoBypassThresholdEnabled = t } }
         case "caffeine":
             withAnimation(.easeInOut(duration: 0.25)) {
-                if let c = snap.caffeineAlways { caffeineAlwaysOn = c }
-                if let c = snap.caffeineAuto { autoCaffeineOnBypass = c }
+                if let m = snap.caffeineMode { setCaffeineMode(m) }
             }
         case "settings":
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -706,20 +788,21 @@ final class BatteryMonitor: ObservableObject {
         backgroundPollTimer = bgTimer
         
         // Auto-LPM reconciler: closing/minimizing the last window keeps the app frontmost, so no
-        // activation notification fires, reconcile frontmost-app window state on a light 1s tick
+        // activation notification fires, reconcile frontmost-app window state on a light 1s tick.
+        // The same tick refreshes the two caffeinate sensors that have no notification of their own.
         let reconcileTimer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.reconcileAutoLPM()
+            self?.reconcileCaffeine()
         }
         RunLoop.main.add(reconcileTimer, forMode: .common)
         autoLPMReconcileTimer = reconcileTimer
 
-        // Auto Caffeine on Bypass: hold a PreventUserIdleDisplaySleep assertion while the
-        // effective bypass state is active. One pipeline covers the UI toggle and every
-        // automation (plug, display, login, threshold) plus unplug, since they all
-        // mutate these published properties.
-        // The auto path is EDGE-TRIGGERED: toggling "Auto Enable on Bypass" never enables
-        // caffeinate by itself, it arms the auto-engagement for the next time bypass
-        // engages. Only "Always" applies immediately.
+        // Caffeinate: one desired-state pipeline over all six modes. The modes are
+        // mutually exclusive, so the desired state is a plain OR over the armed
+        // mode's trigger. That replaces the old edge-latched scan, which existed
+        // only to remember that "on bypass" had been armed during a bypass; with
+        // one mode at a time there is nothing to remember, and a mode that engages
+        // always releases when its trigger drops.
         let bypassEngaged = Publishers.CombineLatest3($powerMode, $isHold, $isPluggedIn)
             .map { [weak self] mode, hold, plugged -> Bool in
                 // A Slow Charge rest hold is not bypass: without this exclusion the
@@ -727,47 +810,22 @@ final class BatteryMonitor: ObservableObject {
                 plugged && (mode == .bypass || (hold && self?.slowPhase != .rest))
             }
             .removeDuplicates()
-        // Auto caffeine is EDGE-OR-STATE: checking "Auto Enable on Bypass" while
-        // bypass is ALREADY engaged must light caffeinate immediately (the old
-        // edge-only scan treated the pre-existing engagement as "no rising
-        // edge" and never latched). Rising edges arm it as before; the first
-        // emission seeds with live state so an already-bypassing session with
-        // the box checked is caffeinated right away.
-        caffeineCancellable = Publishers.CombineLatest(
-                Publishers.CombineLatest($autoCaffeineOnBypass, bypassEngaged),
-                $caffeineAlwaysOn
-            )
-            .scan((prevBypass: Bool?.none, latched: false, always: caffeineAlwaysOn)) { state, next in
-                let (auto, bypass) = next.0
-                let always = next.1
-                guard let prev = state.prevBypass else {
-                    // Seed: caffeinate is on right away when the box is checked
-                    // during an active bypass (state semantics, not edge-only).
-                    return (prevBypass: Optional(bypass), latched: auto && bypass, always: always)
-                }
-                var latched = state.latched
-                if !auto {
-                    latched = false
-                } else if bypass && !prev {
-                    latched = true   // rising edge of bypass engagement arms the auto path
-                } else if !bypass {
-                    latched = false
-                } else if bypass && !state.latched {
-                    // Checking the box MID-bypass: no bypass edge fires (bypass was
-                    // already high), so the box change itself must latch. State
-                    // semantics: auto on + bypass engaged = caffeinate on.
-                    latched = true
-                }
-                return (prevBypass: Optional(bypass), latched: latched, always: always)
+        let modeOn = $caffeineAlwaysOn
+        let modeBypass = Publishers.CombineLatest($autoCaffeineOnBypass, bypassEngaged)
+            .map { armed, engaged in armed && engaged }
+        let modeLidClose = Publishers.CombineLatest($autoCaffeineOnLidClose, $lidClosed)
+            .map { armed, closed in armed && closed }
+        let modeCharger = Publishers.CombineLatest($autoCaffeineOnCharger, $isPluggedIn)
+            .map { armed, plugged in armed && plugged }
+        let modeApp = Publishers.CombineLatest($autoCaffeinePerApp, $frontmostAppBundleID)
+            .combineLatest($autoCaffeineBundleIds)
+            .map { armedAndFront, ids in
+                guard armedAndFront.0, let front = armedAndFront.1 else { return false }
+                return ids.contains(front)
             }
-            .map { [weak self] state -> Bool in
-                guard let self = self else { return false }
-                // Always on: keeps machine awake whether on AC power or battery!
-                if state.always { return true }
-                // Auto on bypass: active while plugged in and bypassing
-                if state.latched && self.isPluggedIn { return true }
-                return false
-            }
+        caffeineCancellable = Publishers.CombineLatest4(modeOn, modeBypass, modeLidClose, modeCharger)
+            .combineLatest(modeApp)
+            .map { modes, app in modes.0 || modes.1 || modes.2 || modes.3 || app }
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] active in
@@ -779,7 +837,8 @@ final class BatteryMonitor: ObservableObject {
         // While a preset is active, every toggle change the user makes is saved into that mode
         let presetA = Publishers.CombineLatest4($powerMode, $autoBypassThresholdEnabled, $autoBypassThreshold, $autoCaffeineOnBypass)
         let presetB = Publishers.CombineLatest4($caffeineAlwaysOn, $autoHoldOnPlug, $autoHoldAtLogin, $autoHoldOnDisplay)
-        presetCaptureCancellable = Publishers.CombineLatest3(presetA, presetB, $isLowPowerMode)
+        let presetC = Publishers.CombineLatest4($autoCaffeineOnLidClose, $autoCaffeineOnCharger, $autoCaffeinePerApp, $autoCaffeineBundleIds)
+        presetCaptureCancellable = Publishers.CombineLatest4(presetA, presetB, presetC, $isLowPowerMode)
             .map { [weak self] _ -> (BatteryMonitor.Preset, PresetSnapshot)? in
                 guard let self = self, self.masterEnabled, let active = self.activePreset else { return nil }
                 return (active, PresetSnapshot(from: self))
@@ -1419,6 +1478,8 @@ final class BatteryMonitor: ObservableObject {
         var threshold: Int
         var caffeineAuto: Bool
         var caffeineAlways: Bool
+        // Optional so snapshots written before the extra modes existed still decode.
+        var caffeineModeRaw: String?
         var autoOnPlug: Bool
         var autoAtLogin: Bool
         var autoOnDisplay: Bool
@@ -1430,6 +1491,7 @@ final class BatteryMonitor: ObservableObject {
             threshold = m.autoBypassThreshold
             caffeineAuto = m.autoCaffeineOnBypass
             caffeineAlways = m.caffeineAlwaysOn
+            caffeineModeRaw = m.caffeineMode.rawValue
             autoOnPlug = m.autoHoldOnPlug
             autoAtLogin = m.autoHoldAtLogin
             autoOnDisplay = m.autoHoldOnDisplay
@@ -1452,6 +1514,13 @@ final class BatteryMonitor: ObservableObject {
             m.autoBypassThreshold = threshold
             m.autoCaffeineOnBypass = caffeineAuto
             m.caffeineAlwaysOn = caffeineAlways
+            // One mode, always: a snapshot from before the extra modes existed
+            // falls back to the two flags it does carry.
+            if let raw = caffeineModeRaw, let mode = BatteryMonitor.CaffeineMode(rawValue: raw) {
+                m.setCaffeineMode(mode)
+            } else {
+                m.setCaffeineMode(caffeineAlways ? .on : (caffeineAuto ? .bypass : .off))
+            }
             m.autoHoldOnPlug = autoOnPlug
             m.autoHoldAtLogin = autoAtLogin
             m.autoHoldOnDisplay = autoOnDisplay
@@ -1538,9 +1607,9 @@ final class BatteryMonitor: ObservableObject {
             DispatchQueue.global(qos: .userInitiated).async {
                 _ = CLIEngineBridge.setLowPowerModeSync(enabled: true)
             }
-            caffeineAlwaysOn = true
+            setCaffeineMode(.on)
         case .docked:
-            autoCaffeineOnBypass = true
+            setCaffeineMode(.bypass)
             if isPluggedIn {
                 setPowerMode(.bypass)
             }
@@ -1654,6 +1723,34 @@ final class BatteryMonitor: ObservableObject {
             isLowPowerMode = false
             CLIEngineBridge.setLowPowerMode(enabled: false)
         }
+    }
+
+    // MARK: - Caffeinate sensors
+
+    // AppleClamshellState on IOPMrootDomain is the lid switch. It is a CFBoolean
+    // that reads false with the lid open and true once the lid is shut, and it is
+    // present on every Apple laptop; a desktop has no IOPMrootDomain property and
+    // reads false, which leaves "On lid close" armed but never satisfied.
+    static func clamshellClosed() -> Bool {
+        let service = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return false }
+        defer { IOObjectRelease(service) }
+        guard let value = IORegistryEntryCreateCFProperty(
+            service, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0
+        )?.takeRetainedValue() else { return false }
+        // CFBoolean is toll-free bridged to NSNumber, so no force cast is needed.
+        return (value as? NSNumber)?.boolValue ?? false
+    }
+
+    // Refreshes the two caffeinate triggers that have no published signal of their
+    // own. Both are guarded on change: @Published fires objectWillChange on every
+    // assignment, and a 1s tick that republished the same value would re-render the
+    // whole popover once a second for nothing.
+    func reconcileCaffeine() {
+        let lid = Self.clamshellClosed()
+        if lid != lidClosed { lidClosed = lid }
+        let front = Self.frontmostRealWindowOwnerBundleID()
+        if front != frontmostAppBundleID { frontmostAppBundleID = front }
     }
 
     // Front-to-back scan for the first normal-level (layer 0) window with real bounds; its owner

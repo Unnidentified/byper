@@ -2,6 +2,7 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <IOKit/IOKitLib.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libproc.h>
@@ -286,6 +287,48 @@ bool automation_caffeinate_stop(void) {
     return true;
 }
 
+// AppleClamshellState on IOPMrootDomain is the lid switch: false with the lid
+// open, true once it is shut. A desktop has no such property and reads false.
+bool automation_lid_closed(void) {
+    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMrootDomain"));
+    if (!service) return false;
+    CFTypeRef value = IORegistryEntryCreateCFProperty(service, CFSTR("AppleClamshellState"), kCFAllocatorDefault, 0);
+    IOObjectRelease(service);
+    if (!value) return false;
+    bool closed = false;
+    if (CFGetTypeID(value) == CFBooleanGetTypeID()) closed = CFBooleanGetValue((CFBooleanRef)value);
+    CFRelease(value);
+    return closed;
+}
+
+// The armed mode, in the same words the app's dropdown uses.
+const char *caffeinate_mode_name(void) {
+    if (prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)) return "on";
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false)) return "on bypass";
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false)) return "on lid close";
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_CHARGER, false)) return "on charger";
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)) return "per app";
+    return "off";
+}
+
+// True when the armed caffeinate mode is satisfied right now. Mirrors the app's
+// desired-state pipeline: the modes are mutually exclusive, so this is a plain
+// OR over the armed mode's trigger, and a mode releases as soon as its trigger
+// drops. The runner and the app therefore agree on when caffeinate should run.
+bool automation_caffeinate_wanted(const BatteryInfo *info) {
+    if (prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)) return true;
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false) && automation_hold_active(info)) return true;
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false) && automation_lid_closed()) return true;
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_CHARGER, false) && info->acAttached) return true;
+    if (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)) {
+        char *bundle = automation_frontmost_bundle_id();
+        bool listed = bundle && prefs_string_array_contains(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, bundle);
+        free(bundle);
+        if (listed) return true;
+    }
+    return false;
+}
+
 // MARK: - Off on exit
 
 void automation_off_on_exit(void) {
@@ -369,6 +412,7 @@ static void watch_print_settings(const AutomationWatchOptions *options) {
     int count = prefs_copy_string_array(BYP_KEY_AUTO_LPM_BUNDLE_IDS, &apps);
     printf("auto lpm: %d app(s)\n", count);
     prefs_free_string_array(apps, count);
+    printf("caffeinate: %s\n", caffeinate_mode_name());
     fflush(stdout);
 }
 
@@ -461,9 +505,9 @@ int automation_watch(const AutomationWatchOptions *options) {
         }
 
         if (master) {
-            // Caffeinate: manual always on, or on bypass while a hold is active.
-            bool want_caffeine = prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false) ||
-                                 (prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false) && hold);
+            // Caffeinate: whichever of the six modes is armed, and whether its
+            // trigger holds right now.
+            bool want_caffeine = automation_caffeinate_wanted(&info);
             bool caffeine_running = automation_caffeinate_running();
             if (want_caffeine && !caffeine_running) {
                 if (automation_caffeinate_start()) {

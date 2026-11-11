@@ -1568,40 +1568,99 @@ static void print_app_label(const char *bundle_id) {
     }
 }
 
+// The six caffeinate modes are mutually exclusive. Every write goes through these
+// helpers so a mode armed from the terminal disarms the other five exactly the way
+// the app's dropdown does, and the two front ends can never leave two modes armed.
+static const char *const kCaffeinateModeKeys[] = {
+    BYP_KEY_CAFFEINE_ALWAYS_ON,
+    BYP_KEY_AUTO_CAFFEINE_ON_BYPASS,
+    BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE,
+    BYP_KEY_AUTO_CAFFEINE_ON_CHARGER,
+    BYP_KEY_AUTO_CAFFEINE_PER_APP,
+};
+#define CAFFEINATE_MODE_KEY_COUNT (sizeof(kCaffeinateModeKeys) / sizeof(kCaffeinateModeKeys[0]))
+
+// Selects one mode and disarms the other five.
+static void caffeinate_select_mode(const char *key) {
+    for (size_t i = 0; i < CAFFEINATE_MODE_KEY_COUNT; i++) {
+        prefs_set_bool(kCaffeinateModeKeys[i], strcmp(kCaffeinateModeKeys[i], key) == 0);
+    }
+}
+
+// Disarms one mode and leaves the rest alone, so "auto off" cannot silently
+// disarm a mode the user picked somewhere else.
+static void caffeinate_clear_mode(const char *key) {
+    prefs_set_bool(key, false);
+}
+
+// Selects Off: every mode disarmed.
+static void caffeinate_clear_all(void) {
+    for (size_t i = 0; i < CAFFEINATE_MODE_KEY_COUNT; i++) {
+        prefs_set_bool(kCaffeinateModeKeys[i], false);
+    }
+}
+
+// Starts or stops the detached caffeinate so it matches the armed mode, and
+// reports whether the mode is satisfied right now. Shared by every mode action
+// so they cannot drift apart.
+static int caffeinate_apply(bool *wanted_out) {
+    BatteryInfo info;
+    bool have_info = battery_get_info(&info);
+    bool wanted = have_info && automation_caffeinate_wanted(&info);
+    bool ok = wanted ? automation_caffeinate_start() : automation_caffeinate_stop();
+    if (wanted_out) *wanted_out = wanted;
+    if (!ok) {
+        printf("caffeinate: not confirmed\n");
+        return 1;
+    }
+    return 0;
+}
+
 static int handle_caffeinate(int argc, char *argv[]) {
     const char *action = argc > 2 ? argv[2] : "status";
 
     if (strcmp(action, "status") == 0) {
         BatteryInfo info;
-        bool hold = battery_get_info(&info) && automation_hold_active(&info);
+        bool have_info = battery_get_info(&info);
         printf("caffeinate: %s\n", automation_caffeinate_running() ? "on" : "off");
+        printf("  mode        %s\n", caffeinate_mode_name());
         printf("  manual      %-3s  %s\n",
                on_off_word(prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)),
                BYP_KEY_CAFFEINE_ALWAYS_ON);
         printf("  on bypass   %-3s  %s\n",
                on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false)),
                BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
-        printf("  bypass hold %s\n", hold ? "active" : "inactive");
+        printf("  on lid      %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false)),
+               BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE);
+        printf("  on charger  %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_CHARGER, false)),
+               BYP_KEY_AUTO_CAFFEINE_ON_CHARGER);
+        printf("  per app     %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)),
+               BYP_KEY_AUTO_CAFFEINE_PER_APP);
+        char **apps = NULL;
+        int count = prefs_copy_string_array(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, &apps);
+        for (int i = 0; i < count; i++) {
+            printf("    app       ");
+            print_app_label(apps[i]);
+            printf("\n");
+        }
+        prefs_free_string_array(apps, count);
+        printf("  bypass hold %s\n", have_info && automation_hold_active(&info) ? "active" : "inactive");
+        printf("  lid         %s\n", automation_lid_closed() ? "closed" : "open");
+        printf("  charger     %s\n", have_info && info.acAttached ? "attached" : "detached");
         return 0;
     }
 
     if (strcmp(action, "on") == 0 || strcmp(action, "off") == 0) {
         bool enable = strcmp(action, "on") == 0;
-        if (!prefs_set_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, enable)) {
-            fprintf(stderr, "failed to write %s\n", BYP_KEY_CAFFEINE_ALWAYS_ON);
-            return 1;
-        }
-        BatteryInfo info;
-        bool hold = battery_get_info(&info) && automation_hold_active(&info);
-        bool auto_on_bypass = prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false);
-        bool wanted = enable || (auto_on_bypass && hold);
-        bool ok = wanted ? automation_caffeinate_start() : automation_caffeinate_stop();
-        if (!ok) {
-            printf("caffeinate: not confirmed\n");
-            return 1;
-        }
+        if (enable) caffeinate_select_mode(BYP_KEY_CAFFEINE_ALWAYS_ON);
+        else caffeinate_clear_all();
+        bool wanted = false;
+        if (caffeinate_apply(&wanted) != 0) return 1;
         if (enable) printf("caffeinate: on\n");
-        else if (wanted) printf("caffeinate: on (on bypass)\n");
+        else if (wanted) printf("caffeinate: on (%s)\n", caffeinate_mode_name());
         else printf("caffeinate: off\n");
         return 0;
     }
@@ -1612,22 +1671,80 @@ static int handle_caffeinate(int argc, char *argv[]) {
             fprintf(stderr, "usage: byper caffeinate auto on|off\n");
             return 1;
         }
-        if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, enable)) {
-            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
-            return 1;
-        }
+        if (enable) caffeinate_select_mode(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
+        else caffeinate_clear_mode(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
         // State semantics, matching the app: turning the auto path on while a
         // hold is already active lights caffeinate now, not at the next edge.
-        BatteryInfo info;
-        bool hold = battery_get_info(&info) && automation_hold_active(&info);
-        bool manual = prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false);
-        if (enable && hold) automation_caffeinate_start();
-        else if (!enable && !manual) automation_caffeinate_stop();
+        if (caffeinate_apply(NULL) != 0) return 1;
         printf("caffeinate on bypass: %s\n", on_off_word(enable));
         return 0;
     }
 
-    fprintf(stderr, "usage: byper caffeinate on|off|auto on|auto off|status\n");
+    if (strcmp(action, "lid") == 0 || strcmp(action, "charger") == 0) {
+        bool enable;
+        if (argc < 4 || !parse_on_off(argv[3], &enable)) {
+            fprintf(stderr, "usage: byper caffeinate %s on|off\n", action);
+            return 1;
+        }
+        bool lid = strcmp(action, "lid") == 0;
+        const char *key = lid ? BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE : BYP_KEY_AUTO_CAFFEINE_ON_CHARGER;
+        if (enable) caffeinate_select_mode(key);
+        else caffeinate_clear_mode(key);
+        if (caffeinate_apply(NULL) != 0) return 1;
+        printf("caffeinate on %s: %s\n", lid ? "lid close" : "charger", on_off_word(enable));
+        return 0;
+    }
+
+    if (strcmp(action, "app") == 0) {
+        if (argc < 4) {
+            fprintf(stderr, "usage: byper caffeinate app <bundle-id>|off\n");
+            return 1;
+        }
+        if (strcmp(argv[3], "off") == 0) {
+            caffeinate_clear_mode(BYP_KEY_AUTO_CAFFEINE_PER_APP);
+            if (caffeinate_apply(NULL) != 0) return 1;
+            printf("caffeinate per app: off\n");
+            return 0;
+        }
+        // Additive and idempotent: the app's picker is a set, so the CLI adds to
+        // it rather than replacing a selection the user made in the UI.
+        char **apps = NULL;
+        int count = prefs_copy_string_array(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, &apps);
+        bool present = false;
+        for (int i = 0; i < count; i++) {
+            if (strcmp(apps[i], argv[3]) == 0) present = true;
+        }
+        if (!present) {
+            const char **next = calloc((size_t)count + 1, sizeof(char *));
+            if (!next) {
+                prefs_free_string_array(apps, count);
+                fprintf(stderr, "out of memory\n");
+                return 1;
+            }
+            for (int i = 0; i < count; i++) next[i] = apps[i];
+            next[count] = argv[3];
+            bool ok = prefs_set_string_array(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, next, count + 1);
+            free(next);
+            if (!ok) {
+                prefs_free_string_array(apps, count);
+                fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS);
+                return 1;
+            }
+        }
+        prefs_free_string_array(apps, count);
+        caffeinate_select_mode(BYP_KEY_AUTO_CAFFEINE_PER_APP);
+        if (caffeinate_apply(NULL) != 0) return 1;
+        printf("caffeinate per app: on (");
+        print_app_label(argv[3]);
+        printf(")\n");
+        return 0;
+    }
+
+    fprintf(stderr, "usage: byper caffeinate on|off|status\n");
+    fprintf(stderr, "       byper caffeinate auto on|off\n");
+    fprintf(stderr, "       byper caffeinate lid on|off\n");
+    fprintf(stderr, "       byper caffeinate charger on|off\n");
+    fprintf(stderr, "       byper caffeinate app <bundle-id>|off\n");
     return 1;
 }
 
@@ -1890,6 +2007,12 @@ static void print_usage(const char *prog) {
     printf("  byp caffeinate on|off   Hold the display and idle sleep on or off\n");
     printf("  byp caffeinate auto on|off\n");
     printf("                          Hold them only while a bypass hold is active\n");
+    printf("  byp caffeinate lid on|off\n");
+    printf("                          Hold them only while the lid is closed\n");
+    printf("  byp caffeinate charger on|off\n");
+    printf("                          Hold them only while the charger is attached\n");
+    printf("  byp caffeinate app <bundle-id>|off\n");
+    printf("                          Hold them only while that app is frontmost\n");
     printf("  byp caffeinate status   Show the caffeinate state\n");
     printf("  byp logger [--quiet]    Write a CSV session log to the Desktop\n");
     printf("  byp auto                Show the automation settings\n");

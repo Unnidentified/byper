@@ -150,6 +150,56 @@ struct BatteryDropdownView: View {
         return String(format: "%02d:%02d", m, s)
     }
 
+    // One radio row of the caffeinate dropdown. Selecting a row arms exactly that
+    // mode: setCaffeineMode writes every flag, so the previous mode is disarmed in
+    // the same action and two modes can never be armed together.
+    private func caffeineModeRow(_ mode: BatteryMonitor.CaffeineMode) -> some View {
+        HStack(spacing: 6) {
+            let selected = monitor.caffeineMode == mode
+            Button(action: {
+                monitor.setCaffeineMode(mode)
+                if mode == .app {
+                    monitor.isCaffeineAppPickerExpanded = true
+                    monitor.loadInstalledAppsIfNeeded()
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                        .font(.system(size: 11))
+                        .foregroundColor(selected ? Self.solarGold : Color(white: 0.45))
+                    Text(mode.label)
+                        .font(.custom("FiraCode-Medium", size: 10.5))
+                        .foregroundColor(selected ? .white : Color(white: 0.62))
+                    Spacer(minLength: 4)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(mode.label)
+
+            // The picker belongs to the per-app mode, so its disclosure lives on
+            // that row and nowhere else.
+            if mode == .app {
+                Button(action: {
+                    monitor.isCaffeineAppPickerExpanded.toggle()
+                    if monitor.isCaffeineAppPickerExpanded {
+                        monitor.loadInstalledAppsIfNeeded()
+                    }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.custom("FiraCode-Bold", size: 8.5))
+                        .foregroundColor(monitor.autoCaffeineBundleIds.isEmpty ? Color(white: 0.45) : Self.solarGold)
+                        .rotationEffect(.degrees(monitor.isCaffeineAppPickerExpanded ? 90 : 0))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Caffeinate Apps")
+                .padding(.trailing, 8)
+            }
+        }
+        .frame(height: 16)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // 1. Header & Real-Time Battery Bar
@@ -430,7 +480,7 @@ struct BatteryDropdownView: View {
                 }
 
 
-                // Caffeinate Menu: Keep screen on (auto with bypass, or always)
+                // Caffeinate Menu: Keep screen on (one mode at a time, or off)
                 HStack(spacing: 4) {
                     let isCaff = isCaffeineActive
                     Image(systemName: "display")
@@ -438,9 +488,19 @@ struct BatteryDropdownView: View {
                         .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.38))
                         .frame(width: 18, alignment: .center)
 
-                    Text("Caffeinate")
-                        .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(isCaff ? .white : Color(white: 0.38))
+                    // The armed mode sits under the row title rather than beside it:
+                    // the row has about 26pt of free width and "On lid close" needs
+                    // 60, so a single line truncated to "On". Two lines keep the
+                    // label readable and the height fixed, so selecting a mode never
+                    // resizes the panel.
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Caffeinate")
+                            .font(.custom("FiraCode-SemiBold", size: 11))
+                            .foregroundColor(isCaff ? .white : Color(white: 0.38))
+                        Text(monitor.caffeineMode.label)
+                            .font(.custom("FiraCode-Medium", size: 8.5))
+                            .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.45))
+                    }
 
                     Spacer()
 
@@ -449,7 +509,7 @@ struct BatteryDropdownView: View {
                     }) {
                         Image(systemName: "chevron.right")
                             .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(monitor.autoCaffeineOnBypass ? Self.solarGold : Color(white: 0.38))
+                            .foregroundColor(monitor.caffeineMode != .off ? Self.solarGold : Color(white: 0.38))
                             .rotationEffect(.degrees(monitor.isCaffeineMenuExpanded ? 90 : 0))
                             .contentShape(Rectangle())
                     }
@@ -457,17 +517,14 @@ struct BatteryDropdownView: View {
                     .accessibilityLabel("Caffeinate Options")
                     .padding(.trailing, 2)
 
+                    // The manual switch. On selects the "On" mode, off selects "Off",
+                    // so the switch is never a second, competing source of truth: it
+                    // is the manual mode, and the manual mode outranks every
+                    // automation because arming it disarms them.
                     Toggle("", isOn: Binding(
                         get: { isCaff },
                         set: { val in
-                            if val {
-                                monitor.caffeineAlwaysOn = true
-                            } else {
-                                monitor.caffeineAlwaysOn = false
-                                if monitor.caffeineEngaged {
-                                    monitor.autoCaffeineOnBypass = false
-                                }
-                            }
+                            monitor.setCaffeineMode(val ? .on : .off)
                         }
                     ))
                         .labelsHidden()
@@ -477,23 +534,35 @@ struct BatteryDropdownView: View {
                         .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
                         .padding(.trailing, 5)
                 }
-                .frame(height: 16)
+                .frame(height: 26)
                 .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 .masterRowProbe("caffeine")
 
                 if monitor.isCaffeineMenuExpanded {
-                    HStack {
-                        Text("On Bypass")
-                            .font(.custom("FiraCode-Medium", size: 10.5))
-                            .foregroundColor(.white)
-                        Spacer()
-                        Toggle("", isOn: $monitor.autoCaffeineOnBypass)
-                            .labelsHidden()
-                            .toggleStyle(CheckmarkToggleStyle())
-                            .padding(.trailing, 8)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(BatteryMonitor.CaffeineMode.allCases, id: \.self) { mode in
+                            caffeineModeRow(mode)
+                        }
+                        if monitor.caffeineMode == .app && monitor.isCaffeineAppPickerExpanded {
+                            AppPickerList(
+                                apps: monitor.installedApps,
+                                selectedIds: monitor.autoCaffeineBundleIds,
+                                iconProvider: { monitor.icon(for: $0) },
+                                onToggle: { id, enabled in
+                                    if enabled {
+                                        monitor.autoCaffeineBundleIds.insert(id)
+                                    } else {
+                                        monitor.autoCaffeineBundleIds.remove(id)
+                                    }
+                                }
+                            )
+                            .equatable()
+                            .frame(height: 160)
+                            .padding(.top, 4)
+                            .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
+                        }
                     }
                     .padding(.leading, 22)
-                    .frame(height: 16)
                     .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 }
 

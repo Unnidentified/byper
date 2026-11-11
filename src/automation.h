@@ -27,6 +27,17 @@ bool automation_caffeinate_running(void);
 bool automation_caffeinate_start(void);
 bool automation_caffeinate_stop(void);
 
+// The lid switch, read from AppleClamshellState on IOPMrootDomain. False on a
+// machine with no lid.
+bool automation_lid_closed(void);
+
+// The armed caffeinate mode, in the words the app's dropdown uses.
+const char *caffeinate_mode_name(void);
+
+// True when the armed caffeinate mode is satisfied right now. The modes are
+// mutually exclusive, so this is a plain OR over the armed mode's trigger.
+bool automation_caffeinate_wanted(const BatteryInfo *info);
+
 // Releases the bypass hold on process exit when byp_disable_bypass_on_quit is
 // on. Registered with atexit by the automation runner, the only process that
 // can own a hold across time.

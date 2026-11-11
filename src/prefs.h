@@ -10,7 +10,11 @@
 #define BYPER_PREFS_DOMAIN "com.gefaass.byper"
 
 // Keys, spelled exactly as byper.app spells them in BatteryMonitor.swift.
-#define BYP_KEY_AUTO_CAFFEINE_ON_BYPASS "byp_auto_caffeine_on_bypass"
+#define BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS    "byp_auto_caffeine_bundle_ids"
+#define BYP_KEY_AUTO_CAFFEINE_ON_BYPASS     "byp_auto_caffeine_on_bypass"
+#define BYP_KEY_AUTO_CAFFEINE_ON_CHARGER    "byp_auto_caffeine_on_charger"
+#define BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE  "byp_auto_caffeine_on_lid_close"
+#define BYP_KEY_AUTO_CAFFEINE_PER_APP       "byp_auto_caffeine_per_app"
 #define BYP_KEY_AUTO_HOLD_AT_LOGIN      "byp_auto_hold_at_login"
 #define BYP_KEY_AUTO_HOLD_ON_DISPLAY    "byp_auto_hold_on_display"
 #define BYP_KEY_AUTO_HOLD_ON_PLUG       "byp_auto_hold_on_plug"
