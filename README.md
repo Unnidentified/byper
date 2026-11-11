@@ -17,7 +17,7 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 <img src="docs/images/popover.png" width="480" alt="The byper popover: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
 </td>
 <td valign="top">
-<h3><br>Preview of the menu ui</h3>
+<h3>Preview of the menu ui</h3>
 <p>The slider on the left lets you disable temporarily entire components: if you slide it down, the rows dim and disable, slide it back up and the previous state returns. Then we've got a fancy temp graph, and below it you can see the charger specs.</p>
 <p>`Byper` enables charge bypass (also remembers the state from before it was unplugged).</p>
 <p>Settings includes: a bypass (on-connect/at-login/on-display-connect) button and a logger that writes a debug log to your Desktop.</p>
