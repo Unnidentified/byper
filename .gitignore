@@ -1,4 +1,4 @@
-# Build artifacts — these ship via GitHub Releases, not git
+# Build artifacts: these ship via GitHub Releases, not git
 *.pkg
 *.dmg
 byper.app/

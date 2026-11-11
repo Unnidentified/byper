@@ -1,6 +1,6 @@
 #!/bin/bash
 # byper UNINSTALL postinstall: reset the hardware to stock, then remove every
-# trace of byper on this Mac — the app, the SUID CLI and symlinks, completions,
+# trace of byper on this Mac: the app, the SUID CLI and symlinks, completions,
 # legacy daemon, temp state, and all app settings.
 set -e
 

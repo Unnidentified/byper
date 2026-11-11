@@ -43,7 +43,7 @@ final class BatteryMonitor: ObservableObject {
     private var counterStart = Date()
     private var counterTicker: Timer?
     // Apps actually visible (and checkable) in the Powersave dropdown that are checked.
-    // autoLPMBundleIds can hold stale IDs of uninstalled apps — those must not light the row.
+    // autoLPMBundleIds can hold stale IDs of uninstalled apps: those must not light the row.
     var checkedVisibleApps: Int {
         installedApps.filter { autoLPMBundleIds.contains($0.id) }.count
     }
@@ -121,10 +121,10 @@ final class BatteryMonitor: ObservableObject {
         }
     }
     // "Always On": the cycle keeps governing the charger whenever plugged and not
-    // bypassing — including at full battery (holds it instead of letting macOS
+    // bypassing, including at full battery (holds it instead of letting macOS
     // idle top-off charge it). Without it the cycle stands down at 100%.
     // Mutually exclusive with "Off on exit": enabling one while the other is on
-    // is REFUSED at the model level (the UI lock is cosmetic only — custom
+    // is REFUSED at the model level (the UI lock is cosmetic only, custom
     // ToggleStyle bodies do not reliably honor .disabled()).
     @Published var slowChargeAlwaysOn: Bool = UserDefaults.standard.bool(forKey: "byp_slow_charge_always") {
         didSet {
@@ -148,7 +148,7 @@ final class BatteryMonitor: ObservableObject {
         }
     }
     // Seconds charging per cycle (burst) vs seconds holding per cycle (rest).
-    // 20s on / 40s off with a ~2.4A burst ≈ 0.8A net ≈ 10W — "slow charger" pace.
+    // 20s on / 40s off with a ~2.4A burst ≈ 0.8A net ≈ 10W, "slow charger" pace.
     private let slowBurstSeconds: TimeInterval = 20
     private let slowRestSeconds: TimeInterval = 40
     private enum SlowPhase { case idle, burst, rest }
@@ -332,7 +332,7 @@ final class BatteryMonitor: ObservableObject {
 
     // Quit button: capture the live bypass state, hand the charger back to macOS
     // (the status icon stops showing our hold), then terminate. The captured flag
-    // re-engages bypass at the next launch — quitting never leaves effects running.
+    // re-engages bypass at the next launch, quitting never leaves effects running.
     func saveStateAndQuit() {
         updateCaffeineAssertion(active: false)
         let wasBypassing = isPluggedIn && (isHold || appliedPowerMode == .bypass || powerMode == .bypass)
@@ -357,7 +357,7 @@ final class BatteryMonitor: ObservableObject {
         }
     }
     private var masterRowFractions: [String: Double] = [:]
-    // Enclosure vertical bounds in masterZone space (probed live) — the master
+    // Enclosure vertical bounds in masterZone space (probed live), the master
     // rail clamps itself to exactly these so it never overhangs the enclosure.
     @Published var masterEnclosureTop: CGFloat = 0
     @Published var masterEnclosureBottom: CGFloat = 0
@@ -584,7 +584,7 @@ final class BatteryMonitor: ObservableObject {
             powerMode = .charging
         }
         // Slow Charge owns the charger policy while enabled: automations yield to
-        // it and its own switch is locked, so no legitimate bypass can exist —
+        // it and its own switch is locked, so no legitimate bypass can exist,
         // any hold found at launch is a stale rest hold from a previous session.
         // Clear it and let the cycle take over, or it deadlocks the whole policy:
         // the reconcile reads the hold as user bypass, locks the Slow Charge
@@ -597,7 +597,7 @@ final class BatteryMonitor: ObservableObject {
             }
         }
         // Bypass was active at last quit: the quit button disabled it for the
-        // session; re-engage it now (never over Slow Charge — it owns the policy).
+        // session; re-engage it now (never over Slow Charge: it owns the policy).
         if UserDefaults.standard.bool(forKey: "byp_resume_bypass_on_launch") {
             UserDefaults.standard.set(false, forKey: "byp_resume_bypass_on_launch")
             if isPluggedIn && !slowChargeEnabled {
@@ -683,7 +683,7 @@ final class BatteryMonitor: ObservableObject {
             self?.reconcileAutoLPM()
         }
 
-        // Deactivation fires the instant the configured app loses focus — react on it too so
+        // Deactivation fires the instant the configured app loses focus, react on it too so
         // disengaging is as fast as engaging (activation alone can race the window-server order)
         deactivateObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didDeactivateApplicationNotification,
@@ -694,7 +694,7 @@ final class BatteryMonitor: ObservableObject {
         }
         
         // Gentle background polling timer to guarantee instant status bar updates even when popover is closed.
-        // .common mode keeps it firing while menus are open or the screen is asleep —
+        // .common mode keeps it firing while menus are open or the screen is asleep,
         // the threshold trigger must work with the display off.
         let bgTimer = Timer(timeInterval: 4.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
@@ -706,7 +706,7 @@ final class BatteryMonitor: ObservableObject {
         backgroundPollTimer = bgTimer
         
         // Auto-LPM reconciler: closing/minimizing the last window keeps the app frontmost, so no
-        // activation notification fires — reconcile frontmost-app window state on a light 1s tick
+        // activation notification fires, reconcile frontmost-app window state on a light 1s tick
         let reconcileTimer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.reconcileAutoLPM()
         }
@@ -718,7 +718,7 @@ final class BatteryMonitor: ObservableObject {
         // automation (plug, display, login, threshold) plus unplug, since they all
         // mutate these published properties.
         // The auto path is EDGE-TRIGGERED: toggling "Auto Enable on Bypass" never enables
-        // caffeinate by itself — it arms the auto-engagement for the next time bypass
+        // caffeinate by itself, it arms the auto-engagement for the next time bypass
         // engages. Only "Always" applies immediately.
         let bypassEngaged = Publishers.CombineLatest3($powerMode, $isHold, $isPluggedIn)
             .map { [weak self] mode, hold, plugged -> Bool in
@@ -1061,7 +1061,7 @@ final class BatteryMonitor: ObservableObject {
     // charger, and a still-running CLI round would race the replug re-engage for
     // the LLDB lock. Kill it and bump the round so its completion is discarded.
     // Without this, `pendingEngineApply` survives the unplug and the replug
-    // re-engage is silently swallowed by setPowerMode's same-mode early return —
+    // re-engage is silently swallowed by setPowerMode's same-mode early return,
     // the UI latches bypass while the hardware never engages it.
     private func cancelInFlightApplyForUnplug() {
         guard isTransitioning || pendingEngineApply else { return }
@@ -1134,7 +1134,7 @@ final class BatteryMonitor: ObservableObject {
                 
                 if nowPlugged {
                     // At full battery a user-requested bypass shows as plain
-                    // idle/full (NCR 0) — that IS the goal state, so with bypass
+                    // idle/full (NCR 0), that IS the goal state, so with bypass
                     // intent set, full-idle counts as holding.
                     let fullIdle = percentage >= 95 && !isChargingRaw && abs(amps) < 100
                     let isBypassActive = (((notChargingReason & 0x01000000) != 0) && abs(amps) < 100 && !isChargingRaw) ||
@@ -1235,7 +1235,7 @@ final class BatteryMonitor: ObservableObject {
         // `!isTransitioning` keeps a legitimate in-flight apply authoritative.
         if self.isPluggedIn && !pendingEngineApply && !isTransitioning && !isDraggingMaster {
             if self.isHold {
-                // A Slow Charge rest hold is ours, not user bypass — don't let the
+                // A Slow Charge rest hold is ours, not user bypass, don't let the
                 // reconcile flip the bypass switch on during rest windows.
                 if slowPhase != .rest {
                     if powerMode != .bypass { powerMode = .bypass }
@@ -1270,7 +1270,7 @@ final class BatteryMonitor: ObservableObject {
 
     func setPowerMode(_ mode: PowerMode, blocksUI: Bool = true) {
         // Restored from the working backup: no same-mode short-circuit and no
-        // isTransitioning guard — both could wedge on stale state and silently
+        // isTransitioning guard, both could wedge on stale state and silently
         // swallow enable/disable. Every toggle issues a real CLI round-trip.
         // blocksUI=false (master-slider passes): the CLI round-trip still runs and
         // powerMode only flips on apply, but the transition UI/flag is skipped so
@@ -1309,7 +1309,7 @@ final class BatteryMonitor: ObservableObject {
             // and reconcile from hardware truth instead of trusting the snapshot.
             // Only clear signals win: isHold -> bypass, isCharging -> charging.
             // Ambiguous idle keeps the snapshot. Skipped when a newer round is
-            // already in flight (fall-through below) — its completion syncs.
+            // already in flight (fall-through below), its completion syncs.
             let interruptRound = powerModeRoundId + 1
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self, self.powerModeRoundId == interruptRound,
@@ -1357,7 +1357,7 @@ final class BatteryMonitor: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             let result = CLIEngineBridge.setPowerModeSync(mode)
-            // C-level powerui already polled IOKit and confirmed the hardware state — no need to re-poll here
+            // C-level powerui already polled IOKit and confirmed the hardware state, no need to re-poll here
             DispatchQueue.main.async { [weak self] in
                 guard let self = self, self.powerModeRoundId == currentRound else {
                     // This round was interrupted by a newer toggle. Discard its results.
@@ -1405,7 +1405,7 @@ final class BatteryMonitor: ObservableObject {
         }
     }
 
-    // MARK: - Presets (Travel / Docked — click to activate, click again to restore; long-press a name to rename)
+    // MARK: - Presets (Travel / Docked, click to activate, click again to restore; long-press a name to rename)
 
     enum Preset: String, CaseIterable, Codable {
         case travel
@@ -1627,7 +1627,7 @@ final class BatteryMonitor: ObservableObject {
     func reconcileAutoLPM() {
         // The manual switch outranks the per-app automation: while it is on the
         // reconciler never touches LPM. Master slider stand-down wins too (the
-        // row was deliberately disabled — auto must not sneak it back on).
+        // row was deliberately disabled, auto must not sneak it back on).
         guard masterRowEnabled("lpm"), !isManualLowPowerMode else { return }
         guard let ownerBundleID = Self.frontmostRealWindowOwnerBundleID() else {
             // No real window on screen at all (front window closed or minimized to a bare desktop)
@@ -1677,7 +1677,7 @@ final class BatteryMonitor: ObservableObject {
     }
 
     // Cached native icons: the picker re-renders with the 60fps wave timer while the popover is
-    // open — NSWorkspace icon lookups per row per frame made scrolling janky
+    // open, NSWorkspace icon lookups per row per frame made scrolling janky
     func icon(for app: InstalledAppInfo) -> NSImage {
         if let cached = appIconCache[app.bundleID] { return cached }
         let icon = NSWorkspace.shared.icon(forFile: app.path)

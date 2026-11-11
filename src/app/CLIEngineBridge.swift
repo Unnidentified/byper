@@ -104,7 +104,7 @@ struct CLIEngineBridge {
     static func runCommand(_ args: [String], allowPrompt: Bool = true) -> (output: String, exitCode: Int32) {
         // Fresh-machine bootstrap: if only the bundled (non-SUID) CLI exists, the
         // engine runs unprivileged and every hardware command fails after its full
-        // verify window — the old code only offered the admin install AFTER such a
+        // verify window, the old code only offered the admin install AFTER such a
         // failure (endless counter, then a pointless prompt). Install the SUID
         // helper up front so the very first command works.
         if allowPrompt && !isHelperInstalled,
@@ -144,7 +144,7 @@ struct CLIEngineBridge {
             // Bounded read: readDataToEndOfFile blocks until EVERY descendant
             // closes the pipe's write end. A grandchild that outlives the CLI
             // (softwareupdate CLT install kicked off by the first toggle, a
-            // wedged lldb worker) would hold it open and hang the toggle — the
+            // wedged lldb worker) would hold it open and hang the toggle, the
             // "counter counts forever" bug. Poll with a deadline instead; after
             // 90 s kill the process and treat the round as failed.
             let deadline = Date().addingTimeInterval(90)
@@ -277,7 +277,7 @@ struct CLIEngineBridge {
         // Fire-and-forget is too slow for app-focus transitions: the 90s-bounded
         // pipe poll plus the async hop serialized every switch behind a worker
         // thread. pmset is a single fast call (the CLI's lpm verb has no verify
-        // poll), so run it synchronously on the calling queue — the reconciler
+        // poll), so run it synchronously on the calling queue, the reconciler
         // fires at most one call per state change and this keeps switch latency
         // at the process-spawn floor.
         _ = runCommand(["lpm", enabled ? "1" : "0"], allowPrompt: false)

@@ -58,16 +58,84 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Shell syntax
+      - name: PR title follows the commit convention
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          import os, re, sys
+
+          title = os.environ['PR_TITLE']
+          number = os.environ['PR_NUMBER']
+          types = ('feat', 'fix', 'docs', 'chore', 'ci', 'refactor')
+
+          bad = []
+          match = re.fullmatch(r'([a-z]+): (.+) \(#([0-9]+)\)', title)
+          if not match:
+              bad.append('the title must read "type: description (#123)"')
+          else:
+              kind, description, ref = match.groups()
+              if kind not in types:
+                  bad.append('type "' + kind + '" is not one of ' + ', '.join(types))
+              if ref != number:
+                  bad.append('the title references #' + ref + ' but this is PR #' + number)
+              if description.endswith('.'):
+                  bad.append('the description must not end with a period')
+          for char, name in (('\u2013', 'en dash'), ('\u2014', 'em dash')):
+              if char in title:
+                  bad.append('the title contains an ' + name)
+
+          for problem in bad:
+              print('::error::' + problem)
+          if bad:
+              sys.exit(1)
+          print('PR title ok: ' + title)
+          PY
+
+      - name: Shell syntax and shellcheck
+        run: |
+          set -euo pipefail
+
+          # Every tracked shell script, found by suffix or by shebang, so the
+          # pkg scripts and byp-mon.command are covered too.
+          shell_files() {
+            git ls-files | while IFS= read -r f; do
+              case "$f" in
+                *.sh) echo "$f"; continue ;;
+              esac
+              if head -n 1 "$f" 2>/dev/null | grep -qE '^#!.*(bash|/sh)([[:space:]]|$)'; then
+                echo "$f"
+              fi
+            done
+          }
+
           fail=0
+          count=0
           while IFS= read -r f; do
+            count=$((count + 1))
             if ! bash -n "$f"; then
               echo "::error file=$f::bash syntax error"
               fail=1
             fi
-          done < <(git ls-files '*.sh')
+          done < <(shell_files)
+          echo "bash -n: checked $count shell files."
+
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo "::notice::shellcheck is not on this runner, skipping the lint pass"
+            exit $fail
+          fi
+
+          while IFS= read -r f; do
+            if ! shellcheck "$f"; then
+              echo "::error file=$f::shellcheck findings"
+              fail=1
+            fi
+          done < <(shell_files)
+          echo "shellcheck: checked $count shell files."
+
           exit $fail
 
       - name: Info.plist parses
@@ -84,7 +152,7 @@ jobs:
           print('Info.plist ok:', d['CFBundleIdentifier'], d['LSMinimumSystemVersion'])
           PY
 
-      - name: Cask parses and is not ahead of the app version
+      - name: Cask parses, sha256 and URL match the version
         run: |
           set -euo pipefail
           ruby -c Casks/byper.rb
@@ -92,12 +160,17 @@ jobs:
           require 'rubygems'
 
           plist = File.read('src/app/Info.plist')
+          cask_src = File.read('Casks/byper.rb')
           app = plist[%r{<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>}, 1]
-          cask = File.read('Casks/byper.rb')[%r{^\s*version\s+"([^"]+)"}, 1]
-          sha = File.read('Casks/byper.rb')[%r{^\s*sha256\s+"([0-9a-f]{64})"}, 1]
+          cask = cask_src[%r{^\s*version\s+"([^"]+)"}, 1]
+          sha = cask_src[%r{^\s*sha256\s+"([0-9a-f]{64})"}, 1]
+          url = cask_src[%r{^\s*url\s+"([^"]+)"}, 1]
+          pkg = cask_src[%r{^\s*pkg\s+"([^"]+)"}, 1]
           abort 'no CFBundleShortVersionString in Info.plist' if app.nil?
           abort 'no version stanza in Casks/byper.rb' if cask.nil?
           abort 'Casks/byper.rb needs a real 64 character sha256' if sha.nil?
+          abort 'no url stanza in Casks/byper.rb' if url.nil?
+          abort 'no pkg stanza in Casks/byper.rb' if pkg.nil?
 
           # The cask tracks stable releases and is bumped at stable release time,
           # not at pre-release time. It may lag Info.plist during a beta or rc
@@ -106,7 +179,15 @@ jobs:
             abort "cask version #{cask} is ahead of Info.plist #{app}"
           end
 
-          puts "cask version #{cask} is not ahead of Info.plist #{app}"
+          # The download URL and the pkg artifact are both built from the version
+          # stanza. A literal version in either one is the drift that ships a 404.
+          asset = 'byper-installer-#{version}.pkg'
+          abort "cask url must interpolate the version tag: #{url}" unless url.include?('v#{version}/')
+          abort "cask url must end in #{asset}: #{url}" unless url.end_with?(asset)
+          abort "cask url hardcodes a version: #{url}" if url =~ /\d+\.\d+\.\d+/
+          abort "cask pkg must be #{asset}: #{pkg}" unless pkg == asset
+
+          puts "cask #{cask} is not ahead of Info.plist #{app}, sha256 is 64 hex, url and pkg track the version"
           RB
 
       - name: CLI version derives from Info.plist
@@ -129,6 +210,229 @@ jobs:
           abort 'Makefile does not pass the version define to the compiler' unless compile.include?('VERSION_DEFINE') || compile.include?('-DBYPER_VERSION')
           puts 'CLI version derives from Info.plist'
           RB
+
+      - name: Package version default matches Info.plist
+        run: |
+          set -euo pipefail
+          ruby - <<'RB'
+          plist = File.read('src/app/Info.plist')
+          app = plist[%r{<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>}, 1]
+          abort 'no CFBundleShortVersionString in Info.plist' if app.nil?
+
+          script = File.read('pkg/build_pkg.sh')
+          default = script[/^BASE_VERSION="\$\{BYPER_VERSION:-([^}]+)\}"/, 1]
+          abort 'pkg/build_pkg.sh has no BASE_VERSION default' if default.nil?
+          if default != app
+            abort "pkg/build_pkg.sh defaults to #{default} but Info.plist is #{app}; bump them in one commit"
+          end
+
+          # build_pkg.sh rewrites the title with an unanchored sed. A missing
+          # title tag would make that a silent no-op, so the tag has to be there.
+          dist = File.read('pkg/Distribution.xml')
+          abort 'pkg/Distribution.xml has no <title> tag for build_pkg.sh to rewrite' unless dist =~ %r{<title>[^<]*</title>}
+
+          puts "pkg/build_pkg.sh default #{default} matches Info.plist, Distribution.xml has a title tag"
+          RB
+
+      - name: Makefile lists every source
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, re, sys
+
+          mk = open('Makefile', encoding='utf-8').read()
+
+          def variable(name):
+              match = re.search(r'^' + name + r'\s*=\s*(.+)$', mk, re.M)
+              if not match:
+                  sys.exit('::error::Makefile has no ' + name + ' variable')
+              return match.group(1).split()
+
+          bad = []
+          for name, pattern in (('SRC', 'src/*.c'), ('SWIFT_SRC', 'src/app/*.swift')):
+              listed = variable(name)
+              for path in sorted(glob.glob(pattern)):
+                  if path not in listed:
+                      bad.append(path + ' is not in the Makefile ' + name + ' variable, so the build ignores it')
+              for path in listed:
+                  if not glob.glob(path):
+                      bad.append('Makefile ' + name + ' lists ' + path + ' but the file does not exist')
+
+          for problem in bad:
+              print('::error::' + problem)
+          if bad:
+              sys.exit(1)
+          print('Makefile SRC and SWIFT_SRC match the tree')
+          PY
+
+      - name: CLI help documents every command
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re, sys
+
+          src = open('src/main.c', encoding='utf-8').read()
+
+          # The help text is the printf strings inside print_usage only.
+          start = src.index('static void print_usage(')
+          end = src.index('\n}\n', start)
+          usage = src[start:end]
+          help_text = ''.join(re.findall(r'printf\("((?:[^"\\]|\\.)*)"', usage))
+          help_text = help_text.replace('\\n', '\n').replace('\\"', '"')
+
+          commands = set()
+          flags = set()
+          for line in help_text.split('\n'):
+              if not re.match(r'^  byp(\s|$)', line):
+                  continue
+              if re.match(r'^  byp\s{2,}', line):
+                  continue  # the bare invocation, no command word
+              words = line.split()
+              commands.add(words[1])
+              flags.update(w.strip('[]') for w in words[1:] if w.startswith('[--'))
+
+          # Every if block in main() that compares cmd is one accepted command.
+          body = src[src.index('int main('):]
+          blocks = []
+          index = 0
+          while True:
+              begin = body.find('if (', index)
+              if begin < 0:
+                  break
+              cursor = body.index('(', begin)
+              depth = 0
+              while cursor < len(body):
+                  if body[cursor] == '(':
+                      depth += 1
+                  elif body[cursor] == ')':
+                      depth -= 1
+                      if depth == 0:
+                          break
+                  cursor += 1
+              words = re.findall(r'strcmp\(cmd,\s*"([^"]+)"\)', body[begin:cursor + 1])
+              if words:
+                  blocks.append(words)
+              index = cursor + 1
+
+          documented = commands | flags
+          accepted = {word for block in blocks for word in block}
+          bad = []
+          for block in blocks:
+              if not set(block) & documented:
+                  bad.append('the dispatcher accepts ' + ', '.join(block) + ' but --help documents none of them')
+          for command in sorted(commands):
+              if command not in accepted:
+                  bad.append('--help documents ' + command + ' but the dispatcher does not accept it')
+
+          for problem in bad:
+              print('::error::' + problem)
+          if bad:
+              sys.exit(1)
+          print('--help documents all ' + str(len(blocks)) + ' dispatcher commands')
+          PY
+
+      - name: JSON field names are stable
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re, sys
+
+          src = open('src/main.c', encoding='utf-8').read()
+          start = src.index('static void print_status(bool json_output)')
+          end = src.index('\n}\n', start)
+          emitted = set(re.findall(r'printf\("  \\"([A-Za-z0-9_]+)\\":', src[start:end]))
+
+          golden = set()
+          for line in open('tools/json-fields.txt', encoding='utf-8'):
+              line = line.strip()
+              if line and not line.startswith('#'):
+                  golden.add(line)
+
+          swift = open('src/app/CLIEngineBridge.swift', encoding='utf-8').read()
+          start = swift.index('struct BypassStatus: Decodable {')
+          end = swift.index('\n}', start)
+          decoded = set(re.findall(r'^\s+let ([A-Za-z0-9_]+):', swift[start:end], re.M))
+
+          bad = []
+          for key in sorted(golden - emitted):
+              bad.append('tools/json-fields.txt lists ' + key + ' but print_status does not emit it')
+          for key in sorted(emitted - golden):
+              bad.append('print_status emits ' + key + ' but tools/json-fields.txt does not list it')
+          for key in sorted(decoded - emitted):
+              bad.append('BypassStatus decodes ' + key + ' but the CLI never emits it')
+
+          for problem in bad:
+              print('::error::' + problem)
+          if bad:
+              sys.exit(1)
+          print('byper json emits ' + str(len(emitted)) + ' documented fields')
+          PY
+
+      - name: No em dashes or en dashes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess, sys
+
+          banned = {'\u2013': 'en dash', '\u2014': 'em dash'}
+          files = subprocess.run(['git', 'ls-files', '-z'], capture_output=True, check=True).stdout.split(b'\0')
+          bad = 0
+          for raw in files:
+              if not raw:
+                  continue
+              path = raw.decode('utf-8')
+              data = open(path, 'rb').read()
+              if b'\0' in data:
+                  continue  # binary, not prose
+              text = data.decode('utf-8', errors='replace')
+              for number, line in enumerate(text.split('\n'), 1):
+                  for char, name in banned.items():
+                      if char in line:
+                          print(f'::error file={path},line={number}::{name} in a tracked file')
+                          bad += 1
+          if bad:
+              print(str(bad) + ' banned dash(es). Use a comma, a colon or parentheses.')
+              sys.exit(1)
+          print('No em dashes or en dashes in tracked files.')
+          PY
+
+      - name: No emoji
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess, sys
+
+          # Emoji blocks. Dingbats are left out on purpose: the app draws the
+          # checkmark glyph U+2713 as text and it is not an emoji.
+          ranges = [
+              (0x1F000, 0x1FAFF, 'emoji'),
+              (0x2600, 0x26FF, 'miscellaneous symbol'),
+              (0x2B00, 0x2BFF, 'symbol'),
+              (0xFE0F, 0xFE0F, 'emoji presentation selector'),
+          ]
+          files = subprocess.run(['git', 'ls-files', '-z'], capture_output=True, check=True).stdout.split(b'\0')
+          bad = 0
+          for raw in files:
+              if not raw:
+                  continue
+              path = raw.decode('utf-8')
+              data = open(path, 'rb').read()
+              if b'\0' in data:
+                  continue
+              text = data.decode('utf-8', errors='replace')
+              for number, line in enumerate(text.split('\n'), 1):
+                  for char in line:
+                      point = ord(char)
+                      for low, high, name in ranges:
+                          if low <= point <= high:
+                              print(f'::error file={path},line={number}::{name} U+{point:04X} in a tracked file')
+                              bad += 1
+                              break
+          if bad:
+              print(str(bad) + ' emoji code point(s).')
+              sys.exit(1)
+          print('No emoji in tracked files.')
+          PY
 
       - name: No installer artifacts committed
         run: |
