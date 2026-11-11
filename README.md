@@ -7,9 +7,7 @@ Charge bypass and a battery toolkit for Apple Silicon Macs (macOS 11+).
 
 It holds your battery at whatever level you want and runs the whole computer off the charger, so net draw from the battery is 0 mA. You can choose between using the menu-bar app or the CLI utility from the terminal, which is much lighter on resources.
 
-You don't need local tools, you can just click on [Actions > Build](https://github.com/Unnidentified/byper/actions/workflows/build.yml) and you'll get a `.pkg` and a `.dmg` bundled inside a `.zip` (see [building](#building)).
-
-> The status bar icons are on top, the app is below.
+You don't need local tools, you can just click on [Actions > Build](https://github.com/Unnidentified/byper/actions/workflows/build.yml) and you'll get a `.pkg` and a `.dmg` inside a `.zip` (see [building](#building)).
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
