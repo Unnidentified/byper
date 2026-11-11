@@ -18,9 +18,9 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 </td>
 <td valign="middle">
 <h3>Preview of the menu ui</h3>
-<p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns. The graph is a fancy temperature graph, and below it, you can see your current charger specs.</p>
-<p>Byper toggle enables bypass. It remembers the state from before it was unplugged.</p>
-<p>Settings dropdown: bypass (on-connect/at-login/on-display-connect), and a logger that writes a CSV of power, temperature and charging history to your Desktop.</p>
+<p>The slider on the left lets you disable temporarily entire components: if you slide it down, the rows dim and disable, slide it back up and the previous state returns. Then we've got a fancy temp graph, and below it you can see the charger specs.</p>
+<p>`Byper` enables charge bypass (also remembers the state from before it was unplugged).</p>
+<p>Settings includes: a bypass (on-connect/at-login/on-display-connect) button and a logger that writes a debug log to your Desktop.</p>
 </td>
 </tr>
 </table>
