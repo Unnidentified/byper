@@ -5,14 +5,23 @@
 
 import SwiftUI
 
+// The popover's one checkmark. The caffeinate dropdown and every checkmark toggle
+// draw this, so the two cannot drift apart again.
+struct PopoverCheckmark: View {
+    let isOn: Bool
+    var body: some View {
+        Image(systemName: isOn ? "checkmark.square.fill" : "square")
+            .font(.system(size: 11))
+            .foregroundColor(isOn ? BatteryDropdownView.solarGold : Color(white: 0.45))
+    }
+}
+
 struct CheckmarkToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Button(action: {
             configuration.isOn.toggle()
         }) {
-            Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 13))
-                .foregroundColor(configuration.isOn ? .white : Color(white: 0.55))
+            PopoverCheckmark(isOn: configuration.isOn)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -120,8 +129,7 @@ struct BatteryDropdownView: View {
     }
 
     private var isCaffeineActive: Bool {
-        return monitor.masterRowEnabled("caffeine") &&
-            (monitor.caffeineAlwaysOn || (monitor.isPluggedIn && monitor.caffeineEngaged) || monitor.caffeineActive)
+        return monitor.masterRowEnabled("caffeine") && monitor.caffeineEngaged
     }
 
 
@@ -148,6 +156,54 @@ struct BatteryDropdownView: View {
         let m = sec / 60
         let s = sec % 60
         return String(format: "%02d:%02d", m, s)
+    }
+
+    // One checkbox of the caffeinate dropdown. The four conditions are independent,
+    // so this arms or disarms exactly one of them and leaves the other three alone.
+    private func caffeineConditionRow(_ condition: BatteryMonitor.CaffeineCondition) -> some View {
+        HStack(spacing: 6) {
+            let armed = monitor.isCaffeineArmed(condition)
+            Button(action: {
+                monitor.setCaffeineArmed(condition, !armed)
+                if condition == .app && !armed {
+                    monitor.isCaffeineAppPickerExpanded = true
+                    monitor.loadInstalledAppsIfNeeded()
+                }
+            }) {
+                HStack(spacing: 6) {
+                    PopoverCheckmark(isOn: armed)
+                    Text(condition.label)
+                        .font(.custom("FiraCode-Medium", size: 10.5))
+                        .foregroundColor(armed ? .white : Color(white: 0.62))
+                    Spacer(minLength: 4)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(condition.label)
+            .accessibilityValue(armed ? "on" : "off")
+
+            // The picker belongs to the per-app condition, so its disclosure lives
+            // on that row and nowhere else.
+            if condition == .app {
+                Button(action: {
+                    monitor.isCaffeineAppPickerExpanded.toggle()
+                    if monitor.isCaffeineAppPickerExpanded {
+                        monitor.loadInstalledAppsIfNeeded()
+                    }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.custom("FiraCode-Bold", size: 8.5))
+                        .foregroundColor(monitor.autoCaffeineBundleIds.isEmpty ? Color(white: 0.45) : Self.solarGold)
+                        .rotationEffect(.degrees(monitor.isCaffeineAppPickerExpanded ? 90 : 0))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Caffeinate Apps")
+                .padding(.trailing, 8)
+            }
+        }
+        .frame(height: 16)
     }
 
     var body: some View {
@@ -430,70 +486,102 @@ struct BatteryDropdownView: View {
                 }
 
 
-                // Caffeinate Menu: Keep screen on (auto with bypass, or always)
-                HStack(spacing: 4) {
+                // Caffeinate Menu: the switch is the manual always-on, the dropdown
+                // holds the four independent conditions.
+                // Negative spacing pulls the summary up under the title: the
+                // title's line box carries 3pt of descender space below its ink,
+                // so a positive gap reads as a detached line rather than a
+                // subtitle. Measured ink gap is 3pt.
+                VStack(alignment: .leading, spacing: -2) {
                     let isCaff = isCaffeineActive
-                    Image(systemName: "display")
-                        .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.38))
-                        .frame(width: 18, alignment: .center)
+                    HStack(spacing: 4) {
+                        Image(systemName: "display")
+                            .font(.custom("FiraCode-Regular", size: 10))
+                            .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.38))
+                            .frame(width: 18, alignment: .center)
 
-                    Text("Caffeinate")
-                        .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(isCaff ? .white : Color(white: 0.38))
+                        Text("Caffeinate")
+                            .font(.custom("FiraCode-SemiBold", size: 11))
+                            .foregroundColor(isCaff ? .white : Color(white: 0.38))
 
-                    Spacer()
+                        Spacer()
 
-                    Button(action: {
-                        monitor.isCaffeineMenuExpanded.toggle()
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(monitor.autoCaffeineOnBypass ? Self.solarGold : Color(white: 0.38))
-                            .rotationEffect(.degrees(monitor.isCaffeineMenuExpanded ? 90 : 0))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Caffeinate Options")
-                    .padding(.trailing, 2)
-
-                    Toggle("", isOn: Binding(
-                        get: { isCaff },
-                        set: { val in
-                            if val {
-                                monitor.caffeineAlwaysOn = true
-                            } else {
-                                monitor.caffeineAlwaysOn = false
-                                if monitor.caffeineEngaged {
-                                    monitor.autoCaffeineOnBypass = false
-                                }
-                            }
+                        Button(action: {
+                            monitor.isCaffeineMenuExpanded.toggle()
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.custom("FiraCode-Bold", size: 8.5))
+                                .foregroundColor(monitor.caffeineArmedConditions.isEmpty ? Color(white: 0.38) : Self.solarGold)
+                                .rotationEffect(.degrees(monitor.isCaffeineMenuExpanded ? 90 : 0))
+                                .contentShape(Rectangle())
                         }
-                    ))
-                        .labelsHidden()
-                        .scaleEffect(0.70, anchor: .trailing)
-                        // same Docked-right alignment as the bypass row (see comment there)
-                        .frame(width: 26.6, alignment: .trailing)
-                        .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
-                        .padding(.trailing, 5)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Caffeinate Options")
+                        .padding(.trailing, 2)
+
+                        // The manual switch. It is the always-on override, not a
+                        // condition: it reads and writes byp_caffeine_always_on
+                        // alone, so a condition engaging never moves it and turning
+                        // it off never disarms a condition.
+                        Toggle("", isOn: $monitor.caffeineAlwaysOn)
+                            .labelsHidden()
+                            .scaleEffect(0.70, anchor: .trailing)
+                            // same Docked-right alignment as the bypass row (see comment there)
+                            .frame(width: 26.6, alignment: .trailing)
+                            .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
+                            .padding(.trailing, 5)
+                            .accessibilityLabel("Caffeinate Switch")
+                    }
+                    // The switch's unscaled layout box is 22pt tall, which would
+                    // inflate this line and push the summary 5.5pt clear of the
+                    // title. Pin the line to the same 16pt the other rows use so
+                    // the summary reads as part of the row.
+                    .frame(height: 16)
+
+                    // The armed set gets its own line. The row has about 26pt of
+                    // free width beside the title, which is not enough for one
+                    // condition name, let alone four. The height is fixed, so
+                    // arming a condition never resizes the panel.
+                    Text(monitor.caffeineSummary)
+                        .font(.custom("FiraCode-Medium", size: 8.0))
+                        .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.45))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .padding(.leading, 22)
+                        .accessibilityIdentifier("Caffeinate Summary")
                 }
-                .frame(height: 16)
+                .frame(height: 36)
                 .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 .masterRowProbe("caffeine")
 
                 if monitor.isCaffeineMenuExpanded {
-                    HStack {
-                        Text("On Bypass")
-                            .font(.custom("FiraCode-Medium", size: 10.5))
-                            .foregroundColor(.white)
-                        Spacer()
-                        Toggle("", isOn: $monitor.autoCaffeineOnBypass)
-                            .labelsHidden()
-                            .toggleStyle(CheckmarkToggleStyle())
-                            .padding(.trailing, 8)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(BatteryMonitor.CaffeineCondition.allCases, id: \.self) { condition in
+                            caffeineConditionRow(condition)
+                        }
+                        // Shown whenever the chevron is open, like the Low Power
+                        // Mode picker: the chevron must never be a dead control,
+                        // and the selection is worth editing before arming.
+                        if monitor.isCaffeineAppPickerExpanded {
+                            AppPickerList(
+                                apps: monitor.installedApps,
+                                selectedIds: monitor.autoCaffeineBundleIds,
+                                iconProvider: { monitor.icon(for: $0) },
+                                onToggle: { id, enabled in
+                                    if enabled {
+                                        monitor.autoCaffeineBundleIds.insert(id)
+                                    } else {
+                                        monitor.autoCaffeineBundleIds.remove(id)
+                                    }
+                                }
+                            )
+                            .equatable()
+                            .frame(height: 160)
+                            .padding(.top, 4)
+                            .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
+                        }
                     }
                     .padding(.leading, 22)
-                    .frame(height: 16)
                     .allowsHitTesting(monitor.masterRowEnabled("caffeine"))
                 }
 

@@ -174,6 +174,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Instant panel frame snap when dropdown menus expand/collapse (locked to the shell width).
         // showLoggerInfo (Logger "i" description) and isCaffeineMenuExpanded also change the
         // content height. Without them the panel keeps its expanded height on collapse.
+        // isCaffeineAppPickerExpanded is the per-app caffeinate list: it is a second
+        // expandable block inside the caffeinate row, so it needs its own entry here.
         Publishers.Merge4(
             monitor.$isBypassMenuExpanded,
             monitor.$isAppPickerExpanded,
@@ -183,6 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         .merge(with: monitor.$showLoggerInfo)
         .merge(with: monitor.$isSlowChargeMenuExpanded)
         .merge(with: monitor.$isBypassOptionsExpanded)
+        .merge(with: monitor.$isCaffeineAppPickerExpanded)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }

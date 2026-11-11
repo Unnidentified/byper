@@ -1568,66 +1568,171 @@ static void print_app_label(const char *bundle_id) {
     }
 }
 
+// The four caffeinate conditions are independent and combinable, so every write
+// touches exactly one key and leaves the other three alone. The manual switch is
+// separate: it is the always-on override, not a condition, so "caffeinate off"
+// never disarms a condition and a condition engaging never moves the switch.
+//
+// Starts or stops the detached caffeinate so it matches the switch and the armed
+// conditions, and reports whether it should be running right now. Shared by every
+// action so they cannot drift apart.
+static int caffeinate_apply(bool *wanted_out) {
+    BatteryInfo info;
+    bool have_info = battery_get_info(&info);
+    bool wanted = have_info && automation_caffeinate_wanted(&info);
+    bool ok = wanted ? automation_caffeinate_start() : automation_caffeinate_stop();
+    if (wanted_out) *wanted_out = wanted;
+    if (!ok) {
+        printf("caffeinate: not confirmed\n");
+        return 1;
+    }
+    return 0;
+}
+
 static int handle_caffeinate(int argc, char *argv[]) {
     const char *action = argc > 2 ? argv[2] : "status";
 
     if (strcmp(action, "status") == 0) {
         BatteryInfo info;
-        bool hold = battery_get_info(&info) && automation_hold_active(&info);
-        printf("caffeinate: %s\n", automation_caffeinate_running() ? "on" : "off");
+        bool have_info = battery_get_info(&info);
+        // The effective state, not the CLI's own detached process: with the app
+        // running it is the app that holds the assertion, and the switch or an
+        // armed condition is what the user asked for.
+        printf("caffeinate: %s\n",
+               have_info && automation_caffeinate_wanted(&info) ? "on" : "off");
+        printf("  armed       %s\n", caffeinate_armed_summary());
         printf("  manual      %-3s  %s\n",
                on_off_word(prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false)),
                BYP_KEY_CAFFEINE_ALWAYS_ON);
         printf("  on bypass   %-3s  %s\n",
                on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false)),
                BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
-        printf("  bypass hold %s\n", hold ? "active" : "inactive");
+        printf("  on lid      %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false)),
+               BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE);
+        printf("  on charger  %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_CHARGER, false)),
+               BYP_KEY_AUTO_CAFFEINE_ON_CHARGER);
+        printf("  per app     %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)),
+               BYP_KEY_AUTO_CAFFEINE_PER_APP);
+        char **apps = NULL;
+        int count = prefs_copy_string_array(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, &apps);
+        for (int i = 0; i < count; i++) {
+            printf("    app       ");
+            print_app_label(apps[i]);
+            printf("\n");
+        }
+        prefs_free_string_array(apps, count);
+        printf("  bypass hold %s\n", have_info && automation_hold_active(&info) ? "active" : "inactive");
+        printf("  lid         %s\n", automation_lid_closed() ? "closed" : "open");
+        printf("  charger     %s\n", have_info && info.acAttached ? "attached" : "detached");
         return 0;
     }
 
+    // The switch. It is the manual always-on and nothing else, so turning it off
+    // leaves every armed condition armed and caffeinate may keep running.
     if (strcmp(action, "on") == 0 || strcmp(action, "off") == 0) {
         bool enable = strcmp(action, "on") == 0;
         if (!prefs_set_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, enable)) {
             fprintf(stderr, "failed to write %s\n", BYP_KEY_CAFFEINE_ALWAYS_ON);
             return 1;
         }
-        BatteryInfo info;
-        bool hold = battery_get_info(&info) && automation_hold_active(&info);
-        bool auto_on_bypass = prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, false);
-        bool wanted = enable || (auto_on_bypass && hold);
-        bool ok = wanted ? automation_caffeinate_start() : automation_caffeinate_stop();
-        if (!ok) {
-            printf("caffeinate: not confirmed\n");
-            return 1;
-        }
+        bool wanted = false;
+        if (caffeinate_apply(&wanted) != 0) return 1;
         if (enable) printf("caffeinate: on\n");
-        else if (wanted) printf("caffeinate: on (on bypass)\n");
+        else if (wanted) printf("caffeinate: on (%s)\n", caffeinate_armed_summary());
         else printf("caffeinate: off\n");
         return 0;
     }
 
-    if (strcmp(action, "auto") == 0) {
+    // The four conditions. Each subcommand writes its own key and leaves the other
+    // three alone, so arming one from the terminal cannot disarm one the user
+    // picked in the app. "auto" is the pre-existing spelling of "bypass".
+    const char *condition_key = NULL;
+    const char *condition_name = NULL;
+    if (strcmp(action, "bypass") == 0 || strcmp(action, "auto") == 0) {
+        condition_key = BYP_KEY_AUTO_CAFFEINE_ON_BYPASS;
+        condition_name = "on bypass";
+    } else if (strcmp(action, "lid") == 0) {
+        condition_key = BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE;
+        condition_name = "on lid close";
+    } else if (strcmp(action, "charger") == 0) {
+        condition_key = BYP_KEY_AUTO_CAFFEINE_ON_CHARGER;
+        condition_name = "on charger";
+    }
+
+    if (condition_key) {
         bool enable;
         if (argc < 4 || !parse_on_off(argv[3], &enable)) {
-            fprintf(stderr, "usage: byper caffeinate auto on|off\n");
+            fprintf(stderr, "usage: byper caffeinate %s on|off\n", action);
             return 1;
         }
-        if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_ON_BYPASS, enable)) {
-            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_ON_BYPASS);
+        if (!prefs_set_bool(condition_key, enable)) {
+            fprintf(stderr, "failed to write %s\n", condition_key);
             return 1;
         }
-        // State semantics, matching the app: turning the auto path on while a
-        // hold is already active lights caffeinate now, not at the next edge.
-        BatteryInfo info;
-        bool hold = battery_get_info(&info) && automation_hold_active(&info);
-        bool manual = prefs_get_bool(BYP_KEY_CAFFEINE_ALWAYS_ON, false);
-        if (enable && hold) automation_caffeinate_start();
-        else if (!enable && !manual) automation_caffeinate_stop();
-        printf("caffeinate on bypass: %s\n", on_off_word(enable));
+        if (caffeinate_apply(NULL) != 0) return 1;
+        printf("caffeinate %s: %s\n", condition_name, on_off_word(enable));
         return 0;
     }
 
-    fprintf(stderr, "usage: byper caffeinate on|off|auto on|auto off|status\n");
+    if (strcmp(action, "app") == 0) {
+        if (argc < 4) {
+            fprintf(stderr, "usage: byper caffeinate app <bundle-id>|off\n");
+            return 1;
+        }
+        if (strcmp(argv[3], "off") == 0) {
+            if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, false)) {
+                fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_PER_APP);
+                return 1;
+            }
+            if (caffeinate_apply(NULL) != 0) return 1;
+            printf("caffeinate per app: off\n");
+            return 0;
+        }
+        // Additive and idempotent: the app's picker is a set, so the CLI adds to
+        // it rather than replacing a selection the user made in the UI.
+        char **apps = NULL;
+        int count = prefs_copy_string_array(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, &apps);
+        bool present = false;
+        for (int i = 0; i < count; i++) {
+            if (strcmp(apps[i], argv[3]) == 0) present = true;
+        }
+        if (!present) {
+            const char **next = calloc((size_t)count + 1, sizeof(char *));
+            if (!next) {
+                prefs_free_string_array(apps, count);
+                fprintf(stderr, "out of memory\n");
+                return 1;
+            }
+            for (int i = 0; i < count; i++) next[i] = apps[i];
+            next[count] = argv[3];
+            bool ok = prefs_set_string_array(BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS, next, count + 1);
+            free(next);
+            if (!ok) {
+                prefs_free_string_array(apps, count);
+                fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_BUNDLE_IDS);
+                return 1;
+            }
+        }
+        prefs_free_string_array(apps, count);
+        if (!prefs_set_bool(BYP_KEY_AUTO_CAFFEINE_PER_APP, true)) {
+            fprintf(stderr, "failed to write %s\n", BYP_KEY_AUTO_CAFFEINE_PER_APP);
+            return 1;
+        }
+        if (caffeinate_apply(NULL) != 0) return 1;
+        printf("caffeinate per app: on (");
+        print_app_label(argv[3]);
+        printf(")\n");
+        return 0;
+    }
+
+    fprintf(stderr, "usage: byper caffeinate on|off|status\n");
+    fprintf(stderr, "       byper caffeinate bypass on|off\n");
+    fprintf(stderr, "       byper caffeinate lid on|off\n");
+    fprintf(stderr, "       byper caffeinate charger on|off\n");
+    fprintf(stderr, "       byper caffeinate app <bundle-id>|off\n");
     return 1;
 }
 
@@ -1888,8 +1993,15 @@ static void print_usage(const char *prog) {
     printf("  byp json [power]        Machine-readable JSON telemetry\n");
     printf("  byp lpm on|off          Set macOS Low Power Mode\n");
     printf("  byp caffeinate on|off   Hold the display and idle sleep on or off\n");
-    printf("  byp caffeinate auto on|off\n");
-    printf("                          Hold them only while a bypass hold is active\n");
+    printf("  byp caffeinate bypass on|off\n");
+    printf("                          Hold them while a bypass hold is active\n");
+    printf("                          (alias: byp caffeinate auto on|off)\n");
+    printf("  byp caffeinate lid on|off\n");
+    printf("                          Hold them while the lid is closed\n");
+    printf("  byp caffeinate charger on|off\n");
+    printf("                          Hold them while the charger is attached\n");
+    printf("  byp caffeinate app <bundle-id>|off\n");
+    printf("                          Hold them while that app is frontmost\n");
     printf("  byp caffeinate status   Show the caffeinate state\n");
     printf("  byp logger [--quiet]    Write a CSV session log to the Desktop\n");
     printf("  byp auto                Show the automation settings\n");
@@ -1906,6 +2018,9 @@ static void print_usage(const char *prog) {
     printf("  byp help                Show command usage\n");
     printf("\n");
     printf("Settings live in the com.gefaass.byper domain, shared with byper.app.\n");
+    printf("Caffeinate conditions combine: arm any number of them, and caffeinate\n");
+    printf("holds while any armed condition is true. The switch is the manual\n");
+    printf("always-on and overrides them.\n");
 }
 
 int main(int argc, char *argv[]) {
