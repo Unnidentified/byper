@@ -358,13 +358,15 @@ automations are driven.
 
 ## Current state
 
-- `main` is past the merge of PR #24, the readme panel shot.
-- The latest release is `v3.0.1`, the icon match. Assets:
-  `byper-installer-3.0.1.pkg`, `.dmg`, `SHA256SUMS.txt`, and
-  `menu-bar-comparison.png` and `menu-bar-detail.png` for the release notes.
+- `main` is past the merge of PR #38, the popover row spacing fix.
+- The latest release is `v3.1.0`, the stable release. Assets:
+  `byper-installer-3.1.0.pkg`, `byper-installer-3.1.0.dmg` and
+  `SHA256SUMS.txt`.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
   both `3.1.0`. They used to drift apart. Bump them together. The CLI reads
   `CFBundleShortVersionString` at build time, so it has no version of its own.
+- `Casks/byper.rb` is `3.1.0` and carries the `byper-installer-3.1.0.pkg`
+  sha256. It tracks stable releases, so it lags during a beta or rc cycle.
 - CI is `.github/workflows/ci.yml`: `changes` (diff filter), `checks` (PR title,
   shell syntax and shellcheck, plist, cask, version sources, Makefile sources,
   CLI help, JSON fields, dashes, emoji, no installer artifacts, no `VANILLA`,
