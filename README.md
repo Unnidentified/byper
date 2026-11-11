@@ -20,6 +20,10 @@ You don't need local tools, you can just click on Actions > [Build](#building) a
 <h3>The panel</h3>
 <p>The slider on the left is the master switch. Slide it down and the rows dim and stop responding. Slide it back and your previous state returns.</p>
 <p>The graph is live draw, the readout is voltage and amperage, and the rows below are the ones you reach for most.</p>
+<p>Byper engages charge bypass. The switch stays grey while the machine is unplugged, since there is nothing to bypass. Its chevron holds one option, off on exit.</p>
+<p>Powersave turns on Low Power Mode. Its chevron opens a picker, so Low Power Mode can come on by itself while a chosen app is frontmost.</p>
+<p>Caffeinate holds the display and idle sleep. Its chevron adds on bypass, so the hold can follow the bypass state.</p>
+<p>Settings opens the automations, bypass on connect, at login or when a display is attached, and the session logger that writes power, temperature and charging history to a spreadsheet on your Desktop.</p>
 </td>
 </tr>
 </table>
