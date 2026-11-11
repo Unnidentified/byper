@@ -26,18 +26,53 @@ cask "byper" do
 
                 /usr/bin/pkill -f "byper.app/Contents/MacOS/byper" >/dev/null 2>&1 || true
 
-                # The CLI and its symlinks are root-owned, so the delete
-                # directive skips them: it refuses any path whose parent
-                # directory is not writable by the user. Remove them here.
-                /bin/rm -f /usr/local/bin/byper /usr/local/bin/byp /usr/local/bin/chbypass
-                /bin/rm -f /usr/local/share/zsh/site-functions/_byper /usr/local/share/zsh/site-functions/_byp
-                /bin/rm -f /usr/local/share/bash-completion/completions/byper /usr/local/share/bash-completion/completions/byp
-                /bin/rm -rf /Applications/byper.app
-                /bin/rm -f /tmp/byp.state /tmp/byp_lldb.lock /tmp/byp_lldb_worker.log
-                /bin/rm -f /tmp/byp_cmd_*.lldb
+                # The pkg postinstall creates the CLI, its symlinks and the
+                # completions outside the Caskroom, so Homebrew has no artifact
+                # for them. Remove them here. Each removal is best effort: the
+                # check at the end decides whether the uninstall succeeded.
+                paths=(
+                  /usr/local/bin/byper
+                  /usr/local/bin/byp
+                  /usr/local/bin/chbypass
+                  /usr/local/share/zsh/site-functions/_byper
+                  /usr/local/share/zsh/site-functions/_byp
+                  /usr/local/share/bash-completion/completions/byper
+                  /usr/local/share/bash-completion/completions/byp
+                  /Applications/byper.app
+                  /tmp/byp.state
+                  /tmp/byp_lldb.lock
+                  /tmp/byp_lldb_worker.log
+                )
+                for path in "${paths[@]}"; do
+                  /bin/rm -rf "$path" || true
+                done
+                /bin/rm -f /tmp/byp_cmd_*.lldb || true
+
+                # A partial removal must not look like success. Name every path
+                # that survived so the user can finish the job by hand.
+                left=""
+                for path in "${paths[@]}"; do
+                  if [ -e "$path" ] || [ -L "$path" ]; then
+                    left="$left $path"
+                  fi
+                done
+                for path in /tmp/byp_cmd_*.lldb; do
+                  if [ -e "$path" ] || [ -L "$path" ]; then
+                    left="$left $path"
+                  fi
+                done
+                if [ -n "$left" ]; then
+                  echo "byper uninstall incomplete. These paths are still present:" >&2
+                  for path in $left; do
+                    echo "  $path" >&2
+                  done
+                  echo "Remove them with: sudo rm -rf$left" >&2
+                  echo "Then run: brew uninstall --cask byper" >&2
+                  exit 1
+                fi
               EOS
               sudo:         true,
-              must_succeed: false,
+              must_succeed: true,
             },
             pkgutil:      [
               "com.gefaass.byper",
