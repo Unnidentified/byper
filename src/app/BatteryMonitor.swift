@@ -46,10 +46,26 @@ final class BatteryMonitor: ObservableObject {
         // Short form for the row summary, which has a single line to work with.
         var shortLabel: String {
             switch self {
-            case .bypass: return "Bypass"
-            case .lidClose: return "Lid"
-            case .charger: return "Charger"
-            case .app: return "App"
+            case .bypass: return "byp"
+            case .lidClose: return "lid"
+            case .charger: return "ch"
+            case .app: return "app"
+            }
+        }
+    }
+
+    // The three settings automations, in dropdown order. They are independent
+    // checkboxes, so the row summary lists them the same way caffeinate's does.
+    enum SettingsAutomation: String, CaseIterable {
+        case connect
+        case login
+        case display
+
+        var shortLabel: String {
+            switch self {
+            case .connect: return "conn"
+            case .login: return "login"
+            case .display: return "disp"
             }
         }
     }
@@ -72,11 +88,6 @@ final class BatteryMonitor: ObservableObject {
     @Published var counterCounting: Bool = false
     private var counterStart = Date()
     private var counterTicker: Timer?
-    // Apps actually visible (and checkable) in the Powersave dropdown that are checked.
-    // autoLPMBundleIds can hold stale IDs of uninstalled apps: those must not light the row.
-    var checkedVisibleApps: Int {
-        installedApps.filter { autoLPMBundleIds.contains($0.id) }.count
-    }
     @Published var targetPowerMode: PowerMode? = nil
     
     @Published var percentage: Int = (UserDefaults.standard.integer(forKey: "byp_cached_pct") != 0) ? UserDefaults.standard.integer(forKey: "byp_cached_pct") : 100
@@ -90,10 +101,14 @@ final class BatteryMonitor: ObservableObject {
     // Per-App Auto Low Power Mode state
     @Published var installedApps: [InstalledAppInfo] = []
     @Published var isAppPickerExpanded: Bool = false
+    // The per-app submenu inside the powersave dropdown, the same second level
+    // caffeinate's "Per app" row has. Both are in the panel refit chain.
+    @Published var isAppPickerSubmenuExpanded: Bool = false
     @Published var autoLPMBundleIds: Set<String> = BatteryMonitor.loadAutoLPMBundleIds() {
         didSet {
             if autoLPMBundleIds != oldValue {
                 UserDefaults.standard.set(Array(autoLPMBundleIds), forKey: "byp_auto_lpm_bundle_ids")
+                reconcileAutoLPM()
             }
         }
     }
@@ -361,15 +376,36 @@ final class BatteryMonitor: ObservableObject {
     @Published var lidClosed: Bool = false
     @Published var frontmostAppBundleID: String? = nil
 
-    // The armed set, in dropdown order. Derived from the persisted flags so the
-    // CLI keeps owning the same keys and the two front ends cannot disagree.
+    // Check order for the summary lines. Each row keeps a small log beside its
+    // persisted flags, because the flags alone cannot say which box was ticked
+    // first. The log is reconciled against the flags on read: an item that is no
+    // longer checked is dropped, and one that was checked outside the UI (the
+    // CLI, a preset, the master slider) is appended in row order. A summary can
+    // therefore never show an unchecked item, and re-checking an item moves it
+    // to the end, which is what "in the order the user checked them" means.
+    private func orderedChecked<T: Hashable>(_ checked: [T], _ log: [T]) -> [T] {
+        let live = Set(checked)
+        let kept = log.filter { live.contains($0) }
+        return kept + checked.filter { !kept.contains($0) }
+    }
+
+    private var caffeineArmedOrder: [CaffeineCondition] = BatteryMonitor.loadCaffeineArmedOrder()
+
+    private static func loadCaffeineArmedOrder() -> [CaffeineCondition] {
+        let raw = UserDefaults.standard.stringArray(forKey: "byp_caffeine_armed_order") ?? []
+        var seen = Set<CaffeineCondition>()
+        return raw.compactMap { CaffeineCondition(rawValue: $0) }.filter { seen.insert($0).inserted }
+    }
+
+    private func persistCaffeineArmedOrder() {
+        UserDefaults.standard.set(caffeineArmedOrder.map(\.rawValue), forKey: "byp_caffeine_armed_order")
+    }
+
+    // The armed set, in the order the user checked it. Derived from the persisted
+    // flags so the CLI keeps owning the same keys and the two front ends cannot
+    // disagree.
     var caffeineArmedConditions: [CaffeineCondition] {
-        var armed: [CaffeineCondition] = []
-        if autoCaffeineOnBypass { armed.append(.bypass) }
-        if autoCaffeineOnLidClose { armed.append(.lidClose) }
-        if autoCaffeineOnCharger { armed.append(.charger) }
-        if autoCaffeinePerApp { armed.append(.app) }
-        return armed
+        orderedChecked(CaffeineCondition.allCases.filter { isCaffeineArmed($0) }, caffeineArmedOrder)
     }
 
     func isCaffeineArmed(_ condition: CaffeineCondition) -> Bool {
@@ -392,16 +428,104 @@ final class BatteryMonitor: ObservableObject {
         case .charger: autoCaffeineOnCharger = armed
         case .app: autoCaffeinePerApp = armed
         }
+        if armed {
+            if !caffeineArmedOrder.contains(condition) { caffeineArmedOrder.append(condition) }
+        } else {
+            caffeineArmedOrder.removeAll { $0 == condition }
+        }
+        persistCaffeineArmedOrder()
     }
 
     // The row's second line: the armed set, or the switch state when nothing is
-    // armed. Short forms and a comma separator keep all four on one line: the
-    // full labels joined with " + " measure 246pt and the row gives the summary
-    // 138, so they would truncate.
+    // armed. The abbreviations and the slash separator keep all four on one
+    // line: the full labels joined with " + " measure 246pt and the row gives
+    // the summary 138, so they would truncate.
     var caffeineSummary: String {
         let armed = caffeineArmedConditions
         if armed.isEmpty { return caffeineAlwaysOn ? "On" : "Off" }
-        return armed.map(\.shortLabel).joined(separator: ", ")
+        return armed.map(\.shortLabel).joined(separator: "/")
+    }
+
+    // The Byper row's second line. "Off on exit" is the row's only checkbox, so
+    // there is no order to keep.
+    var bypassSummary: String {
+        disableBypassOnQuit ? "exit" : ""
+    }
+
+    // The settings row's second line, in check order.
+    private var settingsArmedOrder: [SettingsAutomation] = BatteryMonitor.loadSettingsArmedOrder()
+
+    private static func loadSettingsArmedOrder() -> [SettingsAutomation] {
+        let raw = UserDefaults.standard.stringArray(forKey: "byp_settings_armed_order") ?? []
+        var seen = Set<SettingsAutomation>()
+        return raw.compactMap { SettingsAutomation(rawValue: $0) }.filter { seen.insert($0).inserted }
+    }
+
+    private func persistSettingsArmedOrder() {
+        UserDefaults.standard.set(settingsArmedOrder.map(\.rawValue), forKey: "byp_settings_armed_order")
+    }
+
+    func isSettingsArmed(_ automation: SettingsAutomation) -> Bool {
+        switch automation {
+        case .connect: return autoHoldOnPlug
+        case .login: return autoHoldAtLogin
+        case .display: return autoHoldOnDisplay
+        }
+    }
+
+    // The settings checkboxes are independent, so this arms or disarms exactly
+    // one of them and leaves the other two alone.
+    func setSettingsArmed(_ automation: SettingsAutomation, _ armed: Bool) {
+        switch automation {
+        case .connect: autoHoldOnPlug = armed
+        case .login: autoHoldAtLogin = armed
+        case .display: autoHoldOnDisplay = armed
+        }
+        if armed {
+            if !settingsArmedOrder.contains(automation) { settingsArmedOrder.append(automation) }
+        } else {
+            settingsArmedOrder.removeAll { $0 == automation }
+        }
+        persistSettingsArmedOrder()
+    }
+
+    var settingsArmedAutomations: [SettingsAutomation] {
+        orderedChecked(SettingsAutomation.allCases.filter { isSettingsArmed($0) }, settingsArmedOrder)
+    }
+
+    var settingsSummary: String {
+        settingsArmedAutomations.map(\.shortLabel).joined(separator: "/")
+    }
+
+    // Per-app Low Power Mode arming, the same shape as caffeinate's per-app
+    // condition: the bundle id set is the picker's memory, this flag is the
+    // arming state. An install that already has a selection and no key starts
+    // armed, so the upgrade does not silently disable the automation.
+    @Published var autoLPMPerApp: Bool = {
+        if UserDefaults.standard.object(forKey: "byp_auto_lpm_per_app") == nil {
+            return !BatteryMonitor.loadAutoLPMBundleIds().isEmpty
+        }
+        return UserDefaults.standard.bool(forKey: "byp_auto_lpm_per_app")
+    }() {
+        didSet {
+            UserDefaults.standard.set(autoLPMPerApp, forKey: "byp_auto_lpm_per_app")
+            reconcileAutoLPM()
+        }
+    }
+
+    func setAutoLPMApp(_ bundleID: String, _ enabled: Bool) {
+        if enabled {
+            autoLPMBundleIds.insert(bundleID)
+        } else {
+            autoLPMBundleIds.remove(bundleID)
+        }
+    }
+
+    // The powersave row's second line: the per-app condition's abbreviation,
+    // exactly like caffeinate's "app". The selected apps are the picker's
+    // memory, not the summary.
+    var lpmSummary: String {
+        autoLPMPerApp ? "app" : ""
     }
 
     private static func loadAutoCaffeineBundleIds() -> Set<String> {
@@ -1746,23 +1870,23 @@ final class BatteryMonitor: ObservableObject {
         // reconciler never touches LPM. Master slider stand-down wins too (the
         // row was deliberately disabled, auto must not sneak it back on).
         guard masterRowEnabled("lpm"), !isManualLowPowerMode else { return }
-        guard let ownerBundleID = Self.frontmostRealWindowOwnerBundleID() else {
-            // No real window on screen at all (front window closed or minimized to a bare desktop)
-            if isAutoLPMTriggered {
-                isAutoLPMTriggered = false
-                isLowPowerMode = false
-                CLIEngineBridge.setLowPowerMode(enabled: false)
-            }
-            return
-        }
+        // The per-app checkbox is the arming state, so unchecking it releases a
+        // hold this path owns even while the armed app is still frontmost. A
+        // windowless frontmost app reads as no owner, which releases too.
+        let ownerBundleID = Self.frontmostRealWindowOwnerBundleID()
+        let shouldEngage = autoLPMPerApp && ownerBundleID.map { autoLPMBundleIds.contains($0) } ?? false
         // Desired-state comparison, not edge-only: re-engages after the manual
         // switch goes off with an auto app still frontmost, clears a latched
         // engagement when the selection empties, and self-heals a failed apply.
         // The per-app trigger also outranks the OS-level LPM: if macOS LPM is
         // somehow off while an auto app is frontmost, re-assert it.
-        if autoLPMBundleIds.contains(ownerBundleID) {
+        if shouldEngage {
+            // The armed app is frontmost, so the automation owns LPM. Claim it
+            // even when LPM is already on: a restart inherits the previous
+            // session's hold, and without the claim the release below would
+            // never fire. Re-assert it if something turned it off.
+            isAutoLPMTriggered = true
             if !isLowPowerMode {
-                isAutoLPMTriggered = true
                 isLowPowerMode = true
                 CLIEngineBridge.setLowPowerMode(enabled: true)
             }
@@ -1801,11 +1925,19 @@ final class BatteryMonitor: ObservableObject {
         if front != frontmostAppBundleID { frontmostAppBundleID = front }
     }
 
-    // Front-to-back scan for the first normal-level (layer 0) window with real bounds; its owner
-    // holds the front window. Menu bar (24), status items (25), popovers and the desktop layer sit
-    // outside layer 0 and are skipped.
+    // The active app, but only while it owns a normal-level (layer 0) window with
+    // real bounds. Menu bar (24), status items (25), popovers and the desktop
+    // layer sit outside layer 0 and are skipped.
+    //
+    // The scan is restricted to the active app on purpose. Scanning every
+    // on-screen window front to back returned the last app that still had a
+    // window, so switching to a windowless app (Finder with no windows open)
+    // left the previous app's window in front and the per-app hold never
+    // released. A windowless active app now reads as no owner, which releases.
     static func frontmostRealWindowOwnerBundleID() -> String? {
-        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
+        guard let active = NSWorkspace.shared.frontmostApplication,
+              let bundleID = active.bundleIdentifier,
+              let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
         for window in windowList {
@@ -1814,8 +1946,7 @@ final class BatteryMonitor: ObservableObject {
                   let width = bounds["Width"] as? Double, width > 0,
                   let height = bounds["Height"] as? Double, height > 0,
                   let pid = window[kCGWindowOwnerPID as String] as? Int,
-                  let app = NSRunningApplication(processIdentifier: pid_t(pid)),
-                  let bundleID = app.bundleIdentifier else { continue }
+                  pid == active.processIdentifier else { continue }
             return bundleID
         }
         return nil

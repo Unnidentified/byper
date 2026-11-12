@@ -186,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         .merge(with: monitor.$isSlowChargeMenuExpanded)
         .merge(with: monitor.$isBypassOptionsExpanded)
         .merge(with: monitor.$isCaffeineAppPickerExpanded)
+        .merge(with: monitor.$isAppPickerSubmenuExpanded)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
@@ -199,6 +200,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             .store(in: &cancellables)
+
+        // The row summaries collapse while their set is empty, so the panel
+        // height changes on the first check and on the last uncheck. Those are
+        // not expandable flags, so they get their own refit trigger. The mask
+        // only changes when a row's summary appears or disappears, never when a
+        // second item joins a non-empty set, so the row height stays stable.
+        Publishers.CombineLatest4(
+            monitor.$disableBypassOnQuit,
+            monitor.$autoLPMPerApp,
+            monitor.$autoHoldOnPlug,
+            monitor.$autoHoldAtLogin
+        )
+        .combineLatest(monitor.$autoHoldOnDisplay)
+        .map { first, display -> Int in
+            var mask = 0
+            if first.0 { mask |= 1 }
+            if first.1 { mask |= 2 }
+            if first.2 || first.3 || display { mask |= 4 }
+            return mask
+        }
+        .removeDuplicates()
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard let self = self else { return }
+            self.popoverPanel.refit()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.popoverPanel.refit()
+            }
+        }
+        .store(in: &cancellables)
 
         installGlobalHotkey()
     }

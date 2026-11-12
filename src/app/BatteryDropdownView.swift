@@ -126,6 +126,34 @@ struct BatteryDropdownView: View {
     static let graphWarmSolar = Color(red: 0.96, green: 0.58, blue: 0.16) // #F59429 - Warm Solar Copper
     static let thermoAmber = Color(red: 1.0, green: 0.60, blue: 0.12)    // #FF991F - Temperature Icon
 
+    // One dimming rule for every checkbox label in the popover: full white while
+    // the box is checked, the same grey while it is not. The caffeinate rows,
+    // "Off on exit" and the settings automations all read this, so the three
+    // cannot drift into different greys. There is no explicit animation, exactly
+    // like the caffeinate rows: a direct toggle is instant, and the master
+    // slider's withAnimation still animates it.
+    static func checkLabelColor(_ isOn: Bool) -> Color {
+        isOn ? .white : Color(white: 0.62)
+    }
+
+    // The row's second line. It is absent while nothing is checked, so the row
+    // keeps its old 16pt height, and it appears at a fixed 10pt the moment the
+    // first box is ticked. The fixed height is what keeps the panel from
+    // resizing as more items are added to a non-empty set.
+    @ViewBuilder
+    private func rowSummary(_ text: String, color: Color, identifier: String) -> some View {
+        if !text.isEmpty {
+            Text(text)
+                .font(.custom("FiraCode-Medium", size: 8.0))
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(height: 10)
+                .padding(.leading, 22)
+                .accessibilityIdentifier(identifier)
+        }
+    }
+
     private var isBypassActive: Bool {
         return monitor.isPluggedIn && monitor.masterRowEnabled("bypass") &&
             (monitor.isHold || monitor.appliedPowerMode == .bypass ||
@@ -182,7 +210,7 @@ struct BatteryDropdownView: View {
                     PopoverCheckmark(isOn: armed)
                     Text(condition.label)
                         .font(.custom("FiraCode-Medium", size: 10.5))
-                        .foregroundColor(armed ? .white : Color(white: 0.62))
+                        .foregroundColor(Self.checkLabelColor(armed))
                     Spacer(minLength: 4)
                 }
                 .contentShape(Rectangle())
@@ -349,71 +377,86 @@ struct BatteryDropdownView: View {
                 // Rounded enclosure: encompasses all the settings below the presets
                 VStack(alignment: .leading, spacing: 4) {
 
-                HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: -2) {
                     let isBypass = (monitor.isTransitioning ? (monitor.targetPowerMode ?? monitor.powerMode) : monitor.powerMode) == .bypass
                     let isActive = isBypassActive
                     let iconName = isBypass ? "powerplug.fill" : "bolt.fill"
                     let iconColor = isBypass ? Self.coolBrownOrange : Self.emeraldGreen
                     
-                    Image(systemName: iconName)
-                        .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(isActive ? iconColor : (isBypass ? iconColor.opacity(0.6) : Color(white: 0.38)))
-                        .frame(width: 18, alignment: .center)
+                    HStack(spacing: 4) {
 
-                    Text("Byper")
-                        .font(.custom("FiraCode-SemiBold", size: 11))
-                        .foregroundColor(isActive ? .white : (isBypass ? Color(white: 0.7) : Color(white: 0.38)))
-                        .lineLimit(1)
+                        Image(systemName: iconName)
+                            .font(.custom("FiraCode-Regular", size: 10))
+                            .foregroundColor(isActive ? iconColor : (isBypass ? iconColor.opacity(0.6) : Color(white: 0.38)))
+                            .frame(width: 18, alignment: .center)
 
-                      Spacer()
+                        Text("Byper")
+                            .font(.custom("FiraCode-SemiBold", size: 11))
+                            .foregroundColor(isActive ? .white : (isBypass ? Color(white: 0.7) : Color(white: 0.38)))
+                            .lineLimit(1)
 
-                    Button(action: {
-                        monitor.isBypassOptionsExpanded.toggle()
-                      }) {
-                        Image(systemName: "chevron.right")
-                            .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(Color(white: 0.38))
-                            .rotationEffect(.degrees(monitor.isBypassOptionsExpanded ? 90 : 0))
-                            .contentShape(Rectangle())
-                      }
-                      .buttonStyle(.plain)
-                      .accessibilityLabel("Bypass Options")
-                      .padding(.trailing, 2)
+                          Spacer()
 
-                      Toggle("", isOn: Binding(
-                        get: { isBypass },
-                        set: { val in
-                            onSelectPowerMode?(val ? .bypass : .charging)
-                        }
-                    ))
-                    .labelsHidden()
-                    .scaleEffect(0.70, anchor: .trailing)
-                    // clamp the hidden layout footprint (scaleEffect keeps the full
-                    // switch width) so inline numbers never expand the row. Frame +
-                    // trailing padding align the switch's visual right edge with the
-                    // Docked pill's right edge on the presets row (visual switch =
-                    // 38 x 0.70 = 26.6pt, trailing at the row's 5pt pill padding)
-                    .frame(width: 26.6, alignment: .trailing)
-                    .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
-                    .grayscale(monitor.isPluggedIn ? 0 : 1)
-                    .opacity(monitor.isPluggedIn ? 1 : 0.4)
-                    .padding(.trailing, 5)
-                    .disabled(!monitor.isPluggedIn || (!monitor.masterRowEnabled("bypass")))
-                    .allowsHitTesting(monitor.masterRowEnabled("bypass"))
+                        Button(action: {
+                            monitor.isBypassOptionsExpanded.toggle()
+                          }) {
+                            Image(systemName: "chevron.right")
+                                .font(.custom("FiraCode-Bold", size: 8.5))
+                                .foregroundColor(Color(white: 0.38))
+                                .rotationEffect(.degrees(monitor.isBypassOptionsExpanded ? 90 : 0))
+                                .contentShape(Rectangle())
+                          }
+                          .buttonStyle(.plain)
+                          .accessibilityLabel("Bypass Options")
+                          .padding(.trailing, 2)
+
+                          Toggle("", isOn: Binding(
+                            get: { isBypass },
+                            set: { val in
+                                onSelectPowerMode?(val ? .bypass : .charging)
+                            }
+                        ))
+                        .labelsHidden()
+                        .scaleEffect(0.70, anchor: .trailing)
+                        // clamp the hidden layout footprint (scaleEffect keeps the full
+                        // switch width) so inline numbers never expand the row. Frame +
+                        // trailing padding align the switch's visual right edge with the
+                        // Docked pill's right edge on the presets row (visual switch =
+                        // 38 x 0.70 = 26.6pt, trailing at the row's 5pt pill padding)
+                        .frame(width: 26.6, alignment: .trailing)
+                        .toggleStyle(SmoothSwitchToggleStyle(tint: Self.coolBrownOrange))
+                        .grayscale(monitor.isPluggedIn ? 0 : 1)
+                        .opacity(monitor.isPluggedIn ? 1 : 0.4)
+                        .padding(.trailing, 5)
+                        .disabled(!monitor.isPluggedIn || (!monitor.masterRowEnabled("bypass")))
+                        .allowsHitTesting(monitor.masterRowEnabled("bypass"))
+                    }
+                    .frame(height: 16)
+
+                    // The row's second line: the checked boxes' abbreviations,
+                    // in check order. It collapses while nothing is checked, so
+                    // the row is as tight as it was before the line existed.
+                    rowSummary(monitor.bypassSummary,
+                               color: isActive ? Self.coolBrownOrange : Color(white: 0.45),
+                               identifier: "Bypass Summary")
                 }
-                .frame(height: 16)
+                .frame(height: monitor.bypassSummary.isEmpty ? 16 : 24)
                 .masterRowProbe("bypass")
 
                 if monitor.isBypassOptionsExpanded {
-                    HStack {
-                        Text("Off on exit")
-                            .font(.custom("FiraCode-Medium", size: 10.5))
-                            .foregroundColor(.white)
-                        Spacer()
+                    // Same shape as a caffeinate condition row: the checkmark
+                    // leads at the dropdown's 22pt inset, the label follows at
+                    // the same 6pt gap, and the label dims with the box. The
+                    // checkmark used to sit at the trailing edge, 119pt right of
+                    // the caffeinate boxes.
+                    HStack(spacing: 6) {
                         Toggle("", isOn: $monitor.disableBypassOnQuit)
                             .labelsHidden()
                             .toggleStyle(CheckmarkToggleStyle())
-                            .padding(.trailing, 8)
+                        Text("Off on exit")
+                            .font(.custom("FiraCode-Medium", size: 10.5))
+                            .foregroundColor(Self.checkLabelColor(monitor.disableBypassOnQuit))
+                        Spacer(minLength: 4)
                     }
                     .padding(.leading, 22)
                     .frame(height: 16)
@@ -423,74 +466,132 @@ struct BatteryDropdownView: View {
 
 
 
-                HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: -2) {
                     let isLPM = isLowPowerActive
-                    Image(systemName: "leaf.fill")
-                        .font(.custom("FiraCode-Regular", size: 10))
-                        .foregroundColor(isLPM ? Self.solarGold : Color(white: 0.38))
-                        .frame(width: 18, alignment: .center)
+                    HStack(spacing: 4) {
+                        Image(systemName: "leaf.fill")
+                            .font(.custom("FiraCode-Regular", size: 10))
+                            .foregroundColor(isLPM ? Self.solarGold : Color(white: 0.38))
+                            .frame(width: 18, alignment: .center)
 
-                    Text("Powersave")
-                        .foregroundColor(isLPM ? .white : Color(white: 0.38))
-                        .font(.custom("FiraCode-SemiBold", size: 11))
+                        Text("Powersave")
+                            .foregroundColor(isLPM ? .white : Color(white: 0.38))
+                            .font(.custom("FiraCode-SemiBold", size: 11))
                         
 
-                    Spacer()
+                        Spacer()
 
-                    Button(action: {
-                        monitor.isAppPickerExpanded.toggle()
-                        if monitor.isAppPickerExpanded {
-                            monitor.loadInstalledAppsIfNeeded()
+                        Button(action: {
+                            monitor.isAppPickerExpanded.toggle()
+                            if monitor.isAppPickerExpanded {
+                                monitor.loadInstalledAppsIfNeeded()
+                            }
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.custom("FiraCode-Bold", size: 8.5))
+                                .foregroundColor(monitor.autoLPMPerApp ? Self.solarGold : Color(white: 0.45))
+                                .rotationEffect(.degrees(monitor.isAppPickerExpanded ? 90 : 0))
+                                .contentShape(Rectangle())
                         }
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.custom("FiraCode-Bold", size: 8.5))
-                            .foregroundColor(monitor.checkedVisibleApps > 0 ? Self.solarGold : Color(white: 0.45))
-                            .rotationEffect(.degrees(monitor.isAppPickerExpanded ? 90 : 0))
-                            .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Auto LPM Apps")
+                        .padding(.trailing, 2)
+
+                        Toggle("", isOn: Binding(
+                            get: { isLPM },
+                            set: { val in
+                                monitor.isLowPowerMode = val
+                                onToggleLowPower?(val)
+                            }
+                        ))
+                        .labelsHidden()
+                        .scaleEffect(0.70, anchor: .trailing)
+                        // same Docked-right alignment as the bypass row (see comment there)
+                        .frame(width: 26.6, alignment: .trailing)
+                        .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
+                        .padding(.trailing, 5)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Auto LPM Apps")
-                    .padding(.trailing, 2)
+                    .frame(height: 16)
 
-                    Toggle("", isOn: Binding(
-                        get: { isLPM },
-                        set: { val in
-                            monitor.isLowPowerMode = val
-                            onToggleLowPower?(val)
-                        }
-                    ))
-                    .labelsHidden()
-                    .scaleEffect(0.70, anchor: .trailing)
-                    // same Docked-right alignment as the bypass row (see comment there)
-                    .frame(width: 26.6, alignment: .trailing)
-                    .toggleStyle(SmoothSwitchToggleStyle(tint: Self.solarGold))
-                    .padding(.trailing, 5)
+                    // The row's second line: the per-app condition's
+                    // abbreviation. It collapses while the box is unchecked, so
+                    // the row is as tight as it was before the line existed.
+                    rowSummary(monitor.lpmSummary,
+                               color: isLPM ? Self.solarGold : Color(white: 0.45),
+                               identifier: "Powersave Summary")
                 }
-                .frame(height: 16)
+                .frame(height: monitor.lpmSummary.isEmpty ? 16 : 24)
                 .allowsHitTesting(monitor.masterRowEnabled("lpm"))
                 .masterRowProbe("lpm")
 
                 if monitor.isAppPickerExpanded {
-                    AppPickerList(
-                        apps: monitor.installedApps,
-                        selectedIds: monitor.autoLPMBundleIds,
-                        iconProvider: { monitor.icon(for: $0) },
-                        onToggle: { id, enabled in
-                            if enabled {
-                                monitor.autoLPMBundleIds.insert(id)
-                            } else {
-                                monitor.autoLPMBundleIds.remove(id)
+                    // Per-app submenu, the same shape as caffeinate's: an
+                    // arming checkbox and a disclosure chevron at the dropdown's
+                    // 22pt inset, and the app list nested under it with the same
+                    // 4pt top pad and rounded background.
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 6) {
+                            // The arming checkbox, the same shape as caffeinate's
+                            // "Per app" row: the box arms the automation, the
+                            // chevron opens the picker, and the selection is the
+                            // picker's memory rather than the arming state.
+                            Button(action: {
+                                monitor.autoLPMPerApp.toggle()
+                                if monitor.autoLPMPerApp {
+                                    monitor.loadInstalledAppsIfNeeded()
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    PopoverCheckmark(isOn: monitor.autoLPMPerApp)
+                                    Text("Per app")
+                                        .font(.custom("FiraCode-Medium", size: 10.5))
+                                        .foregroundColor(Self.checkLabelColor(monitor.autoLPMPerApp))
+                                    Spacer(minLength: 4)
+                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Powersave Per App")
+                            .accessibilityValue(monitor.autoLPMPerApp ? "on" : "off")
+
+                            Button(action: {
+                                monitor.isAppPickerSubmenuExpanded.toggle()
+                                if monitor.isAppPickerSubmenuExpanded {
+                                    monitor.loadInstalledAppsIfNeeded()
+                                }
+                            }) {
+                                Image(systemName: "chevron.right")
+                                    .font(.custom("FiraCode-Bold", size: 8.5))
+                                    .foregroundColor(monitor.autoLPMPerApp ? Self.solarGold : Color(white: 0.45))
+                                    .rotationEffect(.degrees(monitor.isAppPickerSubmenuExpanded ? 90 : 0))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Powersave Apps")
+                            .padding(.trailing, 8)
                         }
-                    )
-                    .equatable()
-                    .frame(height: 160)
+                        .frame(height: 16)
+
+                        if monitor.isAppPickerSubmenuExpanded {
+                            AppPickerList(
+                                apps: monitor.installedApps,
+                                selectedIds: monitor.autoLPMBundleIds,
+                                iconProvider: { monitor.icon(for: $0) },
+                                onToggle: { id, enabled in
+                                    monitor.setAutoLPMApp(id, enabled)
+                                }
+                            )
+                            .equatable()
+                            .frame(height: 160)
+                            // Background first, then the gap: the other order
+                            // put the 4pt pad inside the squircle and left a
+                            // dead strip above the first row.
+                            .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
+                            .padding(.top, 4)
+                        }
+                    }
+                    .padding(.leading, 22)
                     .allowsHitTesting(monitor.masterRowEnabled("lpm"))
-                    // width follows the enclosure proposal; fixedSize(horizontal:) would
-                    // inflate the picker (and every row in the enclosure) to the widest
-                    // untruncated app name
-                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
                 }
 
 
@@ -592,8 +693,11 @@ struct BatteryDropdownView: View {
                             )
                             .equatable()
                             .frame(height: 160)
-                            .padding(.top, 4)
+                            // Background first, then the gap: the other order
+                            // put the 4pt pad inside the squircle and left a
+                            // dead strip above the first row.
                             .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.05)))
+                            .padding(.top, 4)
                         }
                     }
                     .padding(.leading, 22)
@@ -605,32 +709,43 @@ struct BatteryDropdownView: View {
                 }
 
 
-                HStack {
-                    Button(action: {
-                        monitor.isBypassMenuExpanded.toggle()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.custom("FiraCode-Regular", size: 10))
-                                .foregroundColor(Color(white: 0.55 - 0.17 * monitor.rowFadeProgress("settings")))
-                                .frame(width: 18, alignment: .center)
+                VStack(alignment: .leading, spacing: -2) {
+                    HStack {
+                        Button(action: {
+                            monitor.isBypassMenuExpanded.toggle()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.custom("FiraCode-Regular", size: 10))
+                                    .foregroundColor(Color(white: 0.55 - 0.17 * monitor.rowFadeProgress("settings")))
+                                    .frame(width: 18, alignment: .center)
                                 
-                            Text("Settings")
-                                .font(.custom("FiraCode-SemiBold", size: 11))
-                                .foregroundColor(Color(white: 1.0 - 0.62 * monitor.rowFadeProgress("settings")))
+                                Text("Settings")
+                                    .font(.custom("FiraCode-SemiBold", size: 11))
+                                    .foregroundColor(Color(white: 1.0 - 0.62 * monitor.rowFadeProgress("settings")))
 
-                            Image(systemName: "chevron.right")
-                                .font(.custom("FiraCode-Bold", size: 8.5))
-                                .foregroundColor(Color(white: 0.45 - 0.07 * monitor.rowFadeProgress("settings")))
-                                .rotationEffect(.degrees(monitor.isBypassMenuExpanded ? 90 : 0))
+                                Image(systemName: "chevron.right")
+                                    .font(.custom("FiraCode-Bold", size: 8.5))
+                                    .foregroundColor(Color(white: 0.45 - 0.07 * monitor.rowFadeProgress("settings")))
+                                    .rotationEffect(.degrees(monitor.isBypassMenuExpanded ? 90 : 0))
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                        .buttonStyle(.plain)
 
-                    Spacer()
+                        Spacer()
+                    }
+                    .frame(height: 16)
+
+                    // The row's second line: the checked automations'
+                    // abbreviations, in check order. It collapses while nothing
+                    // is checked, so the row is as tight as it was before the
+                    // line existed.
+                    rowSummary(monitor.settingsSummary,
+                               color: Color(white: 0.45),
+                               identifier: "Settings Summary")
                 }
-                .frame(height: 16)
+                .frame(height: monitor.settingsSummary.isEmpty ? 16 : 24)
                 .allowsHitTesting(monitor.masterRowEnabled("settings"))
                 .masterRowProbe("settings")
                     // Automation Sub-Menu (Instant Snap, Zero Animation)
@@ -641,12 +756,15 @@ struct BatteryDropdownView: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text("Auto Bypass on Connect")
                                         .font(.custom("FiraCode-Medium", size: 10.5))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(Self.checkLabelColor(monitor.autoHoldOnPlug))
                                 }
                                 Spacer()
-                                Toggle("", isOn: $monitor.autoHoldOnPlug)
-                                    .labelsHidden()
-                                    .toggleStyle(CheckmarkToggleStyle())
+                                Toggle("", isOn: Binding(
+                                    get: { monitor.autoHoldOnPlug },
+                                    set: { monitor.setSettingsArmed(.connect, $0) }
+                                ))
+                                .labelsHidden()
+                                .toggleStyle(CheckmarkToggleStyle())
                             }
 
                             Divider().background(Color.white.opacity(0.08))
@@ -656,12 +774,15 @@ struct BatteryDropdownView: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text("Auto Bypass at Login")
                                         .font(.custom("FiraCode-Medium", size: 10.5))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(Self.checkLabelColor(monitor.autoHoldAtLogin))
                                 }
                                 Spacer()
-                                Toggle("", isOn: $monitor.autoHoldAtLogin)
-                                    .labelsHidden()
-                                    .toggleStyle(CheckmarkToggleStyle())
+                                Toggle("", isOn: Binding(
+                                    get: { monitor.autoHoldAtLogin },
+                                    set: { monitor.setSettingsArmed(.login, $0) }
+                                ))
+                                .labelsHidden()
+                                .toggleStyle(CheckmarkToggleStyle())
                             }
 
                             Divider().background(Color.white.opacity(0.08))
@@ -671,12 +792,15 @@ struct BatteryDropdownView: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text("Auto Bypass on Display")
                                         .font(.custom("FiraCode-Medium", size: 10.5))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(Self.checkLabelColor(monitor.autoHoldOnDisplay))
                                 }
                                 Spacer()
-                                Toggle("", isOn: $monitor.autoHoldOnDisplay)
-                                    .labelsHidden()
-                                    .toggleStyle(CheckmarkToggleStyle())
+                                Toggle("", isOn: Binding(
+                                    get: { monitor.autoHoldOnDisplay },
+                                    set: { monitor.setSettingsArmed(.display, $0) }
+                                ))
+                                .labelsHidden()
+                                .toggleStyle(CheckmarkToggleStyle())
                             }
 
                             Divider().background(Color.white.opacity(0.08))
