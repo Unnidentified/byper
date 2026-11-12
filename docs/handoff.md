@@ -365,14 +365,15 @@ automations are driven.
 
 ## Current state
 
-- `main` is past the merge of PR #43, the cask bump to 3.1.1.
-- The latest stable release is `v3.1.1`. Assets:
-  `byper-installer-3.1.1.pkg`, `byper-installer-3.1.1.dmg` and
+- `main` is past the merge of PR #49, the caffeinate reap fix.
+- The latest stable release is `v3.2.0`. Assets:
+  `byper-installer-3.2.0.pkg`, `byper-installer-3.2.0.dmg` and
   `SHA256SUMS.txt`.
 - `v3.1.0` and the three `v3.1.0-beta.N` releases are pre-releases. A
-  pre-release never becomes Latest, so the stable line moved on to `3.1.1`.
+  pre-release never becomes Latest, so the stable line moved on to `3.1.1`
+  and then `3.2.0`.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
-  both `3.1.1`. They used to drift apart. Bump them together. The CLI reads
+  both `3.2.0`. They used to drift apart. Bump them together. The CLI reads
   `CFBundleShortVersionString` at build time, so it has no version of its own.
 - `Casks/byper.rb` is `3.1.1` and carries the `byper-installer-3.1.1.pkg`
   sha256, `089d332358daa9d42cdc667dce551409061accb2263f17edaa25f4d095da0245`.
