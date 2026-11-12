@@ -10,6 +10,11 @@ import SwiftUI
 // cannot drift apart.
 struct PopoverCheckmark: View {
     let isOn: Bool
+    // The abbreviation summary under each row title is drawn in the same brown
+    // as a filled box, and it reads it from here so the two cannot drift apart.
+    // It is one colour in every state: expanded or collapsed, one item armed or
+    // four, the chip does not change.
+    static let ink = BatteryDropdownView.checkmarkBrown
     var body: some View {
         Image(systemName: isOn ? "checkmark.square.fill" : "square")
             .font(.system(size: 11))
@@ -140,12 +145,16 @@ struct BatteryDropdownView: View {
     // keeps its old 16pt height, and it appears at a fixed 10pt the moment the
     // first box is ticked. The fixed height is what keeps the panel from
     // resizing as more items are added to a non-empty set.
+    //
+    // Every row draws its summary through here, so the chip colour is the
+    // checkmark brown in all four rows and in every state. There is no colour
+    // parameter on purpose: a call site cannot pick its own.
     @ViewBuilder
-    private func rowSummary(_ text: String, color: Color, identifier: String) -> some View {
+    private func rowSummary(_ text: String, identifier: String) -> some View {
         if !text.isEmpty {
             Text(text)
                 .font(.custom("FiraCode-Medium", size: 8.0))
-                .foregroundColor(color)
+                .foregroundColor(PopoverCheckmark.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .frame(height: 10)
@@ -437,7 +446,6 @@ struct BatteryDropdownView: View {
                     // in check order. It collapses while nothing is checked, so
                     // the row is as tight as it was before the line existed.
                     rowSummary(monitor.bypassSummary,
-                               color: isActive ? Self.coolBrownOrange : Color(white: 0.45),
                                identifier: "Bypass Summary")
                 }
                 .frame(height: monitor.bypassSummary.isEmpty ? 16 : 24)
@@ -517,7 +525,6 @@ struct BatteryDropdownView: View {
                     // abbreviation. It collapses while the box is unchecked, so
                     // the row is as tight as it was before the line existed.
                     rowSummary(monitor.lpmSummary,
-                               color: isLPM ? Self.solarGold : Color(white: 0.45),
                                identifier: "Powersave Summary")
                 }
                 .frame(height: monitor.lpmSummary.isEmpty ? 16 : 24)
@@ -651,17 +658,8 @@ struct BatteryDropdownView: View {
                     // free width beside the title, which is not enough for one
                     // condition name, let alone four. The height is fixed, so
                     // arming a condition never resizes the panel.
-                    Text(monitor.caffeineSummary)
-                        .font(.custom("FiraCode-Medium", size: 8.0))
-                        .foregroundColor(isCaff ? Self.solarGold : Color(white: 0.45))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        // Fixed line height: the natural height is 9pt without a
-                        // descender and 10pt with one, and a row that changed
-                        // height with the armed set would resize the panel.
-                        .frame(height: 10)
-                        .padding(.leading, 22)
-                        .accessibilityIdentifier("Caffeinate Summary")
+                    rowSummary(monitor.caffeineSummary,
+                               identifier: "Caffeinate Summary")
                 }
                 // 16pt title line, minus the 2pt pull, plus the 10pt summary line.
                 // Tight enough to keep the same rhythm as the rows above, fixed so
@@ -742,7 +740,6 @@ struct BatteryDropdownView: View {
                     // is checked, so the row is as tight as it was before the
                     // line existed.
                     rowSummary(monitor.settingsSummary,
-                               color: Color(white: 0.45),
                                identifier: "Settings Summary")
                 }
                 .frame(height: monitor.settingsSummary.isEmpty ? 16 : 24)

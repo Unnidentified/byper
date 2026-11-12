@@ -49,7 +49,7 @@ final class BatteryMonitor: ObservableObject {
             case .bypass: return "byp"
             case .lidClose: return "lid"
             case .charger: return "ch"
-            case .app: return "app"
+            case .app: return "p.app"
             }
         }
     }
@@ -449,7 +449,7 @@ final class BatteryMonitor: ObservableObject {
     // The Byper row's second line. "Off on exit" is the row's only checkbox, so
     // there is no order to keep.
     var bypassSummary: String {
-        disableBypassOnQuit ? "exit" : ""
+        disableBypassOnQuit ? "off.on.exit" : ""
     }
 
     // The settings row's second line, in check order.
@@ -522,10 +522,10 @@ final class BatteryMonitor: ObservableObject {
     }
 
     // The powersave row's second line: the per-app condition's abbreviation,
-    // exactly like caffeinate's "app". The selected apps are the picker's
+    // exactly like caffeinate's "p.app". The selected apps are the picker's
     // memory, not the summary.
     var lpmSummary: String {
-        autoLPMPerApp ? "app" : ""
+        autoLPMPerApp ? "p.app" : ""
     }
 
     private static func loadAutoCaffeineBundleIds() -> Set<String> {
