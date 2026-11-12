@@ -378,8 +378,8 @@ automations are driven.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
   both `3.2.1`. They used to drift apart. Bump them together. The CLI reads
   `CFBundleShortVersionString` at build time, so it has no version of its own.
-- `Casks/byper.rb` is `3.2.0` and carries the `byper-installer-3.2.0.pkg`
-  sha256, `812dc09b5da5a09d86dd66af37a8d84c3daa4711960a71cc8b1823589e5bc9ca`.
+- `Casks/byper.rb` is `3.2.1` and carries the `byper-installer-3.2.1.pkg`
+  sha256, `cd113368698c5bea9b8463f7493c7fa6e88ff2ac47c8c4cc4ade0465ad669ace`.
   It tracks stable releases, so it lags during a beta or rc cycle.
 - CI is `.github/workflows/ci.yml`: `changes` (diff filter), `checks` (PR title,
   shell syntax and shellcheck, plist, cask, version sources, Makefile sources,

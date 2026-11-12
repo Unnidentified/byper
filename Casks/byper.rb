@@ -1,6 +1,6 @@
 cask "byper" do
-  version "3.2.0"
-  sha256 "812dc09b5da5a09d86dd66af37a8d84c3daa4711960a71cc8b1823589e5bc9ca"
+  version "3.2.1"
+  sha256 "cd113368698c5bea9b8463f7493c7fa6e88ff2ac47c8c4cc4ade0465ad669ace"
 
   url "https://github.com/Unnidentified/byper/releases/download/v#{version}/byper-installer-#{version}.pkg"
   name "byper"
