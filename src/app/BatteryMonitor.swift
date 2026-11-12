@@ -347,6 +347,7 @@ final class BatteryMonitor: ObservableObject {
     @Published var autoCaffeineOnLidClose: Bool = UserDefaults.standard.bool(forKey: "byp_auto_caffeine_on_lid_close") {
         didSet {
             UserDefaults.standard.set(autoCaffeineOnLidClose, forKey: "byp_auto_caffeine_on_lid_close")
+            reconcileLidSleep()
         }
     }
     @Published var autoCaffeineOnCharger: Bool = UserDefaults.standard.bool(forKey: "byp_auto_caffeine_on_charger") {
@@ -443,7 +444,11 @@ final class BatteryMonitor: ObservableObject {
     var caffeineSummary: String {
         let armed = caffeineArmedConditions
         if armed.isEmpty { return caffeineAlwaysOn ? "On" : "Off" }
-        return armed.map(\.shortLabel).joined(separator: "/")
+        // The lid condition is the only one that needs a privileged switch, so
+        // it is the only one that can be armed and not effective. The marker
+        // keeps that visible while the dropdown is closed.
+        return armed.map { $0 == .lidClose && lidSleepFailed ? "lid!" : $0.shortLabel }
+            .joined(separator: "/")
     }
 
     // The Byper row's second line. "Off on exit" is the row's only checkbox, so
@@ -783,6 +788,15 @@ final class BatteryMonitor: ObservableObject {
     private var caffeineSystemAssertion: IOPMAssertionID = 0
     private var caffeineCancellable: AnyCancellable?
     private var displayCallback: CGDisplayReconfigurationCallBack?
+    // The kernel's SleepDisabled flag, mirrored from IOPMrootDomain. "On lid
+    // close" is the one condition that needs a privileged switch: pmset -a
+    // disablesleep is the only thing that overrides a lid close, and powerd
+    // commits to Clamshell Sleep the instant the lid shuts, so the flag is held
+    // while the condition is armed rather than only while the lid is closed.
+    // lidSleepFailed is armed but not effective, which is what the row shows.
+    @Published var lidSleepDisabled: Bool = BatteryMonitor.sleepDisabled()
+    @Published var lidSleepFailed: Bool = false
+    private let lidSleepQueue = DispatchQueue(label: "com.gefaass.byper.lid-sleep")
     // @Published mirror of the effective caffeinate state (manual switch OR the
     // auto-on-bypass path). caffeineActive is a plain computed property, which
     // SwiftUI cannot observe; the row reads this instead.
@@ -1016,6 +1030,14 @@ final class BatteryMonitor: ObservableObject {
                 self.presetSnapshots[active] = snap
                 self.persistPresetSnapshots()
             }
+
+        // Launch recovery for the lid switch. SleepDisabled is a stored system
+        // setting, not an assertion, so a crash or a kill leaves it set with no
+        // process to release it. Reconciling here clears a flag byper left
+        // behind when the condition is no longer armed, and re-arms it when the
+        // condition survived the restart. A flag the user set themselves is not
+        // owned by byper and is left alone.
+        reconcileLidSleep()
     }
 
     func startActivePolling() {
@@ -1923,6 +1945,41 @@ final class BatteryMonitor: ObservableObject {
         if lid != lidClosed { lidClosed = lid }
         let front = Self.frontmostRealWindowOwnerBundleID()
         if front != frontmostAppBundleID { frontmostAppBundleID = front }
+    }
+
+    // SleepDisabled on IOPMrootDomain is the kernel's own answer to "may this
+    // machine sleep". pmset -a disablesleep writes it, and reading it needs no
+    // root, which is what makes the read-back below possible.
+    static func sleepDisabled() -> Bool {
+        let service = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return false }
+        defer { IOObjectRelease(service) }
+        guard let value = IORegistryEntryCreateCFProperty(
+            service, "SleepDisabled" as CFString, kCFAllocatorDefault, 0
+        )?.takeRetainedValue() else { return false }
+        return (value as? NSNumber)?.boolValue ?? false
+    }
+
+    // Applies the privileged lid switch to match the armed condition. Serialized
+    // on its own queue so a fast arm/disarm pair cannot land out of order, and
+    // never prompts: this is a background reconcile, not a user action. The
+    // state is read back from the kernel rather than parsed from the CLI, so a
+    // CLI that reports success without the flag actually moving cannot fool the
+    // row into claiming the lid is covered.
+    func reconcileLidSleep() {
+        let armed = autoCaffeineOnLidClose
+        lidSleepQueue.async { [weak self] in
+            let result = CLIEngineBridge.setLidSleep(armed: armed)
+            let disabled = BatteryMonitor.sleepDisabled()
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.lidSleepDisabled = disabled
+                self.lidSleepFailed = armed && !disabled
+                if armed && !disabled {
+                    NSLog("byper: lid sleep switch not confirmed: \(result.output)")
+                }
+            }
+        }
     }
 
     // The active app, but only while it owns a normal-level (layer 0) window with

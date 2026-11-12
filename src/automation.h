@@ -31,6 +31,16 @@ bool automation_caffeinate_stop(void);
 // machine with no lid.
 bool automation_lid_closed(void);
 
+// SleepDisabled on IOPMrootDomain, the kernel's own answer to "may this machine
+// sleep". pmset -a disablesleep writes it and it is the only switch that
+// overrides a lid close. Readable without root.
+bool automation_sleep_disabled(void);
+
+// Writes SleepDisabled through pmset and reads it back. Returns true only when
+// the flag matches the requested state: pmset exits 0 when it refuses for lack
+// of root, so the exit code is never trusted.
+bool automation_set_sleep_disabled(bool disabled);
+
 // The armed caffeinate conditions, in the words the app's dropdown uses, joined
 // with " + ", or "off" when none is armed.
 const char *caffeinate_armed_summary(void);

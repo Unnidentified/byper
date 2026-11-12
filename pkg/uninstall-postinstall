@@ -22,6 +22,9 @@ if [ -x /usr/local/bin/byper ]; then
     # Also clear LPM so every power knob byper may have touched is back to stock.
     /usr/local/bin/byper lpm off >/dev/null 2>&1 || true
     /usr/bin/pmset -a lowpowermode 0 >/dev/null 2>&1 || true
+    # The lid switch is a stored setting, not an assertion, so it outlives the
+    # process that set it. Clear it while the CLI still exists.
+    /usr/local/bin/byper lid off >/dev/null 2>&1 || true
 fi
 
 # Kill any stale lldb worker from a previous session before removing state.

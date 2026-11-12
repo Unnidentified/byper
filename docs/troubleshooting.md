@@ -49,6 +49,42 @@ Two causes:
 - The apply is asynchronous. The lldb worker runs detached and the verify poll can take up to 45s. Wait for the state to flip instead of toggling again.
 - `PowerUIAgent` debounces rapid opposite commands. Off then on within seconds can be swallowed or land late. This is OS behaviour.
 
+## Lid close still sleeps the machine
+
+"On lid close" is the one caffeinate condition that needs a privileged switch.
+The idle-sleep assertions do not survive a lid close, so byper sets
+`SleepDisabled` through the SUID CLI. Check what the machine actually reports:
+
+```bash
+byper lid status
+pmset -g | grep SleepDisabled
+```
+
+`SleepDisabled 1` means the switch is set. `SleepDisabled 0` with the condition
+armed means it did not land, and the app marks the row: a red `!` beside
+`On lid close` and `lid!` in the row summary. The usual cause is a CLI that is
+not SUID root, so `pmset` refuses and exits 0 anyway:
+
+```bash
+ls -la /usr/local/bin/byper
+# must show: -rwsr-xr-x  root:wheel
+```
+
+Fix it with the package, the in-app admin prompt, or by hand:
+
+```bash
+sudo chown root:wheel /usr/local/bin/byper
+sudo chmod 4755 /usr/local/bin/byper
+```
+
+The switch is global and it is not owned by a process, so it stays set if byper
+is killed. byper clears it on disarm, on quit and on the next launch. To clear it
+by hand:
+
+```bash
+sudo pmset -a disablesleep 0
+```
+
 ## Bypass re-engages by itself
 
 An automation re-engaged it. Check the Settings row: Auto Bypass on Connect, at Login, or on Display. The app also reseeds a hold that was active at quit, so a previous session can come back on its own.

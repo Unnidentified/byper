@@ -22,6 +22,7 @@
 #define BYP_KEY_CACHED_INSTALLED_APPS   "byp_cached_installed_apps"
 #define BYP_KEY_CAFFEINE_ALWAYS_ON      "byp_caffeine_always_on"
 #define BYP_KEY_DISABLE_BYPASS_ON_QUIT  "byp_disable_bypass_on_quit"
+#define BYP_KEY_LID_SLEEP_OWNED         "byp_lid_sleep_owned"
 #define BYP_KEY_MASTER_LEVEL            "byp_master_level"
 #define BYP_KEY_POWER_MODE              "byp_power_mode"
 #define BYP_KEY_RESUME_BYPASS_ON_LAUNCH "byp_resume_bypass_on_launch"

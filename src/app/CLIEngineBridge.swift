@@ -254,6 +254,16 @@ struct CLIEngineBridge {
     static func setLowPowerModeSync(enabled: Bool) -> (output: String, exitCode: Int32) {
         return runCommand(["lpm", enabled ? "1" : "0"])
     }
+
+    // The lid condition is the one caffeinate trigger that needs a privileged
+    // switch. pmset -a disablesleep is the only thing that overrides a lid
+    // close, so the app asks the SUID CLI for it and reads the flag back from
+    // IOPMrootDomain itself. The exit code is not the state: pmset exits 0 even
+    // when it refuses for lack of root.
+    @discardableResult
+    static func setLidSleep(armed: Bool) -> (output: String, exitCode: Int32) {
+        return runCommand(["lid", armed ? "on" : "off"], allowPrompt: false)
+    }
     
     static func enableHold() {
         DispatchQueue.global(qos: .userInitiated).async {

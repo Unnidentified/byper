@@ -1568,6 +1568,75 @@ static void print_app_label(const char *bundle_id) {
     }
 }
 
+// The lid condition is the one caffeinate trigger that needs a privileged
+// switch. pmset -a disablesleep is the only thing that overrides a lid close:
+// the idle-sleep assertions do not, and powerd commits to Clamshell Sleep the
+// instant the lid shuts, so the flag has to be in place before the lid moves.
+// That is why it is held while the condition is armed, not only while the lid
+// is closed.
+//
+// Ownership is recorded so byper never clears a flag it did not set: the user
+// may have run pmset -a disablesleep 1 themselves, and a disarm must not undo
+// that.
+static bool lid_sleep_reconcile(void) {
+    bool armed = prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false);
+    if (armed) {
+        if (automation_sleep_disabled()) return true;
+        if (!automation_set_sleep_disabled(true)) return false;
+        prefs_set_bool(BYP_KEY_LID_SLEEP_OWNED, true);
+        return true;
+    }
+    if (!prefs_get_bool(BYP_KEY_LID_SLEEP_OWNED, false)) return true;
+    if (!automation_set_sleep_disabled(false)) return false;
+    prefs_set_bool(BYP_KEY_LID_SLEEP_OWNED, false);
+    return true;
+}
+
+static int handle_lid(int argc, char *argv[]) {
+    const char *action = argc > 2 ? argv[2] : "status";
+
+    if (strcmp(action, "status") == 0) {
+        bool disabled = automation_sleep_disabled();
+        printf("lid sleep: %s\n", disabled ? "disabled" : "allowed");
+        printf("  SleepDisabled %s\n", disabled ? "1" : "0");
+        printf("  owned by byper %s\n", prefs_get_bool(BYP_KEY_LID_SLEEP_OWNED, false) ? "yes" : "no");
+        printf("  on lid close  %-3s  %s\n",
+               on_off_word(prefs_get_bool(BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE, false)),
+               BYP_KEY_AUTO_CAFFEINE_ON_LID_CLOSE);
+        printf("  lid         %s\n", automation_lid_closed() ? "closed" : "open");
+        return 0;
+    }
+
+    if (strcmp(action, "on") == 0) {
+        if (!automation_sleep_disabled()) {
+            if (!automation_set_sleep_disabled(true)) {
+                fprintf(stderr, "lid sleep: not confirmed, pmset needs root\n");
+                return 1;
+            }
+            prefs_set_bool(BYP_KEY_LID_SLEEP_OWNED, true);
+        }
+        printf("lid sleep: disabled\n");
+        return 0;
+    }
+
+    if (strcmp(action, "off") == 0) {
+        if (!prefs_get_bool(BYP_KEY_LID_SLEEP_OWNED, false)) {
+            printf("lid sleep: not set by byper, left alone\n");
+            return 0;
+        }
+        if (!automation_set_sleep_disabled(false)) {
+            fprintf(stderr, "lid sleep: restore not confirmed, pmset needs root\n");
+            return 1;
+        }
+        prefs_set_bool(BYP_KEY_LID_SLEEP_OWNED, false);
+        printf("lid sleep: allowed\n");
+        return 0;
+    }
+
+    fprintf(stderr, "usage: byper lid on|off|status\n");
+    return 1;
+}
+
 // The four caffeinate conditions are independent and combinable, so every write
 // touches exactly one key and leaves the other three alone. The manual switch is
 // separate: it is the always-on override, not a condition, so "caffeinate off"
@@ -1584,6 +1653,12 @@ static int caffeinate_apply(bool *wanted_out) {
     if (wanted_out) *wanted_out = wanted;
     if (!ok) {
         printf("caffeinate: not confirmed\n");
+        return 1;
+    }
+    // The lid condition also owns the privileged SleepDisabled switch, so every
+    // caffeinate write reconciles it and the terminal cannot drift from the app.
+    if (!lid_sleep_reconcile()) {
+        fprintf(stderr, "lid sleep: not confirmed, pmset needs root\n");
         return 1;
     }
     return 0;
@@ -1626,6 +1701,11 @@ static int handle_caffeinate(int argc, char *argv[]) {
         prefs_free_string_array(apps, count);
         printf("  bypass hold %s\n", have_info && automation_hold_active(&info) ? "active" : "inactive");
         printf("  lid         %s\n", automation_lid_closed() ? "closed" : "open");
+        // The lid condition is the only one that needs a privileged switch, so
+        // its state is reported separately: armed is not the same as effective.
+        printf("  lid sleep   %s%s\n",
+               automation_sleep_disabled() ? "disabled" : "allowed",
+               prefs_get_bool(BYP_KEY_LID_SLEEP_OWNED, false) ? " (byper)" : "");
         printf("  charger     %s\n", have_info && info.acAttached ? "attached" : "detached");
         return 0;
     }
@@ -2003,6 +2083,9 @@ static void print_usage(const char *prog) {
     printf("  byp caffeinate app <bundle-id>|off\n");
     printf("                          Hold them while that app is frontmost\n");
     printf("  byp caffeinate status   Show the caffeinate state\n");
+    printf("  byp lid on|off          Disable or restore system sleep, the switch\n");
+    printf("                          behind the lid condition (needs root)\n");
+    printf("  byp lid status          Show the lid sleep switch\n");
     printf("  byp logger [--quiet]    Write a CSV session log to the Desktop\n");
     printf("  byp auto                Show the automation settings\n");
     printf("  byp auto run [--quiet] [--force]\n");
@@ -2113,6 +2196,11 @@ int main(int argc, char *argv[]) {
     // CAFFEINATE
     if (strcmp(cmd, "caffeinate") == 0) {
         return handle_caffeinate(argc, argv);
+    }
+
+    // LID SLEEP (the privileged switch behind the "On lid close" condition)
+    if (strcmp(cmd, "lid") == 0) {
+        return handle_lid(argc, argv);
     }
 
     // LOGGER

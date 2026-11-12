@@ -158,7 +158,7 @@ tested on.
 | `src/power.c` | Rail telemetry |
 | `src/prefs.c` | The `com.gefaass.byper` settings domain, shared with the app |
 | `src/session.c` | CSV session logger, same file name and columns as the app |
-| `src/automation.c` | Platform probes, caffeinate, the automation runner |
+| `src/automation.c` | Platform probes, caffeinate, the lid sleep switch, the automation runner |
 | `src/app/AppDelegate.swift` | Status item, popover lifecycle, hotkey, appearance KVO, privileged install |
 | `src/app/BatteryMonitor.swift` | Observable state, polling, automations, presets, logger |
 | `src/app/BatteryDropdownView.swift` | Popover content |
@@ -329,7 +329,9 @@ Live:
 
 - Bypass toggle, with "Off on exit".
 - Powersave (Low Power Mode), manual plus per-app auto-LPM.
-- Caffeinate, manual plus "On Bypass".
+- Caffeinate, manual plus the four conditions: on bypass, on lid close, on
+  charger, per app. "On lid close" also holds the privileged `SleepDisabled`
+  switch, because the idle-sleep assertions do not survive a lid close.
 - Settings: Auto Bypass on Connect, at Login, on Display; Logger; Export.
 - The master slider on the left. It fades and disables the rows as it descends.
   Full off snapshots the state, full on restores it.
@@ -350,6 +352,10 @@ automations are driven.
   reinstall or copy, re-apply `chown root:wheel` and `chmod 4755`.
 - Never write SMC charge keys. They are read-only on Apple Silicon.
 - Never signal `powerd`.
+- The lid switch is `pmset -a disablesleep`, the only thing that overrides a lid
+  close. It is a global setting and it is not owned by a process, so it has to
+  be cleared on disarm, on quit and on the next launch. Never clear a flag byper
+  did not set: `byp_lid_sleep_owned` is the record of who set it.
 - Never persist a manual charge limit below 100.
 - No em dashes or en dashes anywhere.
 - No emoji in UI or CLI output.
@@ -399,12 +405,17 @@ some are API notes, and none of them are urgent.
 - `NSWorkspace.desktopImageDidChangeNotification` does not exist in this SDK.
   The wallpaper signal is the button's `effectiveAppearance`. There are no uses
   of the notification today.
+- `pmset` exits 0 when it refuses for lack of root. `pmset -a disablesleep 1`
+  prints `'pmset' must be run as root...` and returns 0, while an unknown
+  setting returns 1. Never branch on the exit code: read `SleepDisabled` back
+  from `IOPMrootDomain`, which needs no root.
 
 ## Where to look
 
 | Symptom | Start here |
 |---|---|
 | Bypass not landing | `src/powerui.m`, `spawn_hold_enable_script`, `powerui_enable_hold` |
+| Lid close still sleeps | `src/automation.c`, `automation_set_sleep_disabled`, then `byper lid status` |
 | CLI JSON fields | `src/main.c`, `print_status` |
 | App polling | `BatteryMonitor.startActivePolling`, `refreshIOKitOnly` |
 | Menu bar icon | `BatteryPillIcon.swift` |

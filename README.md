@@ -65,7 +65,7 @@ make all              # bin/byper, bin/byper-mon.command, byper.app
 | telemetry | SMC power rails | Per-rail wattage for SoC, DRAM, PMIC and DC-In, and individual pack cell voltages |
 | bypass | Hardware charge bypass | System runs off the adapter at 0 mA net battery draw, battery held at whatever level you picked |
 | powersave | Low Power Mode | Manual toggle, plus per-app auto-LPM while a designated app is frontmost. The manual switch wins over automation |
-| caffeinate | Display and idle sleep hold | Manual toggle, or "On Bypass". Again, the manual switch wins |
+| caffeinate | Display and idle sleep hold | Manual toggle, or any of four conditions: on bypass, on lid close, on charger, per app. Again, the manual switch wins. "On lid close" also holds the privileged sleep switch, because the idle-sleep assertions do not survive a lid close |
 | automations | Auto-bypass | On charger connect, at login, or on external display attach |
 | logger | Session logger | Records CSV telemetry to your Desktop |
 | shortcuts | Hotkey and App Intents | Global `⌘⌥B`, plus App Intents for bypass on/off/toggle on macOS 13+ |
@@ -88,6 +88,7 @@ byper mon              # Continuous timestamped stream (non-TTY friendly)
 byper mon --export     # Write the session log to the Desktop
 byper lpm on|off       # Low Power Mode
 byper caffeinate       # Hold the display and idle sleep (on|off)
+byper lid on|off       # Disable or restore system sleep, the switch behind the lid condition
 byper logger           # Continuous CSV session log on the Desktop
 byper auto             # Automation settings (plug, login, display, auto LPM)
 byper auto run         # Run the automations until interrupted

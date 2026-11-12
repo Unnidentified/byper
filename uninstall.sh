@@ -28,6 +28,9 @@ if [ -x /usr/local/bin/byper ]; then
         esac
     fi
     /usr/local/bin/byper lpm off >/dev/null 2>&1 || true
+    # The lid switch is a stored setting, not an assertion, so it outlives the
+    # process that set it. Clear it while the CLI still exists.
+    /usr/local/bin/byper lid off >/dev/null 2>&1 || true
 else
     echo "[!] byper CLI not found, cannot release a hold through it."
 fi

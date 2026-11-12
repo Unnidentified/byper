@@ -311,6 +311,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Resume charging on quit if the user opted in, so the machine never stays bypassing
     // or resting on a Slow Charge hold with no UI running to undo it.
     func applicationWillTerminate(_ notification: Notification) {
+        // The lid switch is a stored system setting, not an assertion: it outlives
+        // the process that set it. Clear it on the way out so a quit never leaves
+        // the machine unable to sleep, and let the launch reconcile re-arm it if
+        // the condition is still armed. A flag byper does not own is left alone.
+        _ = CLIEngineBridge.setLidSleep(armed: false)
         if monitor.disableBypassOnQuit, monitor.isPluggedIn,
            monitor.appliedPowerMode == .bypass || monitor.isHold {
             _ = CLIEngineBridge.setPowerModeSync(.charging)
