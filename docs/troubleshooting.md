@@ -78,8 +78,8 @@ sudo chmod 4755 /usr/local/bin/byper
 ```
 
 The switch is global and it is not owned by a process, so it stays set if byper
-is killed. byper clears it on disarm, on quit and on the next launch. To clear it
-by hand:
+is killed. byper clears it on disarm, on quit, on the next launch and on both
+uninstall paths. To clear it by hand:
 
 ```bash
 sudo pmset -a disablesleep 0

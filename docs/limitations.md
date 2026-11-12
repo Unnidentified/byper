@@ -39,9 +39,10 @@ Two consequences are worth knowing before arming "On lid close":
   sleep at all, including idle sleep with the lid open. That is what the switch
   does, and it is why byper holds it only while the condition is armed.
 - It is not owned by a process. A crash or a kill leaves it set with nothing to
-  release it. byper clears it on disarm, on quit and on the next launch when it
-  finds it left behind, and it never clears a flag it did not set. If a machine
-  is left unable to sleep, `sudo pmset -a disablesleep 0` restores it.
+  release it. byper clears it on disarm, on quit, on the next launch when it
+  finds it left behind, and on both uninstall paths, and it never clears a flag
+  it did not set. If a machine is left unable to sleep,
+  `sudo pmset -a disablesleep 0` restores it.
 
 Whether the built-in display stays lit with the lid shut is decided by macOS, not
 by byper. powerd's own trace puts the display power-off inside the Clamshell

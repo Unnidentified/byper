@@ -41,7 +41,7 @@ brew upgrade --cask byper
 brew uninstall --cask byper
 ```
 
-The cask runs the same `.pkg`, so the postinstall still copies the CLI to `/usr/local/bin/byper`, sets `root:wheel` and `4755`, installs the completions and opens the app. `brew uninstall` releases any active hold, clears Low Power Mode, and removes the CLI, the symlinks, the completions and the app. Add `--zap` to remove the settings too.
+The cask runs the same `.pkg`, so the postinstall still copies the CLI to `/usr/local/bin/byper`, sets `root:wheel` and `4755`, installs the completions and opens the app. `brew uninstall` releases any active hold, clears Low Power Mode, clears the lid sleep switch, and removes the CLI, the symlinks, the completions and the app. Add `--zap` to remove the settings too.
 
 ## From source
 
@@ -84,6 +84,6 @@ byper off        # charging resumes
 
 ## Uninstall
 
-Run the package and choose **Uninstall**. It releases any active hold, clears Low Power Mode, removes the binaries, the app, the completions and the settings.
+Run the package and choose **Uninstall**. It releases any active hold, clears Low Power Mode, clears the lid sleep switch, removes the binaries, the app, the completions and the settings. The uninstall component runs as root with no `SUDO_USER`, so the CLI resolves the settings owner to the console user and clears the flag from that user's domain before it deletes itself.
 
 The source `uninstall.sh` performs the same hardware reset before it removes anything: it releases any active hold and clears Low Power Mode, so the machine returns to stock power behaviour. It calls `sudo pmset -a lowpowermode 0` directly, so expect a password prompt.

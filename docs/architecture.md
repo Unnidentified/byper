@@ -79,6 +79,13 @@ names. `src/prefs.c` reads through `CFPreferences` and writes through
 `/usr/bin/defaults` as the settings owner, so a change made in either program is
 visible to the other.
 
+The settings owner is resolved once, in `prefs_resolve`: `SUDO_USER` first, then
+the uid that invoked the binary, then the console user, then root. The console
+step is what makes a root process with no `SUDO_USER` (a package script,
+`sudo env -u SUDO_USER`, a launchd job) read the same domain the app and the
+user's own CLI run read. Without it a privileged path falls back to root's empty
+domain, every read returns its fallback, and the caller silently does nothing.
+
 | Key | Type | Meaning |
 |---|---|---|
 | `byp_auto_caffeine_on_bypass` | bool | Hold the display and idle sleep while a bypass hold is active |
@@ -132,8 +139,9 @@ and commits to the sleep there, so a flag set after the lid shuts is too late.
 
 `SleepDisabled` is a stored system setting, not an assertion. It is not owned by
 a process, so killing the process that set it leaves it set. `byp_lid_sleep_owned`
-records that byper was the one that set it, so a disarm, a quit or the next
-launch clears it, and a flag the user set themselves is left alone.
+records that byper was the one that set it, so a disarm, a quit, the next launch
+or either uninstall path clears it, and a flag the user set themselves is left
+alone.
 
 The automation runner does not touch the switch. It follows the armed key, and
 the app plus the explicit `byper lid` and `byper caffeinate lid` commands are

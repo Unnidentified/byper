@@ -32,7 +32,9 @@
 void prefs_init(uid_t invoking_uid);
 
 // The user whose settings domain is read and written. SUDO_USER wins, then the
-// invoking uid, then root.
+// invoking uid, then the console user, then root. The console step is what makes
+// a root process with no SUDO_USER (a package script, `sudo env -u SUDO_USER`)
+// read the same domain the app and the user's own CLI run read.
 const char *prefs_user(void);
 const char *prefs_user_home(void);
 uid_t prefs_user_uid(void);
