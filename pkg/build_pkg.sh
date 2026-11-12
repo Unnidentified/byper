@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
 
-BASE_VERSION="${BYPER_VERSION:-3.1.0}"
+BASE_VERSION="${BYPER_VERSION:-3.1.1}"
 LABEL="${1:-}"
 if [ -n "$LABEL" ]; then
     PKG_NAME="byper-${LABEL}.pkg"

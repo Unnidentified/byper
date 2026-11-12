@@ -359,11 +359,13 @@ automations are driven.
 ## Current state
 
 - `main` is past the merge of PR #38, the popover row spacing fix.
-- The latest release is `v3.1.0`, the stable release. Assets:
-  `byper-installer-3.1.0.pkg`, `byper-installer-3.1.0.dmg` and
+- The latest stable release is `v3.1.1`. Assets:
+  `byper-installer-3.1.1.pkg`, `byper-installer-3.1.1.dmg` and
   `SHA256SUMS.txt`.
+- `v3.1.0` and the three `v3.1.0-beta.N` releases are pre-releases. A
+  pre-release never becomes Latest, so the stable line moved on to `3.1.1`.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
-  both `3.1.0`. They used to drift apart. Bump them together. The CLI reads
+  both `3.1.1`. They used to drift apart. Bump them together. The CLI reads
   `CFBundleShortVersionString` at build time, so it has no version of its own.
 - `Casks/byper.rb` is `3.1.0` and carries the `byper-installer-3.1.0.pkg`
   sha256. It tracks stable releases, so it lags during a beta or rc cycle.
