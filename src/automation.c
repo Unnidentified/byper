@@ -301,6 +301,57 @@ bool automation_lid_closed(void) {
     return closed;
 }
 
+// MARK: - Lid sleep
+
+// SleepDisabled on IOPMrootDomain is the kernel's own answer to "may this
+// machine sleep". pmset -a disablesleep writes it, and it is the only switch
+// that overrides a lid close: the idle-sleep assertions do not, and powerd
+// commits to Clamshell Sleep the instant the lid shuts, so the flag has to be
+// in place before the lid moves. Reading it needs no root, which is what makes
+// the read-back below possible.
+bool automation_sleep_disabled(void) {
+    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMrootDomain"));
+    if (!service) return false;
+    CFTypeRef value = IORegistryEntryCreateCFProperty(service, CFSTR("SleepDisabled"), kCFAllocatorDefault, 0);
+    IOObjectRelease(service);
+    if (!value) return false;
+    bool disabled = false;
+    if (CFGetTypeID(value) == CFBooleanGetTypeID()) disabled = CFBooleanGetValue((CFBooleanRef)value);
+    CFRelease(value);
+    return disabled;
+}
+
+bool automation_set_sleep_disabled(bool disabled) {
+    pid_t pid = fork();
+    if (pid < 0) return false;
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            if (devnull > STDERR_FILENO) close(devnull);
+        }
+        char *argv[] = {
+            (char *)"/usr/bin/pmset", (char *)"-a", (char *)"disablesleep",
+            (char *)(disabled ? "1" : "0"), NULL
+        };
+        execv(argv[0], argv);
+        _exit(127);
+    }
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) return false;
+    }
+    // pmset exits 0 when it refuses for lack of root, so the exit code says
+    // nothing at all. Poll the flag instead, the same way the bypass engine
+    // polls the hardware rather than trusting lldb.
+    for (int attempt = 0; attempt < 20; attempt++) {
+        if (automation_sleep_disabled() == disabled) return true;
+        usleep(50000);
+    }
+    return automation_sleep_disabled() == disabled;
+}
+
 // The armed conditions, in the same words the app's dropdown uses, joined with
 // " + ", or "off" when none is armed. The manual switch is reported separately
 // because it is the always-on override, not a condition.

@@ -6,7 +6,7 @@ _byp_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "on off t mon s lpm caffeinate logger auto json help" -- "${cur}") )
+        COMPREPLY=( $(compgen -W "on off t mon s lpm caffeinate lid logger auto json help" -- "${cur}") )
         return 0
     fi
 
@@ -20,6 +20,9 @@ _byp_complete() {
             elif [[ ${COMP_WORDS[2]} == auto ]]; then
                 COMPREPLY=( $(compgen -W "on off" -- "${cur}") )
             fi
+            ;;
+        lid)
+            COMPREPLY=( $(compgen -W "on off status" -- "${cur}") )
             ;;
         logger)
             COMPREPLY=( $(compgen -W "--quiet" -- "${cur}") )

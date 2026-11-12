@@ -10,6 +10,7 @@ _byp() {
         's:Print one-line live status and battery temperature'
         'lpm:Toggle macOS Low Power Mode (1/0, on/off)'
         'caffeinate:Hold the display and idle sleep (on, off, auto, status)'
+        'lid:Disable or restore system sleep, the switch behind the lid condition'
         'logger:Write a CSV session log to the Desktop'
         'auto:Automation settings and the automation runner'
         'json:Output machine-readable JSON telemetry'
@@ -36,6 +37,11 @@ _byp() {
                     local -a caffeine_opts
                     caffeine_opts=('on:Hold the display and idle sleep' 'off:Release them' 'auto:Hold only while a bypass hold is active' 'status:Show the caffeinate state')
                     _describe -t caffeine_opts 'caffeinate action' caffeine_opts
+                    ;;
+                lid)
+                    local -a lid_opts
+                    lid_opts=('on:Disable system sleep so a lid close does not sleep' 'off:Restore normal sleep' 'status:Show the lid sleep switch')
+                    _describe -t lid_opts 'lid action' lid_opts
                     ;;
                 logger)
                     local -a logger_opts

@@ -220,6 +220,15 @@ struct BatteryDropdownView: View {
                     Text(condition.label)
                         .font(.custom("FiraCode-Medium", size: 10.5))
                         .foregroundColor(Self.checkLabelColor(armed))
+                    // The lid condition is the only one that needs a privileged
+                    // switch, so it is the only one that can be armed and not
+                    // effective. A marker rather than a word: the row has about
+                    // 27pt left beside the label and "not active" needs 48.
+                    if condition == .lidClose && monitor.lidSleepFailed {
+                        Text("!")
+                            .font(.custom("FiraCode-Bold", size: 9.0))
+                            .foregroundColor(Color(red: 1.0, green: 0.30, blue: 0.30))
+                    }
                     Spacer(minLength: 4)
                 }
                 .contentShape(Rectangle())
@@ -249,6 +258,25 @@ struct BatteryDropdownView: View {
             }
         }
         .frame(height: 16)
+        .help(caffeineHelp(condition))
+    }
+
+    // One line per condition. The lid row is the only one whose text depends on
+    // state: it is the only condition that needs a privileged switch, so it is
+    // the only one that can be armed and not effective.
+    private func caffeineHelp(_ condition: BatteryMonitor.CaffeineCondition) -> String {
+        switch condition {
+        case .bypass:
+            return "Holds the display and idle sleep while a bypass hold is active"
+        case .lidClose:
+            return monitor.lidSleepFailed
+                ? "Not active: the privileged byper CLI is missing or not setuid root"
+                : "Holds system sleep off while armed, so the lid can shut without sleeping"
+        case .charger:
+            return "Holds the display and idle sleep while the charger is attached"
+        case .app:
+            return "Holds the display and idle sleep while a listed app is frontmost"
+        }
     }
 
     var body: some View {

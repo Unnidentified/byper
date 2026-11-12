@@ -23,6 +23,32 @@ Filesystem, kernel-extension and NVRAM protections stay on. Only the debugger-at
 - The Liquid Glass popover needs macOS 26. Older systems, and anyone with Reduce Transparency on, get the previous dark solid shell. Nothing else changes.
 - The register signatures (`NCR`, rail keys) were mapped on specific macOS versions. A major update can shift them. The verify poll surfaces that as "enabled but not holding".
 
+## Lid close
+
+The caffeinate assertions do not survive a lid close. `PreventUserIdleSystemSleep`
+and `PreventUserIdleDisplaySleep` prevent idle sleep, and `pmset -g log` shows the
+machine entering `Clamshell Sleep` with both of them held. `caffeinate -s` is not
+an alternative: it creates a `PreventSystemSleep` assertion that powerd does not
+count, so the system-wide counter stays at 0 while it is held.
+
+The only switch that overrides a lid close is `SleepDisabled`, which
+`pmset -a disablesleep` writes. It needs root, so it goes through the SUID CLI.
+Two consequences are worth knowing before arming "On lid close":
+
+- It is a global setting, not an assertion. While it is set the machine does not
+  sleep at all, including idle sleep with the lid open. That is what the switch
+  does, and it is why byper holds it only while the condition is armed.
+- It is not owned by a process. A crash or a kill leaves it set with nothing to
+  release it. byper clears it on disarm, on quit and on the next launch when it
+  finds it left behind, and it never clears a flag it did not set. If a machine
+  is left unable to sleep, `sudo pmset -a disablesleep 0` restores it.
+
+Whether the built-in display stays lit with the lid shut is decided by macOS, not
+by byper. powerd's own trace puts the display power-off inside the Clamshell
+Sleep path, after the sleep is committed, so suppressing the sleep is expected to
+leave the panel on. That expectation has not been confirmed on hardware here: it
+needs a physical lid close with the flag set.
+
 ## Precision
 
 The hold lands at whatever state of charge the battery is at when you engage it. There is no firmware charge-limit register being set, because the firmware rejects those writes. "Hold at 80%" means "engage when the battery reads 80%".

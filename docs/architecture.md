@@ -56,6 +56,8 @@ has held up.
 | `byper caffeinate on\|off` | Hold the display and idle sleep |
 | `byper caffeinate auto on\|off` | Hold them only while a bypass hold is active |
 | `byper caffeinate status` | Caffeinate state and the keys behind it |
+| `byper lid on\|off` | Disable or restore system sleep, the switch behind the lid condition |
+| `byper lid status` | The lid sleep switch and who owns it |
 | `byper logger [--quiet]` | Continuous CSV session log on the Desktop |
 | `byper auto` | Automation settings and the runner state |
 | `byper auto run [--quiet] [--force]` | Run the automations until interrupted |
@@ -87,6 +89,7 @@ visible to the other.
 | `byp_cached_installed_apps` | array of dicts | The app's cache of installed apps. The CLI only reads it |
 | `byp_caffeine_always_on` | bool | Manual caffeinate |
 | `byp_disable_bypass_on_quit` | bool | Release the bypass hold when the automation runner exits |
+| `byp_lid_sleep_owned` | bool | byper set `SleepDisabled` and must clear it again |
 | `byp_master_level` | double 0 to 1 | The app's master slider. The CLI stands down below 0.999 |
 | `byp_power_mode` | string | `bypass` or `charging`, written by `on`, `off` and `t` |
 | `byp_resume_bypass_on_launch` | bool | The app's quit handoff. The CLI neither reads nor writes it |
@@ -114,6 +117,27 @@ A CLI only user adds `byper auto run` to Login Items.
 The runner also reconciles caffeinate (manual or on bypass) and per app Low
 Power Mode. It only turns Low Power Mode back off when it was the process that
 turned it on, so a manual `byper lpm on` survives.
+
+### The lid switch
+
+The idle-sleep assertions do not survive a lid close. `pmset -g log` records the
+sleep as `Clamshell Sleep`, and it happens with `PreventUserIdleSystemSleep` and
+`PreventUserIdleDisplaySleep` both held. The only switch that overrides it is
+`SleepDisabled`, which `pmset -a disablesleep` writes and which needs root.
+
+`byper lid on` sets it, `byper lid off` clears it and `byper lid status` reports
+it. The flag is held while `byp_auto_caffeine_on_lid_close` is armed, not only
+while the lid is closed: powerd reads `isSleepDisabled` at the clamshell event
+and commits to the sleep there, so a flag set after the lid shuts is too late.
+
+`SleepDisabled` is a stored system setting, not an assertion. It is not owned by
+a process, so killing the process that set it leaves it set. `byp_lid_sleep_owned`
+records that byper was the one that set it, so a disarm, a quit or the next
+launch clears it, and a flag the user set themselves is left alone.
+
+The automation runner does not touch the switch. It follows the armed key, and
+the app plus the explicit `byper lid` and `byper caffeinate lid` commands are
+what write it, so a runner that exits cannot strand the machine unable to sleep.
 
 ### The session logger
 
