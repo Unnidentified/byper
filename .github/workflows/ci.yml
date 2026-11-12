@@ -62,26 +62,26 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import os, re, sys
 
           title = os.environ['PR_TITLE']
-          number = os.environ['PR_NUMBER']
           types = ('feat', 'fix', 'docs', 'chore', 'ci', 'refactor')
 
           bad = []
-          match = re.fullmatch(r'([a-z]+): (.+) \(#([0-9]+)\)', title)
+          # GitHub appends " (#123)" to the title when it squash merges, so a
+          # title that already carries the reference lands on main twice.
+          if re.search(r'\(#[0-9]+\)$', title):
+              bad.append('the title must not end with a pull request reference; GitHub appends it on squash merge')
+          match = re.fullmatch(r'([a-z]+): (.+)', title)
           if not match:
-              bad.append('the title must read "type: description (#123)"')
+              bad.append('the title must read "type: description"')
           else:
-              kind, description, ref = match.groups()
+              kind, description = match.groups()
               if kind not in types:
                   bad.append('type "' + kind + '" is not one of ' + ', '.join(types))
-              if ref != number:
-                  bad.append('the title references #' + ref + ' but this is PR #' + number)
               if description.endswith('.'):
                   bad.append('the description must not end with a period')
           for char, name in (('\u2013', 'en dash'), ('\u2014', 'em dash')):
