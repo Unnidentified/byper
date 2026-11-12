@@ -373,8 +373,9 @@ automations are driven.
   `byper-installer-3.2.1.pkg`, `byper-installer-3.2.1.dmg` and
   `SHA256SUMS.txt`.
 - `v3.1.0` and the three `v3.1.0-beta.N` releases are pre-releases. A
-  pre-release never becomes Latest, so the stable line moved on to `3.1.1`,
-  then `3.2.0` and then `3.2.1`.
+  pre-release never becomes Latest, so the stable line moved on to `3.1.1`
+  and then `3.2.1`. `v3.2.0` was withdrawn to `v3.2.0-beta.1`, so it never
+  counted as a stable release.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
   both `3.2.1`. They used to drift apart. Bump them together. The CLI reads
   `CFBundleShortVersionString` at build time, so it has no version of its own.
