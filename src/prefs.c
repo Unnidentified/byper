@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -15,6 +16,20 @@ static char g_user[256] = "root";
 static char g_home[1024] = "/var/root";
 static uid_t g_uid = 0;
 static gid_t g_gid = 0;
+
+// The console user is the account that owns /dev/console: the login session the
+// machine is actually showing. A root process with no SUDO_USER (a package
+// script, `sudo env -u SUDO_USER`, a launchd job) has no other record of whose
+// settings it should touch. Root's own domain is never the right answer: the
+// app and the CLI both write the console user's domain, so a privileged path
+// that fell back to root would read an empty domain and silently do nothing.
+// Returns 0 when nobody is logged in, which is the login window and headless
+// case, and the caller falls through to root.
+static uid_t prefs_console_uid(void) {
+    struct stat info;
+    if (stat("/dev/console", &info) != 0) return 0;
+    return info.st_uid;
+}
 
 static void prefs_resolve(void) {
     if (g_resolved) return;
@@ -27,6 +42,13 @@ static void prefs_resolve(void) {
     } else if (g_invoking_uid != 0) {
         struct passwd *pw = getpwuid(g_invoking_uid);
         if (pw && pw->pw_name) name = pw->pw_name;
+    }
+    if (!name) {
+        uid_t console_uid = prefs_console_uid();
+        if (console_uid != 0) {
+            struct passwd *pw = getpwuid(console_uid);
+            if (pw && pw->pw_name) name = pw->pw_name;
+        }
     }
     if (!name) {
         struct passwd *pw = getpwuid(getuid());

@@ -20,6 +20,11 @@ cask "byper" do
                 if [ -x /usr/local/bin/byper ]; then
                   /usr/local/bin/byper off >/dev/null 2>&1 || true
                   /usr/local/bin/byper lpm off >/dev/null 2>&1 || true
+                  # The lid switch is a stored setting, not an assertion, so it
+                  # outlives the process that set it. Clear it here, while the
+                  # CLI still exists: the pkg uninstall component never runs on
+                  # a cask uninstall, and the CLI is deleted further down.
+                  /usr/local/bin/byper lid off >/dev/null 2>&1 || true
                 fi
                 /usr/bin/pmset -a lowpowermode 0 >/dev/null 2>&1 || true
                 sleep 1

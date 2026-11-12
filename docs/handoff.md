@@ -355,8 +355,11 @@ automations are driven.
 - Never signal `powerd`.
 - The lid switch is `pmset -a disablesleep`, the only thing that overrides a lid
   close. It is a global setting and it is not owned by a process, so it has to
-  be cleared on disarm, on quit and on the next launch. Never clear a flag byper
-  did not set: `byp_lid_sleep_owned` is the record of who set it.
+  be cleared on disarm, on quit, on the next launch and on both uninstall paths.
+  Never clear a flag byper did not set: `byp_lid_sleep_owned` is the record of
+  who set it. The uninstall scripts run as root with no `SUDO_USER`, so the CLI
+  resolves the settings owner to the console user; see `prefs_resolve` in
+  `src/prefs.c`.
 - Never persist a manual charge limit below 100.
 - No em dashes or en dashes anywhere.
 - No emoji in UI or CLI output.
