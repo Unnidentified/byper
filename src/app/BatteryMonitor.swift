@@ -822,6 +822,10 @@ final class BatteryMonitor: ObservableObject {
     private var sessionLogRecords: [String] = []
 
     init() {
+        // Reap any caffeinate child a previous instance left behind before this
+        // one can spawn its own. A SIGKILL or a crash never reaches the stop
+        // path, so the child outlives the app and holds its assertions forever.
+        Self.reapOrphanedCaffeinateChildren()
         load24hTemperatureHistory()
         // App picker renders instantly from disk cache; restart kicks the background re-scan for newly installed apps
         installedApps = Self.loadCachedInstalledApps()
@@ -2111,6 +2115,110 @@ final class BatteryMonitor: ObservableObject {
 
     // MARK: - Auto Caffeine (Prevent Display Sleep & System Sleep)
 
+    // The child record is one file, the same shape the CLI uses for its own
+    // caffeinate at /tmp/byp_caffeine.<uid>.pid. It holds the child pid, the
+    // pid of the app instance that spawned it and the child's start time. The
+    // CLI's file is a different path, so nothing here can ever match it.
+    private static var caffeinateChildPath: String {
+        "/tmp/byp_app_caffeine.\(getuid())"
+    }
+
+    // PROC_PIDPATHINFO_MAXSIZE is a C macro Swift cannot import: 4 * MAXPATHLEN.
+    private static let pidPathSize = Int(MAXPATHLEN) * 4
+
+    private static func processPath(_ pid: pid_t) -> String? {
+        guard pid > 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: pidPathSize)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(cString: buffer)
+    }
+
+    private static func processIsCaffeinate(_ pid: pid_t) -> Bool {
+        processPath(pid) == "/usr/bin/caffeinate"
+    }
+
+    // The start time is the process identity: a pid that has been recycled
+    // carries a different one, so a stale record can never signal a stranger.
+    private static func processStartTime(_ pid: pid_t) -> (sec: UInt64, usec: UInt64)? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return (info.pbi_start_tvsec, info.pbi_start_tvusec)
+    }
+
+    // A live byper still owns the child, so the reaper leaves it alone. A pid
+    // that has been recycled by something else is not an owner.
+    private static func processIsLiveByper(_ pid: pid_t) -> Bool {
+        guard kill(pid, 0) == 0 || errno == EPERM else { return false }
+        guard let path = processPath(pid) else { return false }
+        return path.hasSuffix("/byper.app/Contents/MacOS/byper")
+    }
+
+    private func recordCaffeinateChild(_ pid: pid_t) {
+        guard let start = Self.processStartTime(pid) else { return }
+        try? "\(pid) \(getpid()) \(start.sec) \(start.usec)\n".write(
+            toFile: Self.caffeinateChildPath,
+            atomically: true,
+            encoding: .utf8
+        )
+    }
+
+    private func forgetCaffeinateChild(_ pid: pid_t) {
+        let path = Self.caffeinateChildPath
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let fields = text.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
+        // Only drop the record if it is still ours: a second instance may have
+        // replaced it with its own child.
+        guard fields.count == 4, pid_t(fields[0]) == pid else { return }
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
+    // Reaps a child left behind by an app instance that died without running
+    // its stop path (SIGKILL, a crash, a force quit). Only the pid in our own
+    // record is a candidate, so a caffeinate the user started by hand and the
+    // one the CLI's automation runner owns are never touched.
+    static func reapOrphanedCaffeinateChildren() {
+        let path = caffeinateChildPath
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let fields = text.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
+        guard fields.count == 4,
+              let child = pid_t(fields[0]),
+              let owner = pid_t(fields[1]),
+              let recordedSec = UInt64(fields[2]),
+              let recordedUsec = UInt64(fields[3]) else {
+            try? FileManager.default.removeItem(atPath: path)
+            return
+        }
+        if owner > 0, processIsLiveByper(owner) { return }
+        // The pid must still be the process we spawned. A recycled pid belongs
+        // to someone else, so it is dropped without a signal.
+        if let start = processStartTime(child),
+           start.sec == recordedSec, start.usec == recordedUsec,
+           processIsCaffeinate(child) {
+            kill(child, SIGTERM)
+        }
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
+    // terminate() only posts SIGTERM. Without the wait the pid is still live
+    // when the next arm spawns a replacement, and a quit can exit before the
+    // signal lands, which is how the children were left behind.
+    private func terminateCaffeinateChild(_ proc: Process) {
+        let pid = proc.processIdentifier
+        if proc.isRunning {
+            proc.terminate()
+            let deadline = Date().addingTimeInterval(2)
+            while proc.isRunning && Date() < deadline {
+                usleep(20000)
+            }
+            if proc.isRunning {
+                kill(pid, SIGKILL)
+                proc.waitUntilExit()
+            }
+        }
+        forgetCaffeinateChild(pid)
+    }
+
     private func updateCaffeineAssertion(active: Bool) {
         if active {
             // 1. In-process IOPMAssertions (prevent both display and system idle sleep)
@@ -2145,6 +2253,7 @@ final class BatteryMonitor: ObservableObject {
                 do {
                     try proc.run()
                     caffeinateProcess = proc
+                    recordCaffeinateChild(proc.processIdentifier)
                 } catch {
                     // In-process assertions above provide fallback
                 }
@@ -2161,12 +2270,17 @@ final class BatteryMonitor: ObservableObject {
             }
             // Terminate native caffeinate subprocess
             if let proc = caffeinateProcess {
-                if proc.isRunning {
-                    proc.terminate()
-                }
+                terminateCaffeinateChild(proc)
                 caffeinateProcess = nil
             }
         }
+    }
+
+    // Called from applicationWillTerminate. The monitor's deinit is not
+    // guaranteed to run before exit, so the quit path stops the child itself.
+    func stopCaffeineForTermination() {
+        updateCaffeineAssertion(active: false)
+        caffeineEngaged = false
     }
 
     func refresh() {

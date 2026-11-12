@@ -311,6 +311,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Resume charging on quit if the user opted in, so the machine never stays bypassing
     // or resting on a Slow Charge hold with no UI running to undo it.
     func applicationWillTerminate(_ notification: Notification) {
+        // The caffeinate child is a separate process: it outlives us unless it
+        // is stopped here, and a child that survives holds its sleep assertions
+        // forever. The launch reaper covers a kill that never reaches this.
+        monitor.stopCaffeineForTermination()
         // The lid switch is a stored system setting, not an assertion: it outlives
         // the process that set it. Clear it on the way out so a quit never leaves
         // the machine unable to sleep, and let the launch reconcile re-arm it if
