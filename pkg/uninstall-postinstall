@@ -43,6 +43,17 @@ rm -f  /Library/LaunchDaemons/com.gefaass.chbypass.plist
 rm -f  /tmp/byp.state /tmp/byp_lldb.lock /tmp/byp_lldb_worker.log
 rm -f  /tmp/byp_cmd_*.lldb 2>/dev/null || true
 
+# Runtime state files are per uid: byp_app_caffeine.<uid>,
+# byp_auto_run.<uid>.lock, byp_auto_run.<uid>.pid and byp_caffeine.<uid>.pid.
+# Glob any uid, then keep only those four exact shapes, so a lookalike such as
+# byp_caffeine.<uid>.pid.bak is left alone.
+for path in /tmp/byp_app_caffeine.* /tmp/byp_auto_run.* /tmp/byp_caffeine.*; do
+    [ -e "$path" ] || continue
+    if [[ "$path" =~ ^/tmp/byp_(app_caffeine[.][0-9]+|auto_run[.][0-9]+[.](lock|pid)|caffeine[.][0-9]+[.]pid)$ ]]; then
+        rm -f "$path"
+    fi
+done
+
 # ── 3. Remove settings ──
 defaults delete com.gefaass.byper 2>/dev/null || true
 killall cfprefsd 2>/dev/null || true
@@ -50,5 +61,14 @@ rm -f  "$HOME/Library/Preferences/com.gefaass.byper.plist"
 rm -rf "$HOME/Library/Saved Application State/com.gefaass.byper.savedState"
 rm -rf "$HOME/Library/Caches/com.gefaass.byper"
 rm -rf "$HOME/Library/HTTPStorages/com.gefaass.byper"
+
+# ── 4. Forget the receipts LAST ──
+# Forget only after the files are gone: a receipt dropped while its files
+# survive leaves pkgutil with no record of what is still on disk. pkgutil
+# --forget exits non-zero when the receipt is already absent, which is the
+# normal case on a second run, so each call is best effort.
+for receipt in com.gefaass.byper com.gefaass.byper.uninstall; do
+    /usr/sbin/pkgutil --forget "$receipt" >/dev/null 2>&1 || true
+done
 
 exit 0
