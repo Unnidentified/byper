@@ -48,6 +48,21 @@ cask "byper" do
                 done
                 /bin/rm -f /tmp/byp_cmd_*.lldb || true
 
+                # Runtime state files are per uid: byp_app_caffeine.<uid>,
+                # byp_auto_run.<uid>.lock, byp_auto_run.<uid>.pid and
+                # byp_caffeine.<uid>.pid. Glob any uid, then keep only those
+                # four exact shapes, so a lookalike such as
+                # byp_caffeine.<uid>.pid.bak is left alone. The matches are
+                # remembered so the check below can report a survivor.
+                runtime=()
+                for path in /tmp/byp_app_caffeine.* /tmp/byp_auto_run.* /tmp/byp_caffeine.*; do
+                  [ -e "$path" ] || continue
+                  if [[ "$path" =~ ^/tmp/byp_(app_caffeine[.][0-9]+|auto_run[.][0-9]+[.](lock|pid)|caffeine[.][0-9]+[.]pid)$ ]]; then
+                    runtime+=("$path")
+                    /bin/rm -f "$path" || true
+                  fi
+                done
+
                 # A partial removal must not look like success. Name every path
                 # that survived so the user can finish the job by hand.
                 left=""
@@ -57,6 +72,11 @@ cask "byper" do
                   fi
                 done
                 for path in /tmp/byp_cmd_*.lldb; do
+                  if [ -e "$path" ] || [ -L "$path" ]; then
+                    left="$left $path"
+                  fi
+                done
+                for path in "${runtime[@]}"; do
                   if [ -e "$path" ] || [ -L "$path" ]; then
                     left="$left $path"
                   fi
