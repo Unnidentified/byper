@@ -358,7 +358,7 @@ automations are driven.
 
 ## Current state
 
-- `main` is past the merge of PR #38, the popover row spacing fix.
+- `main` is past the merge of PR #43, the cask bump to 3.1.1.
 - The latest stable release is `v3.1.1`. Assets:
   `byper-installer-3.1.1.pkg`, `byper-installer-3.1.1.dmg` and
   `SHA256SUMS.txt`.
@@ -367,8 +367,9 @@ automations are driven.
 - `src/app/Info.plist` and the `BYPER_VERSION` default in `pkg/build_pkg.sh` are
   both `3.1.1`. They used to drift apart. Bump them together. The CLI reads
   `CFBundleShortVersionString` at build time, so it has no version of its own.
-- `Casks/byper.rb` is `3.1.0` and carries the `byper-installer-3.1.0.pkg`
-  sha256. It tracks stable releases, so it lags during a beta or rc cycle.
+- `Casks/byper.rb` is `3.1.1` and carries the `byper-installer-3.1.1.pkg`
+  sha256, `089d332358daa9d42cdc667dce551409061accb2263f17edaa25f4d095da0245`.
+  It tracks stable releases, so it lags during a beta or rc cycle.
 - CI is `.github/workflows/ci.yml`: `changes` (diff filter), `checks` (PR title,
   shell syntax and shellcheck, plist, cask, version sources, Makefile sources,
   CLI help, JSON fields, dashes, emoji, no installer artifacts, no `VANILLA`,
