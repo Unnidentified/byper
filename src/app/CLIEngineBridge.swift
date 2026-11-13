@@ -79,6 +79,22 @@ struct CLIEngineBridge {
         pkill.waitUntilExit()
         unlink("/tmp/byp_lldb.lock")
     }
+    // Single-quote a string for /bin/sh, escaping embedded single quotes as
+    // '\''. Paths interpolated raw into `do shell script` used to allow a quote
+    // in the bundle path to inject commands run as root.
+    private static func shellQuote(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    // Escape for the AppleScript double-quoted literal that wraps the shell
+    // command: a backslash or double quote in the path must be escaped at this
+    // layer too, or it breaks out of `do shell script "..."` before shell
+    // quoting ever applies.
+    private static func appleScriptEscape(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+         .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
     @discardableResult
     static func installHelperWithAdminPrivileges() -> Bool {
         guard let bundledPath = Bundle.main.resourceURL?.appendingPathComponent("byper").path ?? Bundle.main.path(forResource: "byper", ofType: nil),
@@ -87,7 +103,7 @@ struct CLIEngineBridge {
         }
         
         let script = """
-        do shell script "mkdir -p /usr/local/bin && cp -f '\(bundledPath)' /usr/local/bin/byper && chown root:wheel /usr/local/bin/byper && chmod 4755 /usr/local/bin/byper && ln -sf /usr/local/bin/byper /usr/local/bin/byp && ln -sf /usr/local/bin/byper /usr/local/bin/chbypass" with administrator privileges with prompt "byper requires administrator privileges to enable direct AC charging bypass."
+        do shell script "mkdir -p /usr/local/bin && cp -f \(appleScriptEscape(shellQuote(bundledPath))) /usr/local/bin/byper && chown root:wheel /usr/local/bin/byper && chmod 4755 /usr/local/bin/byper && ln -sf /usr/local/bin/byper /usr/local/bin/byp && ln -sf /usr/local/bin/byper /usr/local/bin/chbypass" with administrator privileges with prompt "byper requires administrator privileges to enable direct AC charging bypass."
         """
         
         var error: NSDictionary?
@@ -126,11 +142,18 @@ struct CLIEngineBridge {
         
         let process = Process()
         let pipe = Pipe()
+        let errPipe = Pipe()
 
         process.executableURL = URL(fileURLWithPath: validBinary)
         process.arguments = args
         process.standardOutput = pipe
-        process.standardError = pipe
+        // Keep stderr off the stdout pipe: a CLI diagnostic used to corrupt the
+        // JSON payload and make getStatus silently return nil. Drain stderr so
+        // a chatty child cannot fill the pipe buffer and block.
+        process.standardError = errPipe
+        errPipe.fileHandleForReading.readabilityHandler = { handle in
+            _ = handle.availableData
+        }
 
         let isPowerCmd = args.contains("on") || args.contains("off") || args.contains("t")
         if isPowerCmd {
@@ -178,6 +201,7 @@ struct CLIEngineBridge {
                 }
             }
             process.waitUntilExit()
+            errPipe.fileHandleForReading.readabilityHandler = nil
             if isPowerCmd {
                 powerProcessLock.lock()
                 if activePowerProcess === process {
@@ -202,7 +226,9 @@ struct CLIEngineBridge {
     }
     
     static func getStatus() -> BypassStatus? {
-        let (output, exitCode) = runCommand(["json"])
+        // Status polls must never trigger the admin install prompt: on a machine
+        // without the helper this fired a modal dialog on every 1-4s tick.
+        let (output, exitCode) = runCommand(["json"], allowPrompt: false)
         guard exitCode == 0, let data = output.data(using: .utf8) else {
             return nil
         }
@@ -295,6 +321,7 @@ struct CLIEngineBridge {
     
     // Slow exponential moving average (EMA) curve for CPU monitoring
     private static var appCpuEma: [String: Double] = [:]
+    private static let cpuEmaLock = NSLock()
     
     static func fetchHighEnergyApps() -> [String] {
         let process = Process()
@@ -346,8 +373,12 @@ struct CLIEngineBridge {
                 currentSamples[displayName] = max(currentSamples[displayName] ?? 0.0, cpu)
             }
             
-            // Slow EMA smoothing curve (alpha = 0.15) to prevent jumpy fluctuations
+            // Slow EMA smoothing curve (alpha = 0.15) to prevent jumpy fluctuations.
+            // appCpuEma is shared across overlapping fetches dispatched to the
+            // global queue; guard the read-modify-write so concurrent ticks do
+            // not race on the dictionary.
             let alpha = 0.15
+            cpuEmaLock.lock()
             for (app, sample) in currentSamples {
                 let prev = appCpuEma[app] ?? sample
                 appCpuEma[app] = (alpha * sample) + ((1.0 - alpha) * prev)
@@ -361,6 +392,7 @@ struct CLIEngineBridge {
                 .filter { $0.value >= 18.0 }
                 .sorted { $0.value > $1.value }
                 .map { $0.key }
+            cpuEmaLock.unlock()
             
             return Array(sorted.prefix(2))
         } catch {

@@ -539,3 +539,53 @@ jobs:
           echo "Info.plist: $app"
           echo "CLI:        $cli"
           test "$cli" = "$app"
+
+  security:
+    name: Security checks
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clang static analyzer
+        run: |
+          set -euo pipefail
+          # Derive the sources from the Makefile so this job tracks SRC and
+          # HELPER_SRC instead of drifting from a hardcoded list. The helper is
+          # a root path and must be analyzed too.
+          src="$(sed -n 's/^SRC = //p' Makefile)"
+          helper="$(sed -n 's/^HELPER_SRC = //p' Makefile)"
+          # No -framework here: --analyze does not link, and the availability
+          # warning is suppressed because the deployment target predates
+          # kIOMainPortDefault (a known, intentional fallback).
+          clang --analyze -Xanalyzer -analyzer-output=text \
+            -std=c11 -fobjc-arc -target arm64-apple-macos11.0 \
+            -Wno-unguarded-availability-new -I src $src $helper > analyze.log 2>&1
+          cat analyze.log
+          if grep -q "warning:" analyze.log; then
+            echo "::error::clang static analyzer reported issues"
+            exit 1
+          fi
+          echo "clang static analyzer: clean"
+
+      - name: AddressSanitizer + UBSan build
+        run: |
+          set -euo pipefail
+          src="$(sed -n 's/^SRC = //p' Makefile)"
+          helper="$(sed -n 's/^HELPER_SRC = //p' Makefile)"
+          clang -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -std=c11 -fobjc-arc -target arm64-apple-macos11.0 \
+            -Wno-unguarded-availability-new -I src $src \
+            -framework IOKit -framework CoreFoundation -framework Foundation -framework CoreGraphics \
+            -o byper-asan
+          ./byper-asan --help >/dev/null
+          # The helper has its own main(), so it links separately (combining it
+          # with the CLI would duplicate main). Smoke its usage path: with no
+          # root / wrong argc it exits 2 without doing anything.
+          clang -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -std=c11 -target arm64-apple-macos11.0 \
+            -Wno-unguarded-availability-new $helper -o byper-installer-asan
+          ./byper-installer-asan || test "$?" -eq 2
+          echo "sanitizer build + smoke ok"

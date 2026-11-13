@@ -106,7 +106,7 @@ SessionLog *session_log_start(void) {
     snprintf(log->name, sizeof(log->name), "byper-session-%s.csv", stamp);
     snprintf(log->path, sizeof(log->path), "%s/%s", directory, log->name);
 
-    int fd = open(log->path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644);
+    int fd = open(log->path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600);
     if (fd < 0) {
         free(log);
         return NULL;

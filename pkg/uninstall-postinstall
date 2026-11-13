@@ -27,8 +27,10 @@ if [ -x /usr/local/bin/byper ]; then
     /usr/local/bin/byper lid off >/dev/null 2>&1 || true
 fi
 
-# Kill any stale lldb worker from a previous session before removing state.
-pkill -f "lldb" 2>/dev/null || true
+# Kill any stale byper lldb worker from a previous session before removing
+# state. Match byper's own script path, not the substring "lldb": the old
+# `pkill -f lldb` killed unrelated developer debugging sessions too.
+pkill -f "byp_cmd_" 2>/dev/null || true
 pkill -f "byper.app/Contents/MacOS/byper" 2>/dev/null || true
 sleep 1
 
@@ -55,12 +57,31 @@ for path in /tmp/byp_app_caffeine.* /tmp/byp_auto_run.* /tmp/byp_caffeine.*; do
 done
 
 # ── 3. Remove settings ──
+# A pkg postinstall runs as root with HOME=/var/root, so the old `defaults
+# delete` and $HOME removals only touched root's domain and left the real
+# user's settings behind. Resolve the console user and remove theirs.
+CONSOLE_USER=$(stat -f %Su /dev/console)
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    CONSOLE_UID=$(id -u "$CONSOLE_USER" 2>/dev/null || true)
+    CONSOLE_HOME=$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | sed -n 's/^NFSHomeDirectory: //p')
+    if [ -n "$CONSOLE_UID" ]; then
+        launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" defaults delete com.gefaass.byper 2>/dev/null || true
+    fi
+    if [ -n "$CONSOLE_HOME" ]; then
+        rm -f  "$CONSOLE_HOME/Library/Preferences/com.gefaass.byper.plist"
+        rm -rf "$CONSOLE_HOME/Library/Saved Application State/com.gefaass.byper.savedState"
+        rm -rf "$CONSOLE_HOME/Library/Caches/com.gefaass.byper"
+        rm -rf "$CONSOLE_HOME/Library/HTTPStorages/com.gefaass.byper"
+    fi
+fi
 defaults delete com.gefaass.byper 2>/dev/null || true
 killall cfprefsd 2>/dev/null || true
-rm -f  "$HOME/Library/Preferences/com.gefaass.byper.plist"
-rm -rf "$HOME/Library/Saved Application State/com.gefaass.byper.savedState"
-rm -rf "$HOME/Library/Caches/com.gefaass.byper"
-rm -rf "$HOME/Library/HTTPStorages/com.gefaass.byper"
+
+# NOTE: the install enabled DevToolsSecurity and added the console user to
+# _developer. Those are left in place on uninstall so a developer's other tools
+# keep working; revert manually if desired:
+#   sudo DevToolsSecurity -disable
+#   sudo dscl . -delete /Groups/_developer GroupMembership <user>
 
 # ── 4. Forget the receipts LAST ──
 # Forget only after the files are gone: a receipt dropped while its files

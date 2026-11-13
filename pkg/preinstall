@@ -26,6 +26,16 @@ fi
 # The CLI binary may be non-SUID or absent while a hold persists in the PMU;
 # a plain run of the new binary would still clear it, so also drop the CLI's
 # persisted mode key: the new build boots with bypass off at the app level.
+# Target the console user's domain: a pkg script runs as root, so a bare
+# `defaults delete` would only touch root's domain and miss the real setting.
+CONSOLE_USER=$(stat -f %Su /dev/console)
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    CONSOLE_UID=$(id -u "$CONSOLE_USER" 2>/dev/null || true)
+    if [ -n "$CONSOLE_UID" ]; then
+        launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" defaults delete com.gefaass.byper byp_power_mode 2>/dev/null || true
+        launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" defaults delete com.gefaass.byper byp_cached_hold 2>/dev/null || true
+    fi
+fi
 defaults delete com.gefaass.byper byp_power_mode 2>/dev/null || true
 defaults delete com.gefaass.byper byp_cached_hold 2>/dev/null || true
 

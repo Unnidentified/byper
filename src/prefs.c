@@ -37,7 +37,10 @@ static void prefs_resolve(void) {
 
     const char *name = NULL;
     const char *sudo_user = getenv("SUDO_USER");
-    if (sudo_user && sudo_user[0] && strcmp(sudo_user, "root") != 0) {
+    // SUDO_USER is only meaningful under genuine sudo (real invoking uid 0). A
+    // SUID run by an unprivileged user inherits an attacker-set SUDO_USER;
+    // honoring it let any local user write another user's settings domain.
+    if (g_invoking_uid == 0 && sudo_user && sudo_user[0] && strcmp(sudo_user, "root") != 0) {
         name = sudo_user;
     } else if (g_invoking_uid != 0) {
         struct passwd *pw = getpwuid(g_invoking_uid);

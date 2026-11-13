@@ -66,7 +66,7 @@ void smc_close(io_connect_t conn);
 
 // SMC Core Operations
 bool smc_get_key_info(io_connect_t conn, const char *key, SMCKeyData_keyInfo_t *info);
-bool smc_read_bytes(io_connect_t conn, const char *key, uint8_t *buffer, uint32_t *size, char *typeOut);
+bool smc_read_bytes(io_connect_t conn, const char *key, uint8_t *buffer, size_t bufsz, uint32_t *size, char *typeOut);
 bool smc_write_bytes(io_connect_t conn, const char *key, const uint8_t *buffer, uint32_t size);
 
 // High-level SMC helpers
