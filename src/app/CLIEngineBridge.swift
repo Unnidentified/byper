@@ -86,6 +86,15 @@ struct CLIEngineBridge {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
+    // Escape for the AppleScript double-quoted literal that wraps the shell
+    // command: a backslash or double quote in the path must be escaped at this
+    // layer too, or it breaks out of `do shell script "..."` before shell
+    // quoting ever applies.
+    private static func appleScriptEscape(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+         .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
     @discardableResult
     static func installHelperWithAdminPrivileges() -> Bool {
         guard let bundledPath = Bundle.main.resourceURL?.appendingPathComponent("byper").path ?? Bundle.main.path(forResource: "byper", ofType: nil),
@@ -94,7 +103,7 @@ struct CLIEngineBridge {
         }
         
         let script = """
-        do shell script "mkdir -p /usr/local/bin && cp -f \(shellQuote(bundledPath)) /usr/local/bin/byper && chown root:wheel /usr/local/bin/byper && chmod 4755 /usr/local/bin/byper && ln -sf /usr/local/bin/byper /usr/local/bin/byp && ln -sf /usr/local/bin/byper /usr/local/bin/chbypass" with administrator privileges with prompt "byper requires administrator privileges to enable direct AC charging bypass."
+        do shell script "mkdir -p /usr/local/bin && cp -f \(appleScriptEscape(shellQuote(bundledPath))) /usr/local/bin/byper && chown root:wheel /usr/local/bin/byper && chmod 4755 /usr/local/bin/byper && ln -sf /usr/local/bin/byper /usr/local/bin/byp && ln -sf /usr/local/bin/byper /usr/local/bin/chbypass" with administrator privileges with prompt "byper requires administrator privileges to enable direct AC charging bypass."
         """
         
         var error: NSDictionary?

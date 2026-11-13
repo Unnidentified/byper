@@ -63,7 +63,7 @@ done
 CONSOLE_USER=$(stat -f %Su /dev/console)
 if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
     CONSOLE_UID=$(id -u "$CONSOLE_USER" 2>/dev/null || true)
-    CONSOLE_HOME=$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+    CONSOLE_HOME=$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | sed -n 's/^NFSHomeDirectory: //p')
     if [ -n "$CONSOLE_UID" ]; then
         launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" defaults delete com.gefaass.byper 2>/dev/null || true
     fi
