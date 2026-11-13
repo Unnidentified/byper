@@ -11,28 +11,25 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
-<table>
-<tr>
-<td width="480" align="center" valign="middle">
-<img src="docs/images/popover-collapsed.png" width="480" alt="The byper popover collapsed: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
-</td>
-<td valign="top">
-<h3>Preview of the menu ui</h3>
-<p>The slider on the left lets you disable temporarily entire components: if you slide it down, the rows dim and disable, slide it back up and the previous state returns. Then we've got a fancy temp graph, and below it you can see the charger specs.</p>
-<p>`Byper` enables charge bypass (also remembers the state from before it was unplugged).</p>
-<p>Settings includes: a bypass (on-connect/at-login/on-display-connect) button and a logger that writes a debug log to your Desktop.</p>
-</td>
-</tr>
-<tr>
-<td width="480" align="center" valign="middle">
-<img src="docs/images/popover-expanded.png" width="480" alt="The same popover with the bypass, powersave and caffeinate rows expanded, showing the off on exit, per app and caffeinate condition checkboxes">
-</td>
-<td valign="top">
-<h3>Expanded rows</h3>
-<p>Each row opens to show what it is set to. `Byper` carries the off on exit switch, `Powersave` carries the per app switch, and `Caffeinate` carries its four conditions: on bypass, on lid close, on charger and per app. The short summary under each row name is the same state in a line.</p>
-</td>
-</tr>
-</table>
+<img src="docs/images/popover-collapsed.png" width="480" align="left" alt="The byper popover collapsed: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
+
+### Preview of the menu ui
+
+The slider on the left lets you disable temporarily entire components: if you slide it down, the rows dim and disable, slide it back up and the previous state returns. Then we've got a fancy temp graph, and below it you can see the charger specs.
+
+`Byper` enables charge bypass (also remembers the state from before it was unplugged).
+
+Settings includes: a bypass (on-connect/at-login/on-display-connect) button and a logger that writes a debug log to your Desktop.
+
+<br clear="left">
+
+<img src="docs/images/popover-expanded.png" width="480" align="left" alt="The same popover with the bypass, powersave and caffeinate rows expanded, showing the off on exit, per app and caffeinate condition checkboxes">
+
+### Expanded rows
+
+Each row opens to show what it is set to. `Byper` carries the off on exit switch, `Powersave` carries the per app switch, and `Caffeinate` carries its four conditions: on bypass, on lid close, on charger and per app. The short summary under each row name is the same state in a line.
+
+<br clear="left">
 
 ---
 
