@@ -70,7 +70,7 @@ bool smc_get_key_info(io_connect_t conn, const char *key, SMCKeyData_keyInfo_t *
     return true;
 }
 
-bool smc_read_bytes(io_connect_t conn, const char *key, uint8_t *buffer, uint32_t *size, char *typeOut) {
+bool smc_read_bytes(io_connect_t conn, const char *key, uint8_t *buffer, size_t bufsz, uint32_t *size, char *typeOut) {
     if (!conn || !key || !buffer) return false;
 
     SMCKeyData_keyInfo_t keyInfo;
@@ -80,6 +80,12 @@ bool smc_read_bytes(io_connect_t conn, const char *key, uint8_t *buffer, uint32_
 
     if (typeOut) {
         smc_key_to_str(keyInfo.dataType, typeOut);
+    }
+
+    // The caller's buffer must fit the key's data; never copy more than it
+    // holds (the old memcpy used keyInfo.dataSize with no destination bound).
+    if (keyInfo.dataSize > bufsz) {
+        return false;
     }
 
     SMCParamStruct inputStruct;
@@ -101,7 +107,9 @@ bool smc_read_bytes(io_connect_t conn, const char *key, uint8_t *buffer, uint32_
     if (size) {
         *size = keyInfo.dataSize;
     }
-    memcpy(buffer, outputStruct.bytes, keyInfo.dataSize);
+    uint32_t copy = keyInfo.dataSize;
+    if (copy > sizeof(outputStruct.bytes)) copy = (uint32_t)sizeof(outputStruct.bytes);
+    memcpy(buffer, outputStruct.bytes, copy);
     return true;
 }
 
@@ -139,13 +147,13 @@ bool smc_write_bytes(io_connect_t conn, const char *key, const uint8_t *buffer, 
 
 bool smc_read_ui8(io_connect_t conn, const char *key, uint8_t *val) {
     uint32_t sz = 0;
-    return smc_read_bytes(conn, key, val, &sz, NULL);
+    return smc_read_bytes(conn, key, val, sizeof(*val), &sz, NULL);
 }
 
 bool smc_read_ui16(io_connect_t conn, const char *key, uint16_t *val) {
     uint8_t buf[2] = {0};
     uint32_t sz = 0;
-    if (!smc_read_bytes(conn, key, buf, &sz, NULL)) return false;
+    if (!smc_read_bytes(conn, key, buf, sizeof(buf), &sz, NULL)) return false;
     if (val) *val = (buf[0] << 8) | buf[1];
     return true;
 }
@@ -153,7 +161,7 @@ bool smc_read_ui16(io_connect_t conn, const char *key, uint16_t *val) {
 bool smc_read_ui32(io_connect_t conn, const char *key, uint32_t *val) {
     uint8_t buf[4] = {0};
     uint32_t sz = 0;
-    if (!smc_read_bytes(conn, key, buf, &sz, NULL)) return false;
+    if (!smc_read_bytes(conn, key, buf, sizeof(buf), &sz, NULL)) return false;
     if (val) *val = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
     return true;
 }

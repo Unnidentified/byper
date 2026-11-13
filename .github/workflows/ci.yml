@@ -539,3 +539,41 @@ jobs:
           echo "Info.plist: $app"
           echo "CLI:        $cli"
           test "$cli" = "$app"
+
+  security:
+    name: Security checks
+    needs: changes
+    if: needs.changes.outputs.source == 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clang static analyzer
+        run: |
+          set -euo pipefail
+          src="src/main.c src/smc.c src/battery.c src/power.c src/powerui.m src/prefs.c src/session.c src/automation.c"
+          # No -framework here: --analyze does not link, and the availability
+          # warning is suppressed because the deployment target predates
+          # kIOMainPortDefault (a known, intentional fallback).
+          clang --analyze -Xanalyzer -analyzer-output=text \
+            -std=c11 -fobjc-arc -target arm64-apple-macos11.0 \
+            -Wno-unguarded-availability-new -I src $src > analyze.log 2>&1
+          cat analyze.log
+          if grep -q "warning:" analyze.log; then
+            echo "::error::clang static analyzer reported issues"
+            exit 1
+          fi
+          echo "clang static analyzer: clean"
+
+      - name: AddressSanitizer + UBSan build
+        run: |
+          set -euo pipefail
+          src="src/main.c src/smc.c src/battery.c src/power.c src/powerui.m src/prefs.c src/session.c src/automation.c"
+          clang -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -std=c11 -fobjc-arc -target arm64-apple-macos11.0 \
+            -Wno-unguarded-availability-new -I src $src \
+            -framework IOKit -framework CoreFoundation -framework Foundation -framework CoreGraphics \
+            -o byper-asan
+          ./byper-asan --help >/dev/null
+          echo "sanitizer build + smoke ok"

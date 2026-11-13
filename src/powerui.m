@@ -15,10 +15,76 @@
 #import <sys/sysctl.h>
 #import <sys/file.h>
 #import <fcntl.h>
+#import <string.h>
+#import <libproc.h>
 
-extern char **environ;
+// Minimal, attacker-independent environment for every privileged child. The
+// invoking user's PATH, HOME, DYLD_* and LLDB_* must never reach a root child:
+// lldb sources $HOME/.lldbinit at startup, and a shell resolves tools from
+// PATH. Children get this fixed environment instead of the inherited one.
+static char *const g_child_env[] = {
+    "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+    "HOME=/var/root",
+    "TMPDIR=/tmp",
+    "LANG=C",
+    NULL
+};
 
-// Find PowerUIAgent PID via sysctl, no subprocess spawn needed
+// Run a fixed argv with the sanitized environment, capturing stdout into out.
+// No shell is involved, so neither PATH nor a command string can be influenced
+// by the caller. Returns the exit status, or -1 on spawn failure.
+static int spawn_capture(char *const argv[], char *out, size_t outsz) {
+    if (out && outsz) out[0] = '\0';
+    int pipefd[2];
+    if (pipe(pipefd) != 0) return -1;
+    pid_t pid = fork();
+    if (pid < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
+    if (pid == 0) {
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        int dn = open("/dev/null", O_WRONLY);
+        if (dn >= 0) { dup2(dn, STDERR_FILENO); if (dn > STDERR_FILENO) close(dn); }
+        close(pipefd[1]);
+        execve(argv[0], argv, g_child_env);
+        _exit(127);
+    }
+    close(pipefd[1]);
+    if (out && outsz) {
+        size_t used = 0;
+        ssize_t n;
+        while (used + 1 < outsz && (n = read(pipefd[0], out + used, outsz - 1 - used)) > 0) {
+            used += (size_t)n;
+        }
+        out[used] = '\0';
+    }
+    close(pipefd[0]);
+    int st = 0;
+    while (waitpid(pid, &st, 0) < 0 && errno == EINTR) {}
+    return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+}
+
+// Fire-and-forget spawn with the sanitized environment and detached stdio, so
+// a long-running child (softwareupdate) cannot hold the caller's stdout pipe
+// open. The child is orphaned to launchd when the CLI exits.
+static void spawn_detached(char *const argv[]) {
+    pid_t pid = fork();
+    if (pid != 0) return;
+    setsid();
+    int dn = open("/dev/null", O_RDWR);
+    if (dn >= 0) {
+        dup2(dn, STDIN_FILENO);
+        dup2(dn, STDOUT_FILENO);
+        dup2(dn, STDERR_FILENO);
+        if (dn > STDERR_FILENO) close(dn);
+    }
+    execve(argv[0], argv, g_child_env);
+    _exit(127);
+}
+
+// Find PowerUIAgent PID via sysctl, no subprocess spawn needed. The name alone
+// is spoofable (any user can run a binary called PowerUIAgent and have root
+// lldb attach to it), so also require the executable to live in a trusted
+// system location.
 static pid_t find_powerui_pid(void) {
     int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
     size_t size = 0;
@@ -29,10 +95,15 @@ static pid_t find_powerui_pid(void) {
     int count = (int)(size / sizeof(struct kinfo_proc));
     pid_t found = 0;
     for (int i = 0; i < count; i++) {
-        if (strcmp(procs[i].kp_proc.p_comm, "PowerUIAgent") == 0) {
-            found = procs[i].kp_proc.p_pid;
-            break;
-        }
+        if (strcmp(procs[i].kp_proc.p_comm, "PowerUIAgent") != 0) continue;
+        pid_t pid = procs[i].kp_proc.p_pid;
+        char path[PROC_PIDPATHINFO_MAXSIZE];
+        if (proc_pidpath(pid, path, sizeof(path)) <= 0) continue;
+        const char *base = strrchr(path, '/');
+        if (!base || strcmp(base + 1, "PowerUIAgent") != 0) continue;
+        if (strncmp(path, "/usr/libexec/", 13) != 0 && strncmp(path, "/System/", 8) != 0) continue;
+        found = pid;
+        break;
     }
     free(procs);
     return found;
@@ -84,37 +155,35 @@ static bool ensure_lldb_available(void) {
     snprintf(cand, sizeof(cand), "/Library/Developer/CommandLineTools/usr/bin/lldb");
     if (access(cand, X_OK) == 0) return true;
 
+    // Absolute path + sanitized env: the old popen("xcode-select -p") resolved
+    // the tool through the caller's PATH, which a SUID run inherits from an
+    // unprivileged user (root code execution via a planted xcode-select).
     char xcodepath[512] = {0};
-    FILE *xp = popen("xcode-select -p 2>/dev/null", "r");
-    if (xp) {
-        if (fgets(xcodepath, sizeof(xcodepath), xp)) {
-            size_t n = strlen(xcodepath);
-            while (n > 0 && (xcodepath[n-1] == '\n' || xcodepath[n-1] == ' ')) xcodepath[--n] = '\0';
-            snprintf(cand, sizeof(cand), "%s/usr/bin/lldb", xcodepath);
-            if (access(cand, X_OK) == 0) { pclose(xp); return true; }
-        }
-        pclose(xp);
+    char *const xp_argv[] = { "/usr/bin/xcode-select", "-p", NULL };
+    if (spawn_capture(xp_argv, xcodepath, sizeof(xcodepath)) == 0) {
+        size_t n = strlen(xcodepath);
+        while (n > 0 && (xcodepath[n-1] == '\n' || xcodepath[n-1] == '\r' || xcodepath[n-1] == ' ')) xcodepath[--n] = '\0';
+        snprintf(cand, sizeof(cand), "%s/usr/bin/lldb", xcodepath);
+        if (access(cand, X_OK) == 0) return true;
     }
 
     if (geteuid() != 0) return false; // can't self-install unprivileged
 
+    // The label pipeline is a fixed literal with absolute tool paths, run under
+    // the sanitized environment, so it cannot be hijacked via PATH. The label
+    // is then passed to softwareupdate as an argv element, never interpolated
+    // into a shell string (the old system() interpolated it between quotes).
     char label[256] = {0};
-    FILE *fp = popen("softwareupdate --list 2>/dev/null | awk -F'\\\\*' '/Command Line Tools/{print $1}' | sed 's/^[[:space:]]*//' | head -1", "r");
-    if (fp) {
-        if (fgets(label, sizeof(label), fp)) {
-            size_t n = strlen(label);
-            while (n > 0 && (label[n-1] == '\n' || label[n-1] == ' ')) label[--n] = '\0';
-        }
-        pclose(fp);
-    }
+    char *const list_argv[] = { "/bin/sh", "-c",
+        "/usr/bin/softwareupdate --list 2>/dev/null | /usr/bin/awk -F'\\\\*' '/Command Line Tools/{print $1}' | /usr/bin/sed 's/^[[:space:]]*//' | /usr/bin/head -1",
+        NULL };
+    spawn_capture(list_argv, label, sizeof(label));
+    size_t n = strlen(label);
+    while (n > 0 && (label[n-1] == '\n' || label[n-1] == '\r' || label[n-1] == ' ')) label[--n] = '\0';
     if (label[0] == '\0') return false;
-    // Run detached with ALL fds redirected: a backgrounded softwareupdate that
-    // inherits the caller's stdout would hold the app's read pipe open after
-    // this CLI exits and hang the toggle ("counter counts forever").
-    char cmd[640];
-    snprintf(cmd, sizeof(cmd),
-        "softwareupdate --install \"%s\" --no-scan >/dev/null 2>&1 </dev/null &", label);
-    system(cmd);
+
+    char *const inst_argv[] = { "/usr/bin/softwareupdate", "--install", label, "--no-scan", NULL };
+    spawn_detached(inst_argv);
     return false; // installing asynchronously; this round fails, the next works
 }
 
@@ -126,13 +195,13 @@ static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *scri
     // Root (SUID install) attaches directly; sudo -S is the non-root dev path.
     bool as_root = (geteuid() == 0);
     const char *argv_root[] = {
-        "/usr/bin/lldb", "-p", pid_str,
+        "/usr/bin/lldb", "--no-lldbinit", "-p", pid_str,
         "--batch", "-s", script_path,
         NULL
     };
     const char *argv_sudo[] = {
         "/usr/bin/sudo", "-S",
-        "/usr/bin/lldb", "-p", pid_str,
+        "/usr/bin/lldb", "--no-lldbinit", "-p", pid_str,
         "--batch", "-s", script_path,
         NULL
     };
@@ -147,7 +216,7 @@ static void posix_spawn_and_wait(pid_t agent_pid, int stdin_fd, const char *scri
     posix_spawn_file_actions_adddup2(&actions, devnull, STDERR_FILENO);
 
     pid_t child;
-    if (posix_spawn(&child, exec_path, &actions, NULL, (char *const *)lldb_argv, environ) == 0) {
+    if (posix_spawn(&child, exec_path, &actions, NULL, (char *const *)lldb_argv, g_child_env) == 0) {
         int st;
         while (waitpid(child, &st, 0) < 0 && errno == EINTR) {}
     }
@@ -239,13 +308,13 @@ static void run_lldb_script(const char *script_path) {
     // path is only for non-root dev builds.
     bool as_root = (geteuid() == 0);
     const char *argv_root[] = {
-        "/usr/bin/lldb", "-p", pid_str,
+        "/usr/bin/lldb", "--no-lldbinit", "-p", pid_str,
         "--batch", "-s", script_path,
         NULL
     };
     const char *argv_sudo[] = {
         "/usr/bin/sudo", "-S",
-        "/usr/bin/lldb", "-p", pid_str,
+        "/usr/bin/lldb", "--no-lldbinit", "-p", pid_str,
         "--batch", "-s", script_path,
         NULL
     };
@@ -259,13 +328,13 @@ static void run_lldb_script(const char *script_path) {
     // instead of the void, run `BYP_LLDB_DEBUG=1 byper on` on a failing machine
     // and read /tmp/byp_lldb_debug.log.
     int devnull = getenv("BYP_LLDB_DEBUG")
-        ? open("/tmp/byp_lldb_debug.log", O_WRONLY | O_CREAT | O_APPEND, 0644)
+        ? open("/tmp/byp_lldb_debug.log", O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600)
         : open("/dev/null", O_WRONLY);
     posix_spawn_file_actions_adddup2(&actions, devnull, STDOUT_FILENO);
     posix_spawn_file_actions_adddup2(&actions, devnull, STDERR_FILENO);
 
     pid_t child;
-    if (posix_spawn(&child, exec_path, &actions, NULL, (char *const *)lldb_argv, environ) == 0) {
+    if (posix_spawn(&child, exec_path, &actions, NULL, (char *const *)lldb_argv, g_child_env) == 0) {
         // Reap lldb, but never let a wedged session hold the lock forever:
         // cap the wait at 30 s, then SIGKILL so the next round can proceed.
         int st;
@@ -454,8 +523,19 @@ bool powerui_disable_hold(void) {
 
             // 2. Trigger immediate resume kick via LLDB (handled above)
 
-            // 3. Clean up saved defaults overrides, single PlistBuddy call instead of 5 serial forks
-            system("/usr/libexec/PlistBuddy -c 'Delete :overrideDesktopMode' -c 'Delete :isDesktopModeDevice' -c 'Delete :chargeTokenMCL' -c 'Delete :chargeTokenDEoC' -c 'Delete :reachedTargetSoC' /Library/Preferences/com.apple.PowerUI.plist > /dev/null 2>&1 || true");
+            // 3. Clean up saved defaults overrides. Fixed argv, no shell: the
+            // old system() string ran through /bin/sh in a SUID process.
+            char *const pb_argv[] = {
+                "/usr/libexec/PlistBuddy",
+                "-c", "Delete :overrideDesktopMode",
+                "-c", "Delete :isDesktopModeDevice",
+                "-c", "Delete :chargeTokenMCL",
+                "-c", "Delete :chargeTokenDEoC",
+                "-c", "Delete :reachedTargetSoC",
+                "/Library/Preferences/com.apple.PowerUI.plist",
+                NULL
+            };
+            (void)spawn_capture(pb_argv, NULL, 0); // best effort, like the old "|| true"
 
             // 4. Notify subsystems & kick kernel driver
             notify_post("com.apple.powerui.smartchargestatuschanged");

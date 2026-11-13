@@ -76,35 +76,18 @@ bool battery_get_info(BatteryInfo *info) {
         isChargingCD = get_dict_int(chargerData, CFSTR("IsCharging"), 0);
     }
 
-    // Unbuffered live hardware ammeter from AppleSMC (B0AC)
-    io_iterator_t smcIter;
-    if (IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleSMC"), &smcIter) == kIOReturnSuccess) {
-        io_object_t smcService = IOIteratorNext(smcIter);
-        IOObjectRelease(smcIter);
-        if (smcService) {
-            io_connect_t conn = 0;
-            if (IOServiceOpen(smcService, mach_task_self(), 0, &conn) == kIOReturnSuccess && conn) {
-                struct {
-                    uint32_t key;
-                    uint8_t vers;
-                    uint8_t pLimitData;
-                    uint16_t data8;
-                    uint32_t data32;
-                    uint8_t bytes[32];
-                } inputStruct, outputStruct;
-                memset(&inputStruct, 0, sizeof(inputStruct));
-                memset(&outputStruct, 0, sizeof(outputStruct));
-                size_t structSize = sizeof(outputStruct);
-                inputStruct.key = ('B' << 24) | ('0' << 16) | ('A' << 8) | 'C';
-                inputStruct.vers = 5; // kSMCReadKey
-                if (IOConnectCallStructMethod(conn, 2, &inputStruct, sizeof(inputStruct), &outputStruct, &structSize) == kIOReturnSuccess) {
-                    int16_t smcAmps = (int16_t)((outputStruct.bytes[0] << 8) | outputStruct.bytes[1]);
-                    info->amperage = smcAmps;
-                }
-                IOServiceClose(conn);
-            }
-            IOObjectRelease(smcService);
+    // Unbuffered live hardware ammeter from AppleSMC (B0AC), via the shared SMC
+    // helpers. The old hand-rolled 44-byte struct did not match the kernel's
+    // 80-byte SMCParamStruct (command byte at the wrong offset, wrong input
+    // size), so the read silently failed and fell back to the IORegistry value.
+    io_connect_t amConn = smc_open();
+    if (amConn) {
+        uint8_t abuf[4] = {0};
+        uint32_t asz = 0;
+        if (smc_read_bytes(amConn, "B0AC", abuf, sizeof(abuf), &asz, NULL) && asz >= 2) {
+            info->amperage = (int16_t)((abuf[0] << 8) | abuf[1]);
         }
+        smc_close(amConn);
     }
 
     // Accurate charging state:
@@ -145,7 +128,7 @@ bool battery_get_info(BatteryInfo *info) {
             uint8_t tbuf[32] = {0};
             uint32_t tsz = 0;
             char ttype[5] = {0};
-            if (smc_read_bytes(sConn, "TB0T", tbuf, &tsz, ttype) && tsz == 4) {
+            if (smc_read_bytes(sConn, "TB0T", tbuf, sizeof(tbuf), &tsz, ttype) && tsz == 4) {
                 float ftemp = *(float *)tbuf;
                 if (ftemp > 0.0f && ftemp < 100.0f) {
                     info->temperature = (double)ftemp;

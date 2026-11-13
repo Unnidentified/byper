@@ -13,6 +13,9 @@
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
@@ -54,6 +57,42 @@ static size_t g_session_log_cap = 0;
 static struct termios g_orig_termios;
 static bool g_termios_set = false;
 static volatile bool g_live_running = true;
+
+// Run a fixed argv with a sanitized environment and return the child's exit
+// status. Replaces system() in the SUID path: no shell, no inherited PATH, and
+// a real exit code (system() returns a wait status, so `return system(...)`
+// truncated e.g. 256 to 0 and hid failures).
+static int run_tool(char *const argv[]) {
+    static char *const env[] = { "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=/var/root", NULL };
+    pid_t pid = fork();
+    if (pid < 0) return 1;
+    if (pid == 0) {
+        int dn = open("/dev/null", O_RDWR);
+        if (dn >= 0) {
+            dup2(dn, STDOUT_FILENO);
+            dup2(dn, STDERR_FILENO);
+            if (dn > STDERR_FILENO) close(dn);
+        }
+        execve(argv[0], argv, env);
+        _exit(127);
+    }
+    int st = 0;
+    while (waitpid(pid, &st, 0) < 0 && errno == EINTR) {}
+    return WIFEXITED(st) ? WEXITSTATUS(st) : 1;
+}
+
+// Record the hold flag as a root-owned, non-symlinkable file. The old
+// fopen("/tmp/byp.state", "w") followed symlinks (root overwrite of an arbitrary
+// target) and left an attacker-planted file writable. Unlink any pre-planted
+// entry first (root may unlink in sticky /tmp), then create exclusively.
+static void write_hold_state(void) {
+    unlink("/tmp/byp.state");
+    int fd = open("/tmp/byp.state", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (fd < 0) return;
+    ssize_t w = write(fd, "active\n", 7);
+    (void)w;
+    close(fd);
+}
 
 static void session_log_append(const char *str) {
     if (!str) return;
@@ -285,11 +324,7 @@ static void print_power_breakdown(void) {
 bool engage_bypass_at_any_percentage(void) {
     bool ok = powerui_enable_hold();
     if (ok) {
-        FILE *fp = fopen("/tmp/byp.state", "w");
-        if (fp) {
-            fprintf(fp, "active\n");
-            fclose(fp);
-        }
+        write_hold_state();
     } else {
         unlink("/tmp/byp.state");
     }
@@ -394,27 +429,22 @@ static void handle_live_sig(int sig) {
 }
 
 static int export_session_log(char *out_path, size_t out_path_size) {
-    const char *home = getenv("HOME");
-    const char *sudo_user = getenv("SUDO_USER");
-    if (!sudo_user) sudo_user = getenv("USER");
-    if (!sudo_user) sudo_user = getenv("LOGNAME");
+    // The destination and owner come from the authenticated settings owner,
+    // never from HOME/SUDO_USER/USER/LOGNAME: those are attacker-controlled in
+    // a SUID run and let a caller aim a root write+chown at an arbitrary path
+    // (the old fopen("w") also followed symlinks).
+    const char *home = prefs_user_home();
+    uid_t owner_uid = prefs_user_uid();
+    gid_t owner_gid = prefs_user_gid();
 
-    char user_home[256] = {0};
-    if (sudo_user && strcmp(sudo_user, "root") != 0) {
-        struct passwd *pw = getpwnam(sudo_user);
-        if (pw && pw->pw_dir) {
-            strncpy(user_home, pw->pw_dir, sizeof(user_home) - 1);
-            home = user_home;
-        }
-    }
-
-    if (!home || strcmp(home, "/var/root") == 0 || strcmp(home, "/private/var/root") == 0) {
-        // Portable fallback: a Desktop under the current HOME if it exists, else /tmp.
-        char desktop[512];
-        struct stat st;
-        int n = home ? snprintf(desktop, sizeof(desktop), "%s/Desktop", home) : -1;
-        if (n <= 0 || (size_t)n >= sizeof(desktop) || stat(desktop, &st) != 0) {
-            home = "/tmp";
+    char dir[768];
+    struct stat st;
+    snprintf(dir, sizeof(dir), "%s/Desktop", home);
+    if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        if (home[0] && strcmp(home, "/") != 0 && stat(home, &st) == 0 && S_ISDIR(st.st_mode)) {
+            snprintf(dir, sizeof(dir), "%s", home);
+        } else {
+            snprintf(dir, sizeof(dir), "/tmp");
         }
     }
 
@@ -423,24 +453,22 @@ static int export_session_log(char *out_path, size_t out_path_size) {
     char timestr[64];
     strftime(timestr, sizeof(timestr), "%Y%m%d-%H%M%S", tm_info);
 
-    snprintf(out_path, out_path_size, "%s/Desktop/byper-session-%s.txt", home, timestr);
+    snprintf(out_path, out_path_size, "%s/byper-session-%s.txt", dir, timestr);
 
     if (g_session_log_len == 0) {
         log_step_record("export", "session snapshot");
     }
 
-    FILE *fp = fopen(out_path, "w");
-    if (!fp) return -1;
+    int fd = open(out_path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (fd < 0) return -1;
+    if (geteuid() == 0) {
+        (void)fchown(fd, owner_uid, owner_gid);
+    }
+    FILE *fp = fdopen(fd, "w");
+    if (!fp) { close(fd); unlink(out_path); return -1; }
 
     fwrite(g_session_log, 1, g_session_log_len, fp);
     fclose(fp);
-
-    if (sudo_user) {
-        struct passwd *pw = getpwnam(sudo_user);
-        if (pw) {
-            chown(out_path, pw->pw_uid, pw->pw_gid);
-        }
-    }
 
     int line_count = 0;
     for (size_t i = 0; i < g_session_log_len; i++) {
@@ -1471,6 +1499,7 @@ static int handle_toggle(void) {
     }
 
     BatteryInfo bAfter;
+    memset(&bAfter, 0, sizeof(bAfter));
     if (isHold) {
         for (int poll = 0; poll < 5; poll++) {
             if (battery_get_info(&bAfter)) {
@@ -1495,23 +1524,40 @@ static int handle_toggle(void) {
     gettimeofday(&tv_end, NULL);
     double elapsed_sec = (tv_end.tv_sec - tv_start.tv_sec) + (tv_end.tv_usec - tv_start.tv_usec) / 1000000.0;
 
-    // The toggle has no truth table verdict of its own, so it does not record
-    // a mode in the shared settings. `on` and `off` do, after they verify.
+    // Hardware truth table, the same gate as `on`/`off`: never print a blind
+    // checkmark. The toggle does not record a mode in the shared settings.
+    battery_get_info(&bAfter);
+    bool verified;
+    if (isHold) {
+        verified = bAfter.acAttached && (bAfter.isCharging || bAfter.notChargingReason == 0);
+    } else {
+        verified = bAfter.acAttached && !bAfter.isCharging && abs(bAfter.amperage) < 100 &&
+                   (((bAfter.notChargingReason & 0x01000000) != 0) || bAfter.percentage >= 95);
+    }
+
+    if (!verified) {
+        if (isatty(STDOUT_FILENO)) {
+            printf(CLR_YELLOW "[FAIL]" CLR_RESET " state change not confirmed after " CLR_BRIGHT "%.1f s" CLR_RESET "\n", elapsed_sec);
+        } else {
+            printf("[FAIL] state change not confirmed after %.1f s\n", elapsed_sec);
+        }
+        return 1;
+    }
+
     if (isHold) {
         if (isatty(STDOUT_FILENO)) {
             printf(CLR_GREEN "charging" CLR_RESET " resumed [" CLR_GREEN "%+d mA" CLR_RESET "] " CLR_BRIGHT "%.1f s" CLR_RESET "\n", bAfter.amperage, elapsed_sec);
         } else {
             printf("charging resumed [%+d mA] %.1f s\n", bAfter.amperage, elapsed_sec);
         }
-        return 0;
     } else {
         if (isatty(STDOUT_FILENO)) {
             printf("bypass charging enabled " CLR_BRIGHT "[✓]" CLR_RESET " " CLR_BRIGHT "%.1f s" CLR_RESET "\n", elapsed_sec);
         } else {
             printf("bypass charging enabled [✓] %.1f s\n", elapsed_sec);
         }
-        return 0;
     }
+    return 0;
 }
 
 // MARK: - Shared settings commands
@@ -2108,8 +2154,16 @@ static void print_usage(const char *prog) {
 
 int main(int argc, char *argv[]) {
     prefs_init(getuid());
-    setuid(0);
-    seteuid(0);
+    // Escalate for the SUID install. A non-SUID dev build cannot (and runs
+    // unprivileged), so only treat a failure as fatal when we expected root.
+    // Check the returns: proceeding on a failed setuid would run with
+    // unexpected privileges.
+    if (geteuid() == 0) {
+        if (setuid(0) != 0 || seteuid(0) != 0) {
+            fprintf(stderr, "byper: failed to acquire root privileges\n");
+            return 1;
+        }
+    }
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
@@ -2183,11 +2237,12 @@ int main(int argc, char *argv[]) {
     // LOW POWER MODE (lpm, lowpower)
     if (strcmp(cmd, "lpm") == 0 || strcmp(cmd, "lowpower") == 0) {
         if (argc > 2) {
-            setuid(0);
             if (strcmp(argv[2], "1") == 0 || strcmp(argv[2], "on") == 0 || strcmp(argv[2], "true") == 0) {
-                return system("/usr/bin/pmset -a lowpowermode 1");
+                char *const a[] = { "/usr/bin/pmset", "-a", "lowpowermode", "1", NULL };
+                return run_tool(a);
             } else if (strcmp(argv[2], "0") == 0 || strcmp(argv[2], "off") == 0 || strcmp(argv[2], "false") == 0) {
-                return system("/usr/bin/pmset -a lowpowermode 0");
+                char *const a[] = { "/usr/bin/pmset", "-a", "lowpowermode", "0", NULL };
+                return run_tool(a);
             }
         }
         return 1;

@@ -12,7 +12,7 @@ static float read_smc_float(io_connect_t conn, const char *key) {
     if (!conn) return 0.0f;
     uint8_t buf[4] = {0};
     uint32_t sz = 0;
-    if (smc_read_bytes(conn, key, buf, &sz, NULL)) {
+    if (smc_read_bytes(conn, key, buf, sizeof(buf), &sz, NULL)) {
         float f = 0.0f;
         memcpy(&f, buf, 4);
         return f;
@@ -47,9 +47,9 @@ bool power_sample_breakdown(PowerBreakdown *pb) {
 
         uint8_t buf[2];
         uint32_t sz;
-        if (smc_read_bytes(conn, "BC1V", buf, &sz, NULL)) pb->cell1_mv = (buf[1] << 8) | buf[0];
-        if (smc_read_bytes(conn, "BC2V", buf, &sz, NULL)) pb->cell2_mv = (buf[1] << 8) | buf[0];
-        if (smc_read_bytes(conn, "BC3V", buf, &sz, NULL)) pb->cell3_mv = (buf[1] << 8) | buf[0];
+        if (smc_read_bytes(conn, "BC1V", buf, sizeof(buf), &sz, NULL)) pb->cell1_mv = (buf[1] << 8) | buf[0];
+        if (smc_read_bytes(conn, "BC2V", buf, sizeof(buf), &sz, NULL)) pb->cell2_mv = (buf[1] << 8) | buf[0];
+        if (smc_read_bytes(conn, "BC3V", buf, sizeof(buf), &sz, NULL)) pb->cell3_mv = (buf[1] << 8) | buf[0];
 
         smc_close(conn);
     }
