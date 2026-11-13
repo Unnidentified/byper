@@ -11,7 +11,7 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
-<img src="docs/images/popover-collapsed.png" width="480" align="left" alt="The byper popover collapsed: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
+<img src="docs/images/popover-collapsed.png" width="480" align="left" style="margin-bottom: 1.5em;" alt="The byper popover collapsed: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
 
 ### Preview of the menu ui
 
@@ -23,7 +23,7 @@ Settings includes: a bypass (on-connect/at-login/on-display-connect) button and 
 
 <br clear="left">
 
-<img src="docs/images/popover-expanded.png" width="480" align="left" alt="The same popover with the bypass, powersave and caffeinate rows expanded, showing the off on exit, per app and caffeinate condition checkboxes">
+<img src="docs/images/popover-expanded.png" width="480" align="left" style="margin-bottom: 1.5em;" alt="The same popover with the bypass, powersave and caffeinate rows expanded, showing the off on exit, per app and caffeinate condition checkboxes">
 
 ### Expanded rows
 
