@@ -11,8 +11,11 @@ You don't need to build it locally, you can just click on actions > [build](#bui
 
 <img src="docs/images/menu-bar-icon.png" alt="The byper menu bar icon across charge levels, charging, bypass and low power mode, on a light and a dark menu bar" width="100%" />
 
+&nbsp;
+
 <img src="docs/images/popover-collapsed.png" width="480" align="left" alt="The byper popover collapsed: the master slider on the left, the battery temperature graph, the adapter readout, and the four rows for bypass, powersave, caffeinate and settings">
-<br>
+
+&nbsp;
 
 ### Preview of the menu ui
 
@@ -24,8 +27,11 @@ Settings includes: a bypass (on-connect/at-login/on-display-connect) button and 
 
 <br clear="left">
 
+&nbsp;
+
 <img src="docs/images/popover-expanded.png" width="480" align="left" alt="The same popover with the bypass, powersave and caffeinate rows expanded, showing the off on exit, per app and caffeinate condition checkboxes">
-<br>
+
+&nbsp;
 
 ### Expanded rows
 
@@ -170,7 +176,6 @@ Or grab `byper-installer-<version>.pkg` from [Releases](https://github.com/Unnid
 ## How to uninstall
 
 Run the .pkg and choose `Uninstall` (its postinstall removes every trace, including settings), or remove the paths in [Project layout](#project-layout) by hand and clear `~/Library/{Preferences/com.gefaass.byper.plist, Caches/com.gefaass.byper, Saved Application State/com.gefaass.byper.savedState}`.
-
 
 ---
 
